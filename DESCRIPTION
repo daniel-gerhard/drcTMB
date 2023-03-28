@@ -1,0 +1,17 @@
+Package: drcTMB
+Title: Fitting dose-response curves using the Template Model Builder
+Version: 0.0.0.9000
+Authors@R: 
+    person("Daniel", "Gerhard", , "00gerhard@gmail.com", role = c("aut", "cre"),
+           comment = c(ORCID = "0000-0002-9336-3454"))
+Description: Provides a simple user-interface for fitting non-linear mixed-effects models for dose-response analysis.
+License: GPL (>=2)
+Encoding: UTF-8
+Roxygen: list(markdown = TRUE)
+RoxygenNote: 7.2.3
+Imports: 
+    Matrix,
+    lme4,
+    TMB (>= 1.9.2)
+LinkingTo: 
+    TMB
