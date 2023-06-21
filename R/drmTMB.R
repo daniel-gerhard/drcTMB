@@ -119,7 +119,12 @@ drmTMB <- function(form, fform=NULL, rform=NULL, data, start=NULL, fix=NULL, fam
     }
   }
   obj$hessian <- TRUE
-  opt <- do.call("optim", obj)
+  #opt <- do.call("optim", obj)
+  if (is.null(rform)){
+    opt <- nlminb(start=obj$par, objective=obj$fn, gradient=obj$gr, hessian=obj$he)
+  } else {
+    opt <- nlminb(start=obj$par, objective=obj$fn, gradient=obj$gr)
+  }
   res <- list()
   res$family <- family
   res$model <- model
