@@ -19,9 +19,9 @@ Type drcL5(objective_function<Type>* obj) {
   PARAMETER_VECTOR(b4);
   PARAMETER_VECTOR(b5); 
   PARAMETER_VECTOR(u);
+  PARAMETER_VECTOR(theta);  
   PARAMETER(log_sigma);
-  PARAMETER_VECTOR(theta);
-  
+
   Type sigma = exp(log_sigma);
   ADREPORT(sigma);
 

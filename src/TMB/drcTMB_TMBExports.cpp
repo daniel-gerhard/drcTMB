@@ -6,6 +6,8 @@
 #include "drcL5fix.hpp"
 #include "drcL5pois.hpp"
 #include "drcL5poisfix.hpp"
+#include "drcL5binom.hpp"
+#include "drcL5binomfix.hpp"
 
 template<class Type>
 Type objective_function<Type>::operator() () {
@@ -18,6 +20,10 @@ Type objective_function<Type>::operator() () {
     return drcL5pois(this);
   } else if(model == "drcL5poisfix") {
     return drcL5poisfix(this);
+  } else if(model == "drcL5binom") {
+    return drcL5binom(this);
+  } else if(model == "drcL5binomfix") {
+    return drcL5binomfix(this);
   } else {
     Rf_error("Unknown model.");
   }

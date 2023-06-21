@@ -40,12 +40,20 @@ drmTMB <- function(form, fform=NULL, rform=NULL, data, start=NULL, fix=NULL, fam
     rcoefs <- all.vars(rformlh)
     ind <- as.numeric(paste("b", 1:5, sep="") %in% rcoefs)
   }
+  # response
+  y <- mr <- model.response(mf, "any")
+  if (family == "binomial" & ncol(as.matrix(mr)) == 2){
+    bn <- mr[,1] + mr[,2]
+    y <- mr[,1]
+  } else {
+    bn <- rep(0, length(y))  
+  }
   
   # data list for TMB
   if (is.null(rform)){
-    dlist <- list(y=mf[,1], x=mf[,2])
+    dlist <- list(y=y, x=mf[,2], bn=bn)
   } else {
-    dlist <- list(y=mf[,1], x=mf[,2], ind=ind, z0=rep(0, nrow(data)), Z=Z)
+    dlist <- list(y=y, x=mf[,2], bn=bn, ind=ind, z0=rep(0, nrow(data)), Z=Z)
   }
   datalist <- c(dlist, Xs)
   
@@ -72,12 +80,12 @@ drmTMB <- function(form, fform=NULL, rform=NULL, data, start=NULL, fix=NULL, fam
   } else {
     nvc <- sum(ind > 0)
     m <- ncol(Z)
-    vtheta <- rep(1, nvc)
+    vtheta <- rep(0.001, nvc)
     ctheta <- rep(0, nvc*(nvc-1)/2)
     stheta <- c(vtheta, ctheta)
     up <- matrix(rnorm(nvc*m, 0, rep(vtheta, each=m)), ncol=nvc)
     parameters <- list(b1=sb1, b2=sb2, b3=sb3, b4=sb4, b5=sb5, u=as.vector(up), theta=stheta)
-    if (family == "gaussian") parameters <- c(parameters, list(log_sigma=1))
+    if (family == "gaussian") parameters <- c(parameters, list(log_sigma=0))
   }
   
   # fix parameters to starting values
@@ -85,9 +93,11 @@ drmTMB <- function(form, fform=NULL, rform=NULL, data, start=NULL, fix=NULL, fam
     if (is.null(rform)){
       if (family == "gaussian") obj <- MakeADFun(c(model = "drcL5fix", datalist), parameters, DLL="drcTMB_TMBExports")
       if (family == "poisson") obj <- MakeADFun(c(model = "drcL5poisfix", datalist), parameters, DLL="drcTMB_TMBExports")
+      if (family == "binomial") obj <- MakeADFun(c(model = "drcL5binomfix", datalist), parameters, DLL="drcTMB_TMBExports")
     } else {
       if (family == "gaussian") obj <- MakeADFun(c(model = "drcL5", datalist), parameters, random="u", DLL="drcTMB_TMBExports")
       if (family == "poisson") obj <- MakeADFun(c(model = "drcL5pois", datalist), parameters, random="u", DLL="drcTMB_TMBExports")
+      if (family == "binomial") obj <- MakeADFun(c(model = "drcL5binom", datalist), parameters, random="u", DLL="drcTMB_TMBExports")
     }
   } else {
     lmap <- vector("list", 5)
@@ -101,9 +111,11 @@ drmTMB <- function(form, fform=NULL, rform=NULL, data, start=NULL, fix=NULL, fam
     if (is.null(rform)){
       if (family == "gaussian") obj <- MakeADFun(c(model = "drcL5fix", datalist), parameters, DLL="drcTMB_TMBExports", map=lmap)
       if (family == "poisson") obj <- MakeADFun(c(model = "drcL5poisfix", datalist), parameters, DLL="drcTMB_TMBExports", map=lmap)
+      if (family == "binomial") obj <- MakeADFun(c(model = "drcL5binomfix", datalist), parameters, DLL="drcTMB_TMBExports", map=lmap)
     } else {
       if (family == "gaussian") obj <- MakeADFun(c(model = "drcL5", datalist), parameters, random="u", DLL="drcTMB_TMBExports", map=lmap)
       if (family == "poisson") obj <- MakeADFun(c(model = "drcL5pois", datalist), parameters, random="u", DLL="drcTMB_TMBExports", map=lmap)
+      if (family == "binomial") obj <- MakeADFun(c(model = "drcL5binom", datalist), parameters, random="u", DLL="drcTMB_TMBExports", map=lmap)
     }
   }
   obj$hessian <- TRUE
