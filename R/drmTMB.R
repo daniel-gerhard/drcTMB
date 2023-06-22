@@ -6,13 +6,15 @@
 #' @param data a data.frame object
 #' @param start a vector with starting values for each model parameter. If NA a self-starting function is called.
 #' @param fix a binary vector with same length as start. If TRUE, a model coefficient is fixed to the starting value.
+#' @param lower vector of lower bounds, passed to nlminb.
+#' @param upper vector of upper bounds, passed to nlminb.
 #' @param family Specify the distributional assumptions. One of "gaussian" and "poisson".
 #' @param model Specify the nonlinear model. "L5".
 #'
 #' @return A drmTMB object
 #' @useDynLib drmTMB
 
-drmTMB <- function(form, fform=NULL, rform=NULL, data, start=NULL, fix=NULL, family="gaussian", model="L5"){
+drmTMB <- function(form, fform=NULL, rform=NULL, data, start=NULL, fix=NULL, lower=-Inf, upper=Inf, family="gaussian", model="L5"){
   # response
   mf <- model.frame(form, data=data)
   # fixed effects
@@ -121,9 +123,9 @@ drmTMB <- function(form, fform=NULL, rform=NULL, data, start=NULL, fix=NULL, fam
   obj$hessian <- TRUE
   #opt <- do.call("optim", obj)
   if (is.null(rform)){
-    opt <- nlminb(start=obj$par, objective=obj$fn, gradient=obj$gr, hessian=obj$he)
+    opt <- nlminb(start=obj$par, objective=obj$fn, gradient=obj$gr, hessian=obj$he, lower=lower, upper=upper)
   } else {
-    opt <- nlminb(start=obj$par, objective=obj$fn, gradient=obj$gr)
+    opt <- nlminb(start=obj$par, objective=obj$fn, gradient=obj$gr, lower=lower, upper=upper)
   }
   res <- list()
   res$family <- family

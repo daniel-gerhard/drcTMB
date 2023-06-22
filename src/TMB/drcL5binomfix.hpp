@@ -27,12 +27,12 @@ Type drcL5binomfix(objective_function<Type>* obj) {
   
   Type fl;
   Type f;
-  
+
   int i;
   for (i=0; i < y.size(); i++){
     fl = exp(Xb3(i)*(x(i) - Xb4(i)));
     f = Xb2(i) + (Xb1(i) - Xb2(i)) / (1 + pow(fl, Xb5(i)));
-    nll += -dbinom_robust(y(i), bn(i), f, true);
+    nll += -dbinom(y(i), bn(i), f, true);
   }
   return nll;
 }

@@ -85,14 +85,14 @@ Type drcL5binom(objective_function<Type>* obj) {
 
   int i;
   for (i=0; i < y.size(); i++){
-    f1 = Xb1(i) + Zu1(i);
-    f2 = Xb2(i) + Zu2(i);
+    f1 = 1/(1 + exp(-1*(Xb1(i) + Zu1(i))));
+    f2 = 1/(1 + exp(-1*(Xb2(i) + Zu2(i))));
     f3 = Xb3(i) + Zu3(i);
     f4 = Xb4(i) + Zu4(i);
     f5 = Xb5(i) + Zu5(i);
     fl = exp(f3*(x(i) - f4));
     f = f2 + (f1 - f2) / (1 + pow(fl, f5));
-    nll += -dbinom_robust(y(i), bn(i), f, true);
+    nll += -dbinom(y(i), bn(i), f, true);
   }
   return nll;
 }

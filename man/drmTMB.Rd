@@ -11,6 +11,8 @@ drmTMB(
   data,
   start = NULL,
   fix = NULL,
+  lower = -Inf,
+  upper = Inf,
   family = "gaussian",
   model = "L5"
 )
@@ -27,6 +29,10 @@ drmTMB(
 \item{start}{a vector with starting values for each model parameter. If NA a self-starting function is called.}
 
 \item{fix}{a binary vector with same length as start. If TRUE, a model coefficient is fixed to the starting value.}
+
+\item{lower}{vector of lower bounds, passed to nlminb.}
+
+\item{upper}{vector of upper bounds, passed to nlminb.}
 
 \item{family}{Specify the distributional assumptions. One of "gaussian" and "poisson".}
 
