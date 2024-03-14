@@ -9,7 +9,7 @@
 #' @param lower vector of lower bounds, passed to nlminb.
 #' @param upper vector of upper bounds, passed to nlminb.
 #' @param family Specify the distributional assumptions. One of "gaussian", "binomial", and "poisson".
-#' @param model Specify the nonlinear model. "L5".
+#' @param model Specify the nonlinear model. One of "logistic", "loglogistic", "weibull1", "weibull2", "lognormal".
 #'
 #' @return A drmTMB object
 #' @useDynLib drmTMB
