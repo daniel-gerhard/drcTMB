@@ -8,6 +8,8 @@
 #include "drcpoisfix.hpp"
 #include "drcbinom.hpp"
 #include "drcbinomfix.hpp"
+#include "drcbeta.hpp"
+#include "drcbetafix.hpp"
 
 template<class Type>
 Type objective_function<Type>::operator() () {
@@ -24,6 +26,10 @@ Type objective_function<Type>::operator() () {
     return drcbinom(this);
   } else if(model == "drcbinomfix") {
     return drcbinomfix(this);
+  } else if(model == "drcbeta") {
+    return drcbeta(this);
+  } else if(model == "drcbetafix") {
+    return drcbetafix(this);
   } else {
     Rf_error("Unknown model.");
   }
