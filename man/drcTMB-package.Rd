@@ -2,7 +2,6 @@
 % Please edit documentation in R/drcTMB-package.R, R/drcTMBtest-package.R
 \docType{package}
 \name{drcTMB-package}
-\alias{drcTMB}
 \alias{drcTMB-package}
 \title{drcTMB: Fitting dose-response curves using the Template Model Builder}
 \description{

@@ -4,6 +4,7 @@
 template<class Type>
 Type drcpoisfix(objective_function<Type>* obj) {
   DATA_INTEGER(mod); 
+  DATA_INTEGER(lnk); 
   DATA_VECTOR(y);
   DATA_VECTOR(x);
   DATA_MATRIX(X1);
@@ -27,30 +28,46 @@ Type drcpoisfix(objective_function<Type>* obj) {
   
   Type fl;
   Type f;
+  Type f1;
+  Type f2;
   
   int i;
   for (i=0; i < y.size(); i++){
+    switch (lnk){
+    case 1:
+      f1 = Xb1(i);
+      f2 = Xb2(i);
+      break;
+    case 2:
+      f1 = exp(Xb1(i));
+      f2 = exp(Xb2(i));
+      break;
+    case 3:
+      f1 = 1/(1 + exp(-1*(Xb1(i))));
+      f2 = 1/(1 + exp(-1*(Xb2(i))));
+      break;
+    }
     switch (mod){
     case 1:
       fl = exp(Xb3(i)*(x(i) - Xb4(i)));
-      f = Xb2(i) + (Xb1(i) - Xb2(i)) / (1 + pow(fl, Xb5(i)));
+      f = f2 + (f1 - f2) / (1 + pow(fl, Xb5(i)));
       break;
     case 2:
       fl = exp(Xb3(i)*(log(x(i)) - log(Xb4(i))));
-      f = Xb2(i) + (Xb1(i) - Xb2(i)) / (1 + pow(fl, Xb5(i)));
+      f = f2 + (f1 - f2) / (1 + pow(fl, Xb5(i)));
       break;
     case 3:
       fl = exp(-1*exp(Xb3(i)*(log(x(i)) - log(Xb4(i)))));
-      f = Xb2(i) + (Xb1(i) - Xb2(i)) * fl;
+      f = f2 + (f1 - f2) * fl;
       break;
     case 4:
       fl = 1 - exp(-1*exp(Xb3(i)*(log(x(i)) - log(Xb4(i)))));
-      f = Xb2(i) + (Xb1(i) - Xb2(i)) * fl;
+      f = f2 + (f1 - f2) * fl;
       break;
     case 5:
       fl = Xb3(i)*(log(x(i)) - log(Xb4(i)));
-      f = Xb2(i) + (Xb1(i) - Xb2(i)) * pnorm(fl);
-      break;
+      f = f2 + (f1 - f2) * pnorm(fl);
+      break;  
     }
     nll += -dpois(y(i), f, true);
   }

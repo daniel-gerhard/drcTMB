@@ -4,6 +4,7 @@
 template<class Type>
 Type drcpois(objective_function<Type>* obj) {
   DATA_INTEGER(mod); 
+  DATA_INTEGER(lnk); 
   DATA_IVECTOR(ind);
   DATA_VECTOR(y);
   DATA_VECTOR(x);
@@ -85,8 +86,20 @@ Type drcpois(objective_function<Type>* obj) {
   
   int i;
   for (i=0; i < y.size(); i++){
-    f1 = Xb1(i) + Zu1(i);
-    f2 = Xb2(i) + Zu2(i);
+    switch (lnk){
+    case 1:
+      f1 = Xb1(i) + Zu1(i);
+      f2 = Xb2(i) + Zu2(i);
+      break;
+    case 2:
+      f1 = exp(Xb1(i) + Zu1(i));
+      f2 = exp(Xb2(i) + Zu2(i));
+      break;
+    case 3:
+      f1 = 1/(1 + exp(-1*(Xb1(i) + Zu1(i))));
+      f2 = 1/(1 + exp(-1*(Xb2(i) + Zu2(i))));
+      break;
+    }
     f3 = Xb3(i) + Zu3(i);
     f4 = Xb4(i) + Zu4(i);
     f5 = Xb5(i) + Zu5(i);

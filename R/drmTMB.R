@@ -10,11 +10,12 @@
 #' @param upper vector of upper bounds, passed to nlminb.
 #' @param family Specify the distributional assumptions. One of "gaussian", "binomial", "beta", and "poisson".
 #' @param model Specify the nonlinear model. One of "logistic", "loglogistic", "weibull1", "weibull2", "lognormal".
+#' @param link Specify the link function for estimating asymptote parameters. One of "identity", "log", "logit". 
 #'
 #' @return A drmTMB object
 #' @useDynLib drmTMB
 
-drmTMB <- function(form, fform=NULL, rform=NULL, data, start=NULL, fix=NULL, lower=-Inf, upper=Inf, family="gaussian", model="L5"){
+drmTMB <- function(form, fform=NULL, rform=NULL, data, start=NULL, fix=NULL, lower=-Inf, upper=Inf, family="gaussian", model="L5", link="identity"){
   # response
   mf <- model.frame(form, data=data)
   # fixed effects
@@ -33,6 +34,7 @@ drmTMB <- function(form, fform=NULL, rform=NULL, data, start=NULL, fix=NULL, low
   
   # model
   mod <- which(model == c("logistic", "loglogistic", "weibull1", "weibull2", "lognormal"))
+  lnk <- which(link == c("identity", "log", "logit"))
   
   # random effects
   if (!is.null(rform)){
@@ -58,9 +60,9 @@ drmTMB <- function(form, fform=NULL, rform=NULL, data, start=NULL, fix=NULL, low
   
   # data list for TMB
   if (is.null(rform)){
-    dlist <- list(y=y, x=mf[,2], bn=bn, mod=mod)
+    dlist <- list(y=y, x=mf[,2], bn=bn, mod=mod, lnk=lnk)
   } else {
-    dlist <- list(y=y, x=mf[,2], bn=bn, mod=mod, ind=ind, z0=rep(0, nrow(data)), Z=Z)
+    dlist <- list(y=y, x=mf[,2], bn=bn, mod=mod, lnk=lnk, ind=ind, z0=rep(0, nrow(data)), Z=Z)
   }
   datalist <- c(dlist, Xs)
   
@@ -141,6 +143,7 @@ drmTMB <- function(form, fform=NULL, rform=NULL, data, start=NULL, fix=NULL, low
   res <- list()
   res$family <- family
   res$model <- model
+  res$link <- link
   res$start <- start
   res$fix <- fix
   res$Xs <- Xs

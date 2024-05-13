@@ -14,7 +14,8 @@ drmTMB(
   lower = -Inf,
   upper = Inf,
   family = "gaussian",
-  model = "L5"
+  model = "L5",
+  link = "identity"
 )
 }
 \arguments{
@@ -34,9 +35,11 @@ drmTMB(
 
 \item{upper}{vector of upper bounds, passed to nlminb.}
 
-\item{family}{Specify the distributional assumptions. One of "gaussian" and "poisson".}
+\item{family}{Specify the distributional assumptions. One of "gaussian", "binomial", "beta", and "poisson".}
 
-\item{model}{Specify the nonlinear model. "L5".}
+\item{model}{Specify the nonlinear model. One of "logistic", "loglogistic", "weibull1", "weibull2", "lognormal".}
+
+\item{link}{Specify the link function for estimating asymptote parameters. One of "identity", "log", "logit".}
 }
 \value{
 A drmTMB object
