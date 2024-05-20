@@ -102,15 +102,15 @@ drmTMB <- function(form, fform=NULL, rform=NULL, data, start=NULL, fix=NULL, low
   # fix parameters to starting values
   if (!any(fix)){
     if (is.null(rform)){
-      if (family == "gaussian") obj <- MakeADFun(c(model = "drcnormfix", datalist), parameters, DLL="drcTMB_TMBExports")
-      if (family == "poisson") obj <- MakeADFun(c(model = "drcpoisfix", datalist), parameters, DLL="drcTMB_TMBExports")
-      if (family == "binomial") obj <- MakeADFun(c(model = "drcbinomfix", datalist), parameters, DLL="drcTMB_TMBExports")
-      if (family == "beta") obj <- MakeADFun(c(model = "drcbetafix", datalist), parameters, DLL="drcTMB_TMBExports")     
+      if (family == "gaussian") obj <- MakeADFun(c(model = "drcnormfix", datalist), parameters, DLL="drcTMB_TMBExports", silent=TRUE)
+      if (family == "poisson") obj <- MakeADFun(c(model = "drcpoisfix", datalist), parameters, DLL="drcTMB_TMBExports", silent=TRUE)
+      if (family == "binomial") obj <- MakeADFun(c(model = "drcbinomfix", datalist), parameters, DLL="drcTMB_TMBExports", silent=TRUE)
+      if (family == "beta") obj <- MakeADFun(c(model = "drcbetafix", datalist), parameters, DLL="drcTMB_TMBExports", silent=TRUE)     
     } else {
-      if (family == "gaussian") obj <- MakeADFun(c(model = "drcnorm", datalist), parameters, random="u", DLL="drcTMB_TMBExports")
-      if (family == "poisson") obj <- MakeADFun(c(model = "drcpois", datalist), parameters, random="u", DLL="drcTMB_TMBExports")
-      if (family == "binomial") obj <- MakeADFun(c(model = "drcbinom", datalist), parameters, random="u", DLL="drcTMB_TMBExports")
-      if (family == "beta") obj <- MakeADFun(c(model = "drcbeta", datalist), parameters, random="u", DLL="drcTMB_TMBExports")
+      if (family == "gaussian") obj <- MakeADFun(c(model = "drcnorm", datalist), parameters, random="u", DLL="drcTMB_TMBExports", silent=TRUE)
+      if (family == "poisson") obj <- MakeADFun(c(model = "drcpois", datalist), parameters, random="u", DLL="drcTMB_TMBExports", silent=TRUE)
+      if (family == "binomial") obj <- MakeADFun(c(model = "drcbinom", datalist), parameters, random="u", DLL="drcTMB_TMBExports", silent=TRUE)
+      if (family == "beta") obj <- MakeADFun(c(model = "drcbeta", datalist), parameters, random="u", DLL="drcTMB_TMBExports", silent=TRUE)
     }
   } else {
     lmap <- vector("list", 5)
@@ -122,15 +122,15 @@ drmTMB <- function(form, fform=NULL, rform=NULL, data, start=NULL, fix=NULL, low
     }
     lmap <- lapply(lmap, function(x) as.factor(x))
     if (is.null(rform)){
-      if (family == "gaussian") obj <- MakeADFun(c(model = "drcnormfix", datalist), parameters, DLL="drcTMB_TMBExports", map=lmap)
-      if (family == "poisson") obj <- MakeADFun(c(model = "drcpoisfix", datalist), parameters, DLL="drcTMB_TMBExports", map=lmap)
-      if (family == "binomial") obj <- MakeADFun(c(model = "drcbinomfix", datalist), parameters, DLL="drcTMB_TMBExports", map=lmap)
-      if (family == "beta") obj <- MakeADFun(c(model = "drcbetafix", datalist), parameters, DLL="drcTMB_TMBExports", map=lmap)
+      if (family == "gaussian") obj <- MakeADFun(c(model = "drcnormfix", datalist), parameters, DLL="drcTMB_TMBExports", map=lmap, silent=TRUE)
+      if (family == "poisson") obj <- MakeADFun(c(model = "drcpoisfix", datalist), parameters, DLL="drcTMB_TMBExports", map=lmap, silent=TRUE)
+      if (family == "binomial") obj <- MakeADFun(c(model = "drcbinomfix", datalist), parameters, DLL="drcTMB_TMBExports", map=lmap, silent=TRUE)
+      if (family == "beta") obj <- MakeADFun(c(model = "drcbetafix", datalist), parameters, DLL="drcTMB_TMBExports", map=lmap, silent=TRUE)
     } else {
-      if (family == "gaussian") obj <- MakeADFun(c(model = "drcnorm", datalist), parameters, random="u", DLL="drcTMB_TMBExports", map=lmap)
-      if (family == "poisson") obj <- MakeADFun(c(model = "drcpois", datalist), parameters, random="u", DLL="drcTMB_TMBExports", map=lmap)
-      if (family == "binomial") obj <- MakeADFun(c(model = "drcbinom", datalist), parameters, random="u", DLL="drcTMB_TMBExports", map=lmap)
-      if (family == "beta") obj <- MakeADFun(c(model = "drcbeta", datalist), parameters, random="u", DLL="drcTMB_TMBExports", map=lmap)
+      if (family == "gaussian") obj <- MakeADFun(c(model = "drcnorm", datalist), parameters, random="u", DLL="drcTMB_TMBExports", map=lmap, silent=TRUE)
+      if (family == "poisson") obj <- MakeADFun(c(model = "drcpois", datalist), parameters, random="u", DLL="drcTMB_TMBExports", map=lmap, silent=TRUE)
+      if (family == "binomial") obj <- MakeADFun(c(model = "drcbinom", datalist), parameters, random="u", DLL="drcTMB_TMBExports", map=lmap, silent=TRUE)
+      if (family == "beta") obj <- MakeADFun(c(model = "drcbeta", datalist), parameters, random="u", DLL="drcTMB_TMBExports", map=lmap, silent=TRUE)
     }
   }
   obj$hessian <- TRUE
