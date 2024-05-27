@@ -1,4 +1,4 @@
-#' Title
+#' drmTMB Methods
 #'
 #' @param x a drmTMB object
 #' @param ... anything else

@@ -2,7 +2,7 @@
 % Please edit documentation in R/drmTMBmethods.R
 \name{print.drmTMB}
 \alias{print.drmTMB}
-\title{Title}
+\title{drmTMB Methods}
 \usage{
 \method{print}{drmTMB}(x, ...)
 }
@@ -15,5 +15,5 @@
 Estimated model coefficients
 }
 \description{
-Title
+drmTMB Methods
 }
