@@ -141,12 +141,15 @@ drmTMB <- function(form, fform=NULL, rform=NULL, data, start=NULL, fix=NULL, low
     opt <- nlminb(start=obj$par, objective=obj$fn, gradient=obj$gr, lower=lower, upper=upper)
   }
   res <- list()
+  res$data <- data
+  res$formula <- form
   res$family <- family
   res$model <- model
   res$link <- link
   res$start <- start
   res$fix <- fix
   res$Xs <- Xs
+  res$fform <- fform
   res$rform <- rform
   res$estimates <- opt$par
   res$opt <- opt
