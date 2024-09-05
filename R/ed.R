@@ -1,12 +1,12 @@
 #' Effective dose estimation
-#' 
+#'
 #' @param x a drmTMB object
 #' @param respLev effective dose level
 #'
 #' @return a vector with estimates
 #' @export
 #'
-ed <- function(x, respLev){
+ed <- function(x, respLev){ 
   p <- respLev
   est <- x$sdrl$par.fixed  
   covest <- x$sdrl$cov.fixed
@@ -48,9 +48,9 @@ ed <- function(x, respLev){
   }
   
   # Weibull
-  if (x$model == "weibull1" | x$model == "weibull2"){
+  if (x$model == "weibull1" || x$model == "weibull2"){
     pvw <- pvar[1:4, 1:4]
-    if (x$model == "weibull1" & pv[3] > 0) p <- 100 - p
+    if (x$model == "weibull1" && pv[3] > 0) p <- 100 - p
     tempVal <- log(-log((100 - p)/100))
     value <- exp(tempVal/pv[3] + log(pv[4]))
     grad <- value * rbind(c(-tempVal/(pv[3]^2), 0, 0, 1/pv[4]))

@@ -10,7 +10,7 @@ print.drmTMB <- function(x, ...){
   ests <- x$ssdrl
   rn <- rownames(ests)
   coefs <- ests[rn %in% paste("b", 1:5, sep=""),,drop=FALSE]
-  lsigma <- ests[rn %in% "log_sigma",,drop=FALSE]
+  #lsigma <- ests[rn %in% "log_sigma",,drop=FALSE]
   cat("Coefficients:\n")
   print(coefs)
   if (!is.null(x$rform)){
@@ -42,7 +42,7 @@ predict.drmTMB <- function(object, newdata=NULL, random=TRUE){
   cest[!object$fix] <- coefs[,1]
   pxl <- lapply(1:5, function(i) Xs[[i]] %*% cest[npi == i])
   
-  if (random & !is.null(object$rform)){
+  if (random && !is.null(object$rform)){
     rformrh <- rformlh <- object$rform
     rformrh[2] <- NULL
     rf <- model.frame(subbars(rformrh), data=newdata)
