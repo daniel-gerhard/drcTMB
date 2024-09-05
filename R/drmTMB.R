@@ -1,5 +1,5 @@
 #' Fit a drmTMB model
-#' 
+#'
 #' @param form formula with name of response and dose scale
 #' @param fform list with fixed-effect right-hand side formulas for each model parameter
 #' @param rform random effect formula of the form b1 + b2 + b3 + b4 + b5 ~ 1 | cluster
