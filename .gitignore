@@ -38,3 +38,5 @@ vignettes/*.pdf
 # R Environment Variables
 .Renviron
 .Rproj.user
+src/drcTMB_TMBExports.so
+drcTMB.Rproj

@@ -49,27 +49,59 @@ Type drcbinomfix(objective_function<Type>* obj) {
       break;
     }
     switch (mod){
-    case 1:
-      fl = exp(Xb3(i)*(x(i) - Xb4(i)));
-      f = f2 + (f1 - f2) / (1 + pow(fl, Xb5(i)));
-      break;
-    case 2:
-      fl = exp(Xb3(i)*(log(x(i)) - log(Xb4(i))));
-      f = f2 + (f1 - f2) / (1 + pow(fl, Xb5(i)));
-      break;
-    case 3:
-      fl = exp(-1*exp(Xb3(i)*(log(x(i)) - log(Xb4(i)))));
-      f = f2 + (f1 - f2) * fl;
-      break;
-    case 4:
-      fl = 1 - exp(-1*exp(Xb3(i)*(log(x(i)) - log(Xb4(i)))));
-      f = f2 + (f1 - f2) * fl;
-      break;
-    case 5:
-      fl = Xb3(i)*(log(x(i)) - log(Xb4(i)));
-      f = f2 + (f1 - f2) * pnorm(fl);
-      break;  
-    }
+      case 1:
+        fl = exp(Xb3(i)*(x(i) - Xb4(i)));
+        f = f2 + (f1 - f2) / (1 + pow(fl, Xb5(i)));
+        break;
+      case 2:
+        if (x(i) == 0){
+          if (Xb3(i) > 0){
+            f = f2 + (f1 - f2);
+          } else {
+            f = f2;
+          }
+        } else {
+          fl = exp(Xb3(i)*(log(x(i)) - log(Xb4(i))));
+          f = f2 + (f1 - f2) / (1 + pow(fl, Xb5(i)));
+        }
+        break;
+      case 3:
+        if (x(i) == 0){
+          if (Xb3(i) > 0){
+            f = f2 + (f1 - f2);
+          } else {
+            f = f2;
+          }
+        } else {
+          fl = exp(-1*exp(Xb3(i)*(log(x(i)) - log(Xb4(i)))));
+          f = f2 + (f1 - f2) * fl;
+        }
+        break;
+      case 4:
+        if (x(i) == 0){
+          if (Xb3(i) < 0){
+          f = f2 + (f1 - f2);
+          } else {
+            f = f2;
+          }
+        } else {
+          fl = 1 - exp(-1*exp(Xb3(i)*(log(x(i)) - log(Xb4(i)))));
+          f = f2 + (f1 - f2) * fl;
+        }
+        break;
+      case 5:
+        if (x(i) == 0){
+          if (Xb3(i) < 0){
+            f = f2 + (f1 - f2);
+          } else {
+            f = f2;
+          }
+        } else {
+          fl = Xb3(i)*(log(x(i)) - log(Xb4(i)));
+          f = f2 + (f1 - f2) * pnorm(fl);
+        }
+        break;  
+      }
     nll += -dbinom(y(i), bn(i), f, true);
   }
   return nll;

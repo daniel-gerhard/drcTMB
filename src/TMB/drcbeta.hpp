@@ -109,27 +109,59 @@ Type drcbeta(objective_function<Type>* obj) {
     f4 = Xb4(i) + Zu4(i);
     f5 = Xb5(i) + Zu5(i);
     switch (mod){
-    case 1:
-      fl = exp(f3*(x(i) - f4));
-      f = f2 + (f1 - f2) / (1 + pow(fl, f5));
-      break;
-    case 2:
-      fl = exp(f3*(log(x(i)) - log(f4)));
-      f = f2 + (f1 - f2) / (1 + pow(fl, f5));
-      break;
-    case 3:
-      fl = exp(-1*exp(f3*(log(x(i)) - log(f4))));
-      f = f2 + (f1 - f2) * fl;
-      break;
-    case 4:
-      fl = 1 - exp(-1*exp(f3*(log(x(i)) - log(f4))));
-      f = f2 + (f1 - f2) * fl;
-      break;
-    case 5:
-      fl = f3*(log(x(i)) - log(f4));
-      f = f2 + (f1 - f2) * pnorm(fl);
-      break;
-    }
+      case 1:      
+        fl = exp(f3*(x(i) - f4));
+        f = f2 + (f1 - f2) / (1 + pow(fl, f5));
+        break;
+      case 2:
+        if (x(i) == 0){
+          if (f3 > 0){
+            f = f2 + (f1 - f2);
+          } else {
+            f = f2;
+          }
+        } else {
+          fl = exp(f3*(log(x(i)) - log(f4)));
+          f = f2 + (f1 - f2) / (1 + pow(fl, f5));
+        }
+        break;
+      case 3:
+        if (x(i) == 0){
+          if (f3 > 0){
+            f = f2 + (f1 - f2);
+          } else {
+            f = f2;
+          }
+        } else {   
+          fl = exp(-1*exp(f3*(log(x(i)) - log(f4))));
+          f = f2 + (f1 - f2) * fl;
+        }
+        break;
+      case 4:
+        if (x(i) == 0){
+          if (f3 < 0){
+            f = f2 + (f1 - f2);
+          } else {
+            f = f2;
+          }
+        } else {
+          fl = 1 - exp(-1*exp(f3*(log(x(i)) - log(f4))));
+          f = f2 + (f1 - f2) * fl;
+        }
+        break;
+      case 5:
+        if (x(i) == 0){
+          if (f3 < 0){
+            f = f2 + (f1 - f2);
+          } else {
+            f = f2;
+          }
+        } else {
+          fl = f3*(log(x(i)) - log(f4));
+          f = f2 + (f1 - f2) * pnorm(fl);
+        }
+        break;
+      }
     logl = lgamma(phi) - lgamma(f*phi) - lgamma((1-f)*phi) + (f*phi-1)*log(y(i)) + ((1-f)*phi - 1)*log(1 - y(i));
     nll += -1*logl;
   }

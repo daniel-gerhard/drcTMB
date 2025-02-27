@@ -57,20 +57,52 @@ Type drcnormfix(objective_function<Type>* obj) {
       f = f2 + (f1 - f2) / (1 + pow(fl, Xb5(i)));
       break;
     case 2:
-      fl = exp(Xb3(i)*(log(x(i)) - log(Xb4(i))));
-      f = f2 + (f1 - f2) / (1 + pow(fl, Xb5(i)));
+      if (x(i) == 0){
+        if (Xb3(i) > 0){
+          f = f2 + (f1 - f2);
+        } else {
+          f = f2;
+        }
+      } else {
+        fl = exp(Xb3(i)*(log(x(i)) - log(Xb4(i))));
+        f = f2 + (f1 - f2) / (1 + pow(fl, Xb5(i)));
+      }
       break;
     case 3:
-      fl = exp(-1*exp(Xb3(i)*(log(x(i)) - log(Xb4(i)))));
-      f = f2 + (f1 - f2) * fl;
+      if (x(i) == 0){
+        if (Xb3(i) > 0){
+          f = f2 + (f1 - f2);
+        } else {
+          f = f2;
+        }
+      } else {
+        fl = exp(-1*exp(Xb3(i)*(log(x(i)) - log(Xb4(i)))));
+        f = f2 + (f1 - f2) * fl;
+      }
       break;
     case 4:
-      fl = 1 - exp(-1*exp(Xb3(i)*(log(x(i)) - log(Xb4(i)))));
-      f = f2 + (f1 - f2) * fl;
+      if (x(i) == 0){
+        if (Xb3(i) < 0){
+        f = f2 + (f1 - f2);
+        } else {
+          f = f2;
+        }
+      } else {
+        fl = 1 - exp(-1*exp(Xb3(i)*(log(x(i)) - log(Xb4(i)))));
+        f = f2 + (f1 - f2) * fl;
+      }
       break;
     case 5:
-      fl = Xb3(i)*(log(x(i)) - log(Xb4(i)));
-      f = f2 + (f1 - f2) * pnorm(fl);
+      if (x(i) == 0){
+        if (Xb3(i) < 0){
+          f = f2 + (f1 - f2);
+        } else {
+          f = f2;
+        }
+      } else {
+        fl = Xb3(i)*(log(x(i)) - log(Xb4(i)));
+        f = f2 + (f1 - f2) * pnorm(fl);
+      }
       break;  
     }
     nll += -dnorm(y(i), f, exp(log_sigma), true);

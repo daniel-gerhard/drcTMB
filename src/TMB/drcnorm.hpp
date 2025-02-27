@@ -108,25 +108,57 @@ Type drcnorm(objective_function<Type>* obj) {
     f4 = Xb4(i) + Zu4(i);
     f5 = Xb5(i) + Zu5(i);
     switch (mod){
-    case 1:
+    case 1:      
       fl = exp(f3*(x(i) - f4));
       f = f2 + (f1 - f2) / (1 + pow(fl, f5));
       break;
     case 2:
-      fl = exp(f3*(log(x(i)) - log(f4)));
-      f = f2 + (f1 - f2) / (1 + pow(fl, f5));
+      if (x(i) == 0){
+        if (f3 > 0){
+          f = f2 + (f1 - f2);
+        } else {
+          f = f2;
+        }
+      } else {
+        fl = exp(f3*(log(x(i)) - log(f4)));
+        f = f2 + (f1 - f2) / (1 + pow(fl, f5));
+      }
       break;
     case 3:
-      fl = exp(-1*exp(f3*(log(x(i)) - log(f4))));
-      f = f2 + (f1 - f2) * fl;
+      if (x(i) == 0){
+        if (f3 > 0){
+          f = f2 + (f1 - f2);
+        } else {
+          f = f2;
+        }
+      } else {   
+        fl = exp(-1*exp(f3*(log(x(i)) - log(f4))));
+        f = f2 + (f1 - f2) * fl;
+      }
       break;
     case 4:
-      fl = 1 - exp(-1*exp(f3*(log(x(i)) - log(f4))));
-      f = f2 + (f1 - f2) * fl;
+      if (x(i) == 0){
+        if (f3 < 0){
+          f = f2 + (f1 - f2);
+        } else {
+          f = f2;
+        }
+      } else {
+        fl = 1 - exp(-1*exp(f3*(log(x(i)) - log(f4))));
+        f = f2 + (f1 - f2) * fl;
+      }
       break;
     case 5:
-      fl = f3*(log(x(i)) - log(f4));
-      f = f2 + (f1 - f2) * pnorm(fl);
+      if (x(i) == 0){
+        if (f3 < 0){
+          f = f2 + (f1 - f2);
+        } else {
+          f = f2;
+        }
+      } else {
+        fl = f3*(log(x(i)) - log(f4));
+        f = f2 + (f1 - f2) * pnorm(fl);
+      }
       break;
     }
     nll += -dnorm(y(i), f, exp(log_sigma), true);
