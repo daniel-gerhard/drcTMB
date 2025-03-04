@@ -72,12 +72,12 @@ predict.drmTMB <- function(object, newdata=NULL, random=TRUE){
   }
   
   if (object$model == "logistic"){
-    flx <- exp(pxl[[3]]*(x - pxl[[4]]))
-    fx <- pxl[[2]] + (pxl[[1]] - pxl[[2]]) / (1 + flx^pxl[[5]])
+    flx <- 1 + exp(pxl[[3]]*(x - pxl[[4]]))
+    fx <- pxl[[2]] + (pxl[[1]] - pxl[[2]]) / (flx^pxl[[5]])
   }
   if (object$model == "loglogistic"){
-    flx <- exp(pxl[[3]]*(log(x) - log(pxl[[4]])))
-    fx <- pxl[[2]] + (pxl[[1]] - pxl[[2]]) / (1 + flx^pxl[[5]])
+    flx <- 1 + exp(pxl[[3]]*(log(x) - log(pxl[[4]])))
+    fx <- pxl[[2]] + (pxl[[1]] - pxl[[2]]) / (flx^pxl[[5]])
   }  
   if (object$model == "weibull1"){
     flx <- exp(-1*exp(pxl[[3]]*(log(x) - log(pxl[[4]]))))

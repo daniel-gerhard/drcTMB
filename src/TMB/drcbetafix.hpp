@@ -54,8 +54,8 @@ Type drcbetafix(objective_function<Type>* obj) {
     }
     switch (mod){
       case 1:
-        fl = exp(Xb3(i)*(x(i) - Xb4(i)));
-        f = f2 + (f1 - f2) / (1 + pow(fl, Xb5(i)));
+        fl = 1 + exp(Xb3(i)*(x(i) - Xb4(i)));
+        f = f2 + (f1 - f2) / (pow(fl, Xb5(i)));
         break;
       case 2:
         if (x(i) == 0){
@@ -65,8 +65,8 @@ Type drcbetafix(objective_function<Type>* obj) {
             f = f2;
           }
         } else {
-          fl = exp(Xb3(i)*(log(x(i)) - log(Xb4(i))));
-          f = f2 + (f1 - f2) / (1 + pow(fl, Xb5(i)));
+          fl = 1 + exp(Xb3(i)*(log(x(i)) - log(Xb4(i))));
+          f = f2 + (f1 - f2) / (pow(fl, Xb5(i)));
         }
         break;
       case 3:
