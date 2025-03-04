@@ -106,7 +106,7 @@ Type drcpois(objective_function<Type>* obj) {
     switch (mod){
       case 1:      
         fl = 1 + exp(f3*(x(i) - f4));
-        f = f2 + (f1 - f2) / (pow(fl, f5));
+        f = f2 + (f1 - f2) / (pow(fl, exp(f5)));
         break;
       case 2:
         if (x(i) == 0){
@@ -117,7 +117,7 @@ Type drcpois(objective_function<Type>* obj) {
           }
         } else {
           fl = 1 + exp(f3*(log(x(i)) - log(f4)));
-          f = f2 + (f1 - f2) / (pow(fl, f5));
+          f = f2 + (f1 - f2) / (pow(fl, exp(f5)));
         }
         break;
       case 3:

@@ -80,7 +80,7 @@ drmTMB <- function(form, fform=NULL, rform=NULL, data, start=NULL, fix=NULL, low
   if (is.na(sb4[1]) & !fix[which(npi == 4)[1]]) sb4[1] <- min(dlist$x[rank(dlist$y)/length(dlist$y) > 0.5])
   sb4[is.na(sb4)] <- 0
   sb5 <- start[which(npi == 5)]
-  if (is.na(sb5[1]) & !fix[which(npi == 5)[1]]) sb5[1] <- 1
+  if (is.na(sb5[1]) & !fix[which(npi == 5)[1]]) sb5[1] <- 0
   sb5[is.na(sb5)] <- 0
   
   if (is.null(rform)){

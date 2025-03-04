@@ -54,7 +54,7 @@ Type drcnormfix(objective_function<Type>* obj) {
     switch (mod){
     case 1:
       fl = 1 + exp(Xb3(i)*(x(i) - Xb4(i)));
-      f = f2 + (f1 - f2) / (pow(fl, Xb5(i)));
+      f = f2 + (f1 - f2) / (pow(fl, exp(Xb5(i))));
       break;
     case 2:
       if (x(i) == 0){
@@ -65,7 +65,7 @@ Type drcnormfix(objective_function<Type>* obj) {
         }
       } else {
         fl = 1 + exp(Xb3(i)*(log(x(i)) - log(Xb4(i))));
-        f = f2 + (f1 - f2) / (pow(fl, Xb5(i)));
+        f = f2 + (f1 - f2) / (pow(fl, exp(Xb5(i))));
       }
       break;
     case 3:

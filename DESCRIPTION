@@ -1,6 +1,6 @@
 Package: drcTMB
 Title: Fitting dose-response curves using the Template Model Builder
-Version: 0.0.0.9500
+Version: 0.0.0.9600
 Authors@R: 
     person("Daniel", "Gerhard", , "00gerhard@gmail.com", role = c("aut", "cre"),
            comment = c(ORCID = "0000-0002-9336-3454"))
