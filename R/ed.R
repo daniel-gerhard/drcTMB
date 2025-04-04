@@ -24,7 +24,7 @@ ed <- function(x, respLev){
   # logistic
   if (x$model == "logistic"){
     expr2 <- 100/p
-    expr4 <- expr2^(1/pv[5])
+    expr4 <- expr2^(1/exp(pv[5]))
     expr5 <- expr4 - 1
     expr6 <- log(expr5)
     value <- pv[4] + expr6/-pv[3]
@@ -33,17 +33,17 @@ ed <- function(x, respLev){
     grad[, "c"] <- 0
     grad[, "d"] <- 0
     grad[, "e"] <- 1
-    grad[, "f"] <- -(expr4 * (log(expr2) * (1/pv[5]^2))/expr5/-pv[3])
+    grad[, "f"] <- -(expr4 * (log(expr2) * (1/exp(pv[5])^2))/expr5/-pv[3])
     std <- sqrt(grad %*% pvar %*% t(grad)) 
   }
    
   # loglogistic   
   if (x$model == "loglogistic"){
     tempVal <- log((100 - p)/100)
-    value <- pv[4] * (exp(-tempVal/pv[5]) - 1)^(1/-pv[3])
-    grad <- value * rbind(c(-log(exp(-tempVal/pv[5]) - 1)/(-pv[3]^2), 
+    value <- pv[4] * (exp(-tempVal/exp(pv[5])) - 1)^(1/-pv[3])
+    grad <- value * rbind(c(-log(exp(-tempVal/exp(pv[5])) - 1)/(-pv[3]^2), 
                      0, 0, 1/pv[4], 
-                     exp(-tempVal/pv[5]) * tempVal/(pv[5]^2) * (1/-pv[3]) * ((exp(-tempVal/pv[5]) - 1)^(-1))))
+                     exp(-tempVal/exp(pv[5])) * tempVal/(exp(pv[5])^2) * (1/-pv[3]) * ((exp(-tempVal/exp(pv[5])) - 1)^(-1))))
     std <- sqrt(grad %*% pvar %*% t(grad)) 
   }
   
