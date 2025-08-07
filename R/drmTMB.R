@@ -15,7 +15,7 @@
 #' @return A drmTMB object
 #' @useDynLib drmTMB
 
-drmTMB <- function(form, fform=NULL, rform=NULL, data, start=NULL, fix=NULL, lower=-Inf, upper=Inf, family="gaussian", model="L5", link="identity"){
+drmTMB <- function(form, fform=NULL, rform=NULL, data, start=NULL, fix=NULL, lower=-Inf, upper=Inf, family="gaussian", model="logistic", link="identity"){
   # response
   mf <- model.frame(form, data=data)
   # fixed effects
@@ -67,6 +67,13 @@ drmTMB <- function(form, fform=NULL, rform=NULL, data, start=NULL, fix=NULL, low
   datalist <- c(dlist, Xs)
   
   # Starting values
+  #drcfunction <- logistic
+  #drcstart <- start[c(which(npi == 3), which(npi == 1), which(npi == 2), which(npi == 4), which(npi == 5))]
+  #drcstart[which(npi == 5)] <- exp(drcstart[which(npi == 5)])
+  #drcstart[!fix] <- NA
+  #fformdrc <- fform[c(which(npi == 3), which(npi == 1), which(npi == 2), which(npi == 4), which(npi == 5))]
+  #drcoef <- coef(drm(form, fct=drcfunction(fixed=drcstart), data=data, pmodels=fformdrc))
+
   sb1 <- start[which(npi == 1)]
   if (is.na(sb1[1]) & !fix[which(npi == 1)[1]]) sb1[1] <- mean(dlist$y[which(dlist$x == max(dlist$x))])
   sb1[is.na(sb1)] <- 0
@@ -154,7 +161,7 @@ drmTMB <- function(form, fform=NULL, rform=NULL, data, start=NULL, fix=NULL, low
   res$estimates <- opt$par
   res$opt <- opt
   res$obj <- obj
-  res$sdrl <- sdreport(obj)
+  res$sdrl <- sdreport(obj, par.fixed=opt$par)
   res$ssdrl <- summary(res$sdrl)
   class(res) <- "drmTMB"
   return(res)
