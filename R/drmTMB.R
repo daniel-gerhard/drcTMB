@@ -11,11 +11,14 @@
 #' @param family Specify the distributional assumptions. One of "gaussian", "binomial", "beta", and "poisson".
 #' @param model Specify the nonlinear model. One of "logistic", "loglogistic", "weibull1", "weibull2", "lognormal".
 #' @param link Specify the link function for estimating asymptote parameters. One of "identity", "log", "logit". 
+#' @param control a list of control parameters. See \code{\link{drcTMBcontrol}} for details.
 #'
 #' @return A drmTMB object
 #' @useDynLib drmTMB
 
-drmTMB <- function(form, fform=NULL, rform=NULL, data, start=NULL, fix=NULL, lower=-Inf, upper=Inf, family="gaussian", model="logistic", link="identity"){
+drmTMB <- function(form, fform=NULL, rform=NULL, data, start=NULL, fix=NULL, lower=-Inf, upper=Inf, family="gaussian", model="logistic", link="identity", control=list()){
+  # control list
+  control <- do.call(drmTMBcontrol, control)
   # response
   mf <- model.frame(form, data=data)
   # fixed effects
@@ -141,7 +144,6 @@ drmTMB <- function(form, fform=NULL, rform=NULL, data, start=NULL, fix=NULL, low
     }
   }
   obj$hessian <- TRUE
-  #opt <- do.call("optim", obj)
   if (is.null(rform)){
     opt <- nlminb(start=obj$par, objective=obj$fn, gradient=obj$gr, hessian=obj$he, lower=lower, upper=upper)
   } else {
