@@ -15,7 +15,8 @@ drmTMB(
   upper = Inf,
   family = "gaussian",
   model = "L5",
-  link = "identity"
+  link = "identity",
+  control = list()
 )
 }
 \arguments{
@@ -40,6 +41,8 @@ drmTMB(
 \item{model}{Specify the nonlinear model. One of "logistic", "loglogistic", "weibull1", "weibull2", "lognormal".}
 
 \item{link}{Specify the link function for estimating asymptote parameters. One of "identity", "log", "logit".}
+
+\item{control}{a list generated with drmTMBcontrol}
 }
 \value{
 A drmTMB object
