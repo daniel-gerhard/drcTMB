@@ -11,7 +11,7 @@ Roxygen: list(markdown = TRUE)
 RoxygenNote: 7.3.2
 Imports: 
     Matrix,
-    lme4,
+    reformulas,
     TMB (>= 1.9.2)
 LinkingTo: 
     TMB
