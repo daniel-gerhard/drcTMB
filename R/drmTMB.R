@@ -11,7 +11,7 @@
 #' @param family Specify the distributional assumptions. One of "gaussian", "binomial", "beta", and "poisson".
 #' @param model Specify the nonlinear model. One of "logistic", "loglogistic", "weibull1", "weibull2", "lognormal".
 #' @param link Specify the link function for estimating asymptote parameters. One of "identity", "log", "logit". 
-#' @param control a list of control parameters. See \code{\link{drcTMBcontrol}} for details.
+#' @param control a list of control parameters. See \code{\link{drmTMBcontrol}} for details.
 #'
 #' @return A drmTMB object
 #' @useDynLib drmTMB

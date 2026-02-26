@@ -4,12 +4,16 @@
 \alias{ed}
 \title{Effective dose estimation}
 \usage{
-ed(x, respLev)
+ed(x, respLev, random = TRUE, residual = FALSE)
 }
 \arguments{
 \item{x}{a drmTMB object}
 
 \item{respLev}{effective dose level}
+
+\item{random}{logical, if TRUE, the variance-covariance matrix of the random effects is included in the standard error estimation}
+
+\item{residual}{logical, if TRUE, the residual variance is included in the standard error estimation}
 }
 \value{
 a vector with estimates

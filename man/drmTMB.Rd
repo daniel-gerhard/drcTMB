@@ -14,7 +14,7 @@ drmTMB(
   lower = -Inf,
   upper = Inf,
   family = "gaussian",
-  model = "L5",
+  model = "logistic",
   link = "identity",
   control = list()
 )
@@ -42,7 +42,7 @@ drmTMB(
 
 \item{link}{Specify the link function for estimating asymptote parameters. One of "identity", "log", "logit".}
 
-\item{control}{a list generated with drmTMBcontrol}
+\item{control}{a list of control parameters. See \code{\link{drmTMBcontrol}} for details.}
 }
 \value{
 A drmTMB object

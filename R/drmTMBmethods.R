@@ -1,11 +1,17 @@
 #' drmTMB Methods
 #'
-#' @param x a drmTMB object
+#' @param x,object a drmTMB object
+#' @param newdata a data frame for prediction. If NULL, the original data is used.
+#' @param random logical, if TRUE, the random effects are included in the predictions
 #' @param ... anything else
 #'
-#' @return Estimated model coefficients
+#' @return Estimated model coefficients or predictions
 #' @export
 #'
+#' @name drmTMB-methods
+#' @aliases print.drmTMB predict.drmTMB
+#' 
+#' @rdname drmTMB-methods
 print.drmTMB <- function(x, ...){
   ests <- x$ssdrl
   rn <- rownames(ests)
@@ -26,6 +32,7 @@ print.drmTMB <- function(x, ...){
   }
 }
 
+#' @rdname drmTMB-methods
 predict.drmTMB <- function(object, newdata=NULL, random=TRUE){
   if (is.null(newdata)) newdata <- object$data
   form <- object$formula
