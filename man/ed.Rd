@@ -4,12 +4,12 @@
 \alias{ed}
 \title{Effective dose estimation}
 \usage{
-ed(x, respLev, random = TRUE, residual = FALSE)
+ed(x, respLev = 50, random = TRUE, residual = FALSE)
 }
 \arguments{
 \item{x}{a drmTMB object}
 
-\item{respLev}{effective dose level}
+\item{respLev}{effective dose level, default is 50}
 
 \item{random}{logical, if TRUE, the variance-covariance matrix of the random effects is included in the standard error estimation}
 
