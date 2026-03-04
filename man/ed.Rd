@@ -4,12 +4,14 @@
 \alias{ed}
 \title{Effective dose estimation}
 \usage{
-ed(x, respLev = 50, random = TRUE, residual = FALSE)
+ed(x, respLev = 50, linfct = diag(5), random = TRUE, residual = FALSE)
 }
 \arguments{
 \item{x}{a drmTMB object}
 
 \item{respLev}{effective dose level, default is 50}
+
+\item{linfct}{a matrix of linear functions to indentify the parameters of the dose-response curve (each row vector results in parameters b1-b5), default is the identity matrix}
 
 \item{random}{logical, if TRUE, the variance-covariance matrix of the random effects is included in the standard error estimation}
 
