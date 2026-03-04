@@ -6,7 +6,7 @@
 #' @param random logical, if TRUE, the variance-covariance matrix of the random effects is included in the standard error estimation
 #' @param residual logical, if TRUE, the residual variance is included in the standard error estimation
 #'
-#' @return a vector with estimates
+#' @return a edTMB object
 #' @export
 #'
 ed <- function(x, respLev=50, linfct=diag(5), random=TRUE, residual=FALSE){ 
@@ -74,7 +74,7 @@ ed <- function(x, respLev=50, linfct=diag(5), random=TRUE, residual=FALSE){
     lpv <- as.vector(linfct[[i]] %*% pv)
     lpvar <- linfct[[i]] %*% pvar %*% t(linfct[[i]])
 
-    cvc <- bdiag(lpvar, rvc, rvar)
+    cvc <- as.matrix(bdiag(lpvar, rvc, rvar))
     cvc4 <- cvc[-c(5, 10), -c(5, 10), drop=FALSE]
 
     b1 <- lpv[1]
@@ -132,5 +132,6 @@ ed <- function(x, respLev=50, linfct=diag(5), random=TRUE, residual=FALSE){
   names(edl) <- paste(respLev, names(linfct), sep=":")
   colnames(edvar) <- rownames(edvar) <- paste(respLev, names(linfct), sep=":")
   res <- list(estimates=edl, variance=edvar)
+  class(res) <- "edTMB"
   return(res)
 }

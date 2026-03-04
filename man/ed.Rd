@@ -18,7 +18,7 @@ ed(x, respLev = 50, linfct = diag(5), random = TRUE, residual = FALSE)
 \item{residual}{logical, if TRUE, the residual variance is included in the standard error estimation}
 }
 \value{
-a vector with estimates
+a edTMB object
 }
 \description{
 Effective dose estimation
