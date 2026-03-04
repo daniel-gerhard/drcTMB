@@ -4,11 +4,17 @@
 \alias{drmTMB-methods}
 \alias{print.drmTMB}
 \alias{predict.drmTMB}
+\alias{coef.drmTMB}
+\alias{vcov.drmTMB}
 \title{drmTMB Methods}
 \usage{
 \method{print}{drmTMB}(x, ...)
 
 \method{predict}{drmTMB}(object, newdata = NULL, random = TRUE)
+
+\method{coef}{drmTMB}(object, ...)
+
+\method{vcov}{drmTMB}(object, ...)
 }
 \arguments{
 \item{x, object}{a drmTMB object}
@@ -20,7 +26,7 @@
 \item{random}{logical, if TRUE, the random effects are included in the predictions}
 }
 \value{
-Estimated model coefficients or predictions
+Estimated model coefficients, variance-covariance matrix, or predictions
 }
 \description{
 drmTMB Methods

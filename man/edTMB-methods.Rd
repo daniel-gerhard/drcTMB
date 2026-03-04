@@ -3,12 +3,18 @@
 \name{edTMB-methods}
 \alias{edTMB-methods}
 \alias{print.edTMB}
+\alias{coef.edTMB}
+\alias{vcov.edTMB}
 \title{edTMB Methods}
 \usage{
 \method{print}{edTMB}(x, ...)
+
+\method{coef}{edTMB}(object, ...)
+
+\method{vcov}{edTMB}(object, ...)
 }
 \arguments{
-\item{x}{an edTMB object}
+\item{x, object}{an edTMB object}
 
 \item{...}{anything else}
 }

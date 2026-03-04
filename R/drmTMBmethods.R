@@ -5,11 +5,11 @@
 #' @param random logical, if TRUE, the random effects are included in the predictions
 #' @param ... anything else
 #'
-#' @return Estimated model coefficients or predictions
+#' @return Estimated model coefficients, variance-covariance matrix, or predictions
 #' @export
 #'
 #' @name drmTMB-methods
-#' @aliases print.drmTMB predict.drmTMB
+#' @aliases print.drmTMB predict.drmTMB coef.drmTMB vcov.drmTMB
 #' 
 #' @rdname drmTMB-methods
 print.drmTMB <- function(x, ...){
@@ -101,3 +101,12 @@ predict.drmTMB <- function(object, newdata=NULL, random=TRUE){
   return(as.vector(fx))
 }
 
+#' @rdname drmTMB-methods
+coef.drmTMB <- function(object, ...){
+    return(object$estimates)
+}
+
+#' @rdname drmTMB-methods
+vcov.drmTMB <- function(object, ...){
+    return(object$sdrl$cov.fixed)
+}
