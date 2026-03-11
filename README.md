@@ -1,11 +1,99 @@
 drcTMB
 ================
 
-# drcTMB
+The package drcTMB provides functions to fit dose-response curves using
+the Template Model Builder (TMB) framework.
 
 ## Installation
 
 ``` r
 # You can install drcTMB from GitHub by
 devtools::install_github("daniel-gerhard/drcTMB")
+```
+
+## The drmTMB function
+
+The main function in the drcTMB package is `drmTMB()`. There is some
+similarity to the `drm()` function from the drc package, with a
+simplified input of response and dose variables through a formula
+interface, and specifying a nonlinear model through the `model`
+argument. Available models include “logistic”, “loglogistic”,
+“weibull1”, “weibull2”, and “lognormal”.
+
+Each of these models has the same parameter names, b1 and b2 for the
+asymptotes, b3 for the steepness, b4 for the location of the inflection
+point on the dose scale, and b5 for an optional asymmetry parameter. The
+asymmetry parameter b5 is estimated on a logarithmic scale. The `start`
+argument provides starting values for the parameters. The `fix` argument
+(TRUE/FALSE) allows to fix parameters at these starting values.
+
+``` r
+library(drcTMB)
+library(drcData)
+data(ryegrass)
+# Fitting a 3-parameter log-logistic model
+mod <- drmTMB(rootl ~ conc, data = ryegrass, model = "loglogistic", 
+              start=c(8, 0, 1, 2, 0), fix=c(FALSE, TRUE, FALSE, FALSE, TRUE))
+print(mod)
+#> Coefficients:
+#>    Estimate Std. Error
+#> b1 7.855428  0.1911812
+#> b3 2.470324  0.3196156
+#> b4 3.263356  0.1837212
+```
+
+With the `predict()` method, we can visualize the fitted curve.
+
+``` r
+newdata <- data.frame(conc = exp(seq(-0.5, log(30), length.out = 100)))
+newdata$pred <- predict(mod, newdata = newdata)
+library(ggplot2)
+ggplot(ryegrass, aes(x = log(conc), y = rootl)) +
+  geom_point() +
+  geom_line(data = newdata, aes(x = log(conc), y = pred), color = "blue") +
+  labs(x = "Log Concentration", y = "Root Length") +
+  theme_bw()
+```
+
+![](README-unnamed-chunk-4-1.png)<!-- -->
+
+## Effective dose estimation
+
+The `ed()` function can be used to estimate effective doses (e.g., ED50,
+ED90) from the fitted model, given a specified response level
+(`respLev`).
+
+``` r
+(effdose <- ed(mod, respLev = c(25, 50, 75)))
+#> Effective dose estimates:
+#> 
+#>        Estimate Std.Error
+#> 25:lf1     5.09     0.394
+#> 50:lf2     3.26     0.184
+#> 75:lf3     2.09     0.175
+```
+
+Simultaneous confidence intervals can be constructed through the package
+multcomp.
+
+``` r
+library(multcomp)
+linfct <- diag(3)
+rownames(linfct) <- c("ED25", "ED50", "ED75")
+effdose_glht <- glht(effdose, linfct = linfct)
+confint(effdose_glht)
+#> 
+#>   Simultaneous Confidence Intervals
+#> 
+#> Fit: NULL
+#> 
+#> Quantile = 2.3214
+#> 95% family-wise confidence level
+#>  
+#> 
+#> Linear Hypotheses:
+#>           Estimate lwr    upr   
+#> ED25 == 0 5.0910   4.1763 6.0057
+#> ED50 == 0 3.2634   2.8369 3.6898
+#> ED75 == 0 2.0918   1.6864 2.4972
 ```
