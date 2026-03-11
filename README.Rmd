@@ -1,0 +1,25 @@
+---
+title: "drcTMB"
+output: 
+    github_document:
+        html_preview: false
+---
+
+```{r, echo = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>",
+  fig.path = "README-"
+)
+```
+
+
+# drcTMB
+
+
+## Installation
+
+```{r, eval = FALSE}
+# You can install drcTMB from GitHub by
+devtools::install_github("daniel-gerhard/drcTMB")
+```

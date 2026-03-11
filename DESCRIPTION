@@ -6,6 +6,8 @@ Authors@R:
            comment = c(ORCID = "0000-0002-9336-3454"))
 Description: Provides a simple user-interface for fitting non-linear mixed-effects models for dose-response analysis.
 License: GPL (>=2)
+VignetteBuilder: knitr
+Suggests: knitr, markdown, rmarkdown, ggplot2, drcData, multcomp
 Encoding: UTF-8
 Roxygen: list(markdown = TRUE)
 RoxygenNote: 7.3.3

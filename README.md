@@ -1,2 +1,11 @@
+drcTMB
+================
+
 # drcTMB
-Fitting dose-response curves using the Template Model Builder.
+
+## Installation
+
+``` r
+# You can install drcTMB from GitHub by
+devtools::install_github("daniel-gerhard/drcTMB")
+```
