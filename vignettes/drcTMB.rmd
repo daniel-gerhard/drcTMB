@@ -30,7 +30,7 @@ library(drcTMB)
 library(drcData)
 data(ryegrass)
 # Fitting a 3-parameter log-logistic model
-mod <- drmTMB(rootl ~ conc, data = ryegrass, model = "loglogistic", 
+mod <- drmTMB(rootl ~ conc, data=ryegrass, model="loglogistic", 
               start=c(8, 0, 1, 2, 0), fix=c(FALSE, TRUE, FALSE, FALSE, TRUE))
 print(mod)
 ```
@@ -63,3 +63,26 @@ effdose_glht <- glht(effdose, linfct = linfct)
 confint(effdose_glht)
 ```
 
+## Non-normal response distributions
+
+The `family` argument allows to specify the distribution of the response as "gaussian", "poisson", "binomial", or "beta".
+To improve optimisation, the `link` argument allows us to estimate the asymptote parameters b1 and b2 on a transformed scale. Furthermore, we can add constraints on the parameters through the `lower` and `upper` arguments with vectors for the lower and upper bounds of the parameters, respectively.
+```{r}
+data(daphnids)
+d48 <- subset(daphnids, time == "48h")
+
+dmod <- drmTMB(cbind(no, total-no) ~ dose, data=d48, model="loglogistic", family="binomial", 
+               start=c(0, 1, 1, 1000, 0), fix=c(TRUE, TRUE, FALSE, FALSE, FALSE))
+dmod
+```
+
+```{r}
+ndata <- data.frame(dose = exp(seq(3, log(22000), length.out = 100)))
+ndata$pred <- predict(dmod, newdata = ndata)
+
+ggplot(d48, aes(x = log(dose), y = no/total)) +
+  geom_point() +
+  geom_line(data = ndata, aes(x = log(dose), y = pred), color = "blue") +
+  labs(x = "Log Dose", y = "Proportion of Immobile Daphnids") +
+  theme_bw()
+```
