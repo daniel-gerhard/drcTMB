@@ -8,7 +8,7 @@ the Template Model Builder (TMB) framework.
 
 ``` r
 # You can install drcTMB from GitHub by
-devtools::install_github("daniel-gerhard/drcTMB")
+pak::pak("daniel-gerhard/drcTMB")
 ```
 
 ## The drmTMB function
@@ -87,13 +87,13 @@ confint(effdose_glht)
 #> 
 #> Fit: NULL
 #> 
-#> Quantile = 2.3214
+#> Quantile = 2.3201
 #> 95% family-wise confidence level
 #>  
 #> 
 #> Linear Hypotheses:
 #>           Estimate lwr    upr   
-#> ED25 == 0 5.0910   4.1763 6.0057
-#> ED50 == 0 3.2634   2.8369 3.6898
-#> ED75 == 0 2.0918   1.6864 2.4972
+#> ED25 == 0 5.0910   4.1768 6.0053
+#> ED50 == 0 3.2634   2.8371 3.6896
+#> ED75 == 0 2.0918   1.6866 2.4970
 ```
