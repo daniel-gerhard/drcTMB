@@ -1,0 +1,59 @@
+vinclozolin              package:drcData               R Documentation
+
+_V_i_n_c_l_o_z_o_l_i_n _f_r_o_m _A_R _i_n _v_i_t_r_o _a_s_s_a_y
+
+_D_e_s_c_r_i_p_t_i_o_n:
+
+     Dose-response experiment with vinclozolin in an AR reporter gene
+     assay
+
+_U_s_a_g_e:
+
+     data(vinclozolin)
+     
+_F_o_r_m_a_t:
+
+     A data frame with 53 observations on the following 3 variables.
+
+     ‘exper’ a factor with levels ‘10509’ ‘10821’ ‘10828’ ‘10904’
+          ‘11023’ ‘11106’
+
+     ‘conc’ a numeric vector of concentrations of vinclozolin
+
+     ‘effect’ a numeric vector of luminescense effects
+
+_D_e_t_a_i_l_s:
+
+     The basic dose-response experiment was repeated 6 times on
+     different days. Chinese Hamster Ovary cells were exposed to
+     various concentrations of vinclozolin for 22 hours and the
+     resulting luminescense effects were recorded.
+
+     Data are part of mixture experiment reported in Nellemann _et al_
+     (2003).
+
+_S_o_u_r_c_e:
+
+     Nellemann C., Dalgaard M., Lam H.R. and Vinggaard A.M. (2003) The
+     combined effects of vinclozolin and procymidone do not deviate
+     from expected additivity _in vitro_ and _in vivo_, _Toxicological
+     Sciences_, *71*, 251-262.
+
+_E_x_a_m_p_l_e_s:
+
+     ## Not run:
+     
+     library(drc)
+     
+     vinclozolin.m1 <- drm(effect~conc, exper, data=vinclozolin, fct = LL.3())
+     plot(vinclozolin.m1, xlim=c(0,50), ylim=c(0,2800), conLevel=1e-4)
+     
+     vinclozolin.m2 <- drm(effect~conc, data=vinclozolin, fct = LL.3())
+     plot(vinclozolin.m2, xlim=c(0,50), conLevel=1e-4, add=TRUE, type="none", col="red")
+     
+     ## Are the ED50 values indetical across experiments?
+     vinclozolin.m3 <- update(vinclozolin.m1, pmodels=data.frame(exper, exper, 1))
+     anova(vinclozolin.m3, vinclozolin.m1)  # No!
+     ## End(Not run)
+     
+

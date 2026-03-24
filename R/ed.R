@@ -69,8 +69,7 @@ ed <- function(x, respLev=50, linfct=diag(5), random=TRUE, residual=FALSE){
   }
   
 
-  for (i in seq_along(linfct)){   
-    p <- respLev[i]/100
+  for (i in seq_along(linfct)){
     lpv <- as.vector(linfct[[i]] %*% pv)
     lpvar <- linfct[[i]] %*% pvar %*% t(linfct[[i]])
 
@@ -89,6 +88,11 @@ ed <- function(x, respLev=50, linfct=diag(5), random=TRUE, residual=FALSE){
     u5 <- 0
     r <- 0
 
+    if ((b2 > b1 & b3 < 0) | (b2 < b1 & b3 > 0)){
+      p <- respLev[i]/100
+    } else {
+      p <- 1 - respLev[i]/100
+    }
 
     # logistic
     if (x$model == "logistic"){

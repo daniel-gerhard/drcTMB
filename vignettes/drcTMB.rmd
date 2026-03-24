@@ -80,9 +80,110 @@ dmod
 ndata <- data.frame(dose = exp(seq(3, log(22000), length.out = 100)))
 ndata$pred <- predict(dmod, newdata = ndata)
 
-ggplot(d48, aes(x = log(dose), y = no/total)) +
+ggplot(d48, aes(x = dose, y = no/total)) +
   geom_point() +
-  geom_line(data = ndata, aes(x = log(dose), y = pred), color = "blue") +
-  labs(x = "Log Dose", y = "Proportion of Immobile Daphnids") +
-  theme_bw()
+  geom_line(data = ndata, aes(x = dose, y = pred), color = "blue") +
+  labs(x = "Dose", y = "Proportion of Immobile Daphnids") +
+  theme_bw() +
+  scale_x_continuous(breaks = c(100, 500, 2500, 10000), trans="log")
+```
+
+
+## Additional parameters
+
+We can include a right-hand side formula for each of the model parameters through the argument `fform`, adding covariates on the parameter level.
+
+```{r}
+# using the full daphnids dataset with groups 24h and 48h
+dmodg <- drmTMB(cbind(no, total-no) ~ dose, data=daphnids, 
+                model="loglogistic", family="binomial",
+                fform=list(X1=~1, X2=~1, X3=~0+time, X4=~0+time, X5=~1),
+                start=c(0, 1, 1, 1, 1000, 1000, 0), 
+                fix=c(TRUE, TRUE, FALSE, FALSE, FALSE, FALSE, FALSE))
+dmodg
+```
+
+```{r}
+ndatag <- expand.grid(dose = exp(seq(3, log(22000), length.out = 100)), 
+                      time = c("24h", "48h"))
+ndatag$pred <- predict(dmodg, newdata = ndatag)
+
+ggplot(daphnids, aes(x = dose, y = no/total, colour=time)) +
+  geom_point() +
+  geom_line(data = ndatag, aes(x = dose, y = pred, colour=time)) +
+  labs(x = "Dose", y = "Proportion of Immobile Daphnids") +
+  theme_bw() +
+  scale_x_continuous(breaks = c(100, 500, 2500, 10000), trans="log")
+```
+
+
+### Estimating effective doses for a linear function of parameters
+```{r, message=FALSE, warning=FALSE}
+linfct <- list("24h"=rbind(c(1, 0, 0, 0, 0, 0, 0),
+                           c(0, 1, 0, 0, 0, 0, 0),
+                           c(0, 0, 1, 0, 0, 0, 0),
+                           c(0, 0, 0, 0, 1, 0, 0),
+                           c(0, 0, 0, 0, 0, 0, 1)),
+               "48h"=rbind(c(1, 0, 0, 0, 0, 0, 0),
+                           c(0, 1, 0, 0, 0, 0, 0),
+                           c(0, 0, 0, 1, 0, 0, 0),
+                           c(0, 0, 0, 0, 0, 1, 0),
+                           c(0, 0, 0, 0, 0, 0, 1)))
+(ed75 <- ed(dmodg, respLev = 75, linfct = linfct))
+
+lfdiff <- rbind("24h"=c(1, 0),
+                "48h"=c(0, 1),
+                "48h-24h"=c(-1, 1))
+edose_glht <- glht(ed75, linfct = lfdiff)
+confint(edose_glht)
+```
+
+## Random effects
+
+Fitting a 5-parameter log-logistic model to the vinclozolin dataset, which contains luminescence measurements of a dose-response experiment with 6 replications. The model includes random effects for the lower and upper asymptote b1 and b2, and the location of the inflection point b4, with a random intercept for each replication.
+Given that there is not much information about the upper asymptote available in the sample, there is some dependency on the starting values. But the model can still be useful as an example for fitting a nonlinear mixed-effect model with the drmTMB function. The `lower` argument is used to constrain the fixed effect parameters to be positive, to improve optimisation.
+
+```{r, message=FALSE, warning=FALSE}
+data(vinclozolin)
+vmod <- drmTMB(effect ~ conc, data=vinclozolin, 
+               model="loglogistic", 
+               rform=b1 + b2 + b4 ~ 1 | exper,
+               start = c(1700, 100, 0.5, 0.01, 0), 
+               fix = c(FALSE, FALSE, FALSE, FALSE, FALSE), 
+               lower = c(0, 0, -Inf, 0, 0))
+```
+
+We can visualise the predictions conditional on the random effects.
+
+```{r, message=FALSE, warning=FALSE}
+ndatav <- expand.grid(conc = exp(seq(-5, log(6), length.out = 500)), 
+                      exper = levels(vinclozolin$exper))
+
+# predict.drmTMB by default provides predictions conditional on the random effects
+ndatav$pred <- predict(vmod, newdata = ndatav)
+# prediction conditional on random effects = 0
+ndatav$predpop <- predict(vmod, newdata = ndatav, random=FALSE)
+
+ggplot(vinclozolin, aes(x = log(conc), y = effect, colour=exper)) +
+  geom_point() +
+  geom_line(data = ndatav, aes(x = log(conc), y = pred, colour=exper)) +
+  geom_line(data = ndatav, aes(x = log(conc), y = predpop), 
+            colour="black", linewidth=1.2) +
+  labs(x = "log Concentration", y = "Fluorescence") +
+  theme_bw() 
+
+```
+
+
+### Estimating effective doses in a mixed-effect model
+
+The `ed()` function is using the delta method to estimates effective doses and their corresponding standard errors. The standard error estimation includes by default the estimated variance components of the random effects.
+
+```{r, message=FALSE, warning=FALSE}
+(edv <- ed(vmod, respLev=50, random=TRUE))
+```
+
+We can additionally include the residual variance in the standard error estimation.
+```{r, message=FALSE, warning=FALSE}
+(edvr <- ed(vmod, respLev=50, random=TRUE, residual=TRUE))
 ```
