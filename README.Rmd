@@ -20,7 +20,7 @@ The package drcTMB provides functions to fit dose-response curves using the Temp
 
 ```{r, eval = FALSE}
 # You can install drcTMB from GitHub by
-devtools::install_github("daniel-gerhard/drcTMB")
+pak::pak("daniel-gerhard/drcTMB")
 ```
 
 
