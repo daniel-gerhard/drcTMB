@@ -160,6 +160,9 @@ Type drcnorm(objective_function<Type>* obj) {
         f = f2 + (f1 - f2) * pnorm(fl);
       }
       break;
+    case 6:
+        f = f2 + (f1 - f2) / (1 + f4 / x(i));
+        break;
     }
     nll += -dnorm(y(i), f, exp(log_sigma), true);
   }

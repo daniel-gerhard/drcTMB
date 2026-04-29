@@ -161,6 +161,9 @@ Type drcbeta(objective_function<Type>* obj) {
           f = f2 + (f1 - f2) * pnorm(fl);
         }
         break;
+      case 6:
+        f = f2 + (f1 - f2) / (1 + f4 / x(i));
+        break;
       }
     logl = lgamma(phi) - lgamma(f*phi) - lgamma((1-f)*phi) + (f*phi-1)*log(y(i)) + ((1-f)*phi - 1)*log(1 - y(i));
     nll += -1*logl;

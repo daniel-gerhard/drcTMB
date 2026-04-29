@@ -103,7 +103,10 @@ Type drcnormfix(objective_function<Type>* obj) {
         fl = Xb3(i)*(log(x(i)) - log(Xb4(i)));
         f = f2 + (f1 - f2) * pnorm(fl);
       }
-      break;  
+      break; 
+    case 6:
+      f = f2 + (f1 - f2) / (1 + Xb4(i) / x(i));
+      break; 
     }
     nll += -dnorm(y(i), f, exp(log_sigma), true);
   }

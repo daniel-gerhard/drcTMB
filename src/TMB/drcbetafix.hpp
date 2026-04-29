@@ -104,7 +104,10 @@ Type drcbetafix(objective_function<Type>* obj) {
           fl = Xb3(i)*(log(x(i)) - log(Xb4(i)));
           f = f2 + (f1 - f2) * pnorm(fl);
         }
-        break;  
+        break; 
+      case 6:
+        f = f2 + (f1 - f2) / (1 + Xb4(i) / x(i));
+        break; 
       }
     logl = lgamma(phi) - lgamma(f*phi) - lgamma((1-f)*phi) + (f*phi-1)*log(y(i)) + ((1-f)*phi - 1)*log(1 - y(i));
     nll += -1*logl;
