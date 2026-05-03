@@ -104,6 +104,12 @@ Type drcbinomfix(objective_function<Type>* obj) {
       case 6:
         f = f2 + (f1 - f2) / (1 + Xb4(i) / x(i));
         break;
+      case 7:
+        f = f2 + (f1 - f2) / (1 - exp(-x(i) / Xb4(i)));
+        break; 
+      case 8:
+        f = f2 + (f1 - f2) / (exp(-x(i) / Xb4(i)));
+        break;  
       }
     nll += -dbinom(y(i), bn(i), f, true);
   }

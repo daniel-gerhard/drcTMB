@@ -40,3 +40,4 @@ vignettes/*.pdf
 .Rproj.user
 src/drcTMB_TMBExports.so
 drcTMB.Rproj
+.positai

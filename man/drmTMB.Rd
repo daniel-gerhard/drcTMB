@@ -38,7 +38,7 @@ drmTMB(
 
 \item{family}{Specify the distributional assumptions. One of "gaussian", "binomial", "beta", and "poisson".}
 
-\item{model}{Specify the nonlinear model. One of "logistic", "loglogistic", "weibull1", "weibull2", "lognormal", "michaelismenten".}
+\item{model}{Specify the nonlinear model. One of "logistic", "loglogistic", "weibull1", "weibull2", "lognormal", "michaelismenten", "asymptoticregression", "exponentialdecay".}
 
 \item{link}{Specify the link function for estimating asymptote parameters. One of "identity", "log", "logit".}
 

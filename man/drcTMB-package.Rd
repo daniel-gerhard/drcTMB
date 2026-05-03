@@ -12,5 +12,10 @@ Provides a simple user-interface for fitting non-linear mixed-effects models for
 \author{
 \strong{Maintainer}: Daniel Gerhard \email{00gerhard@gmail.com} (\href{https://orcid.org/0000-0002-9336-3454}{ORCID})
 
+Authors:
+\itemize{
+  \item Daniel Gerhard \email{00gerhard@gmail.com} (\href{https://orcid.org/0000-0002-9336-3454}{ORCID})
+}
+
 }
 \keyword{internal}
