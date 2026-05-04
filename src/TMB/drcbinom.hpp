@@ -166,6 +166,9 @@ Type drcbinom(objective_function<Type>* obj) {
       case 8:
         f = f2 + (f1 - f2) / (exp(-x(i) / f4));
         break;
+      case 9:
+        f = f2 + (f1 - f2) * (exp(-exp(f3*(x(i) - f4))));
+        break; 
       }
     nll += -dbinom(y(i), bn(i), f, true);
   }

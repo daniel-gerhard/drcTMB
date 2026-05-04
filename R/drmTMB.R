@@ -9,7 +9,7 @@
 #' @param lower vector of lower bounds, passed to nlminb.
 #' @param upper vector of upper bounds, passed to nlminb.
 #' @param family Specify the distributional assumptions. One of "gaussian", "binomial", "beta", and "poisson".
-#' @param model Specify the nonlinear model. One of "logistic", "loglogistic", "weibull1", "weibull2", "lognormal", "michaelismenten", "asymptoticregression", "exponentialdecay".
+#' @param model Specify the nonlinear model. One of "logistic", "loglogistic", "weibull1", "weibull2", "lognormal", "michaelismenten", "asymptoticregression", "exponentialdecay", "gompertz".
 #' @param link Specify the link function for estimating asymptote parameters. One of "identity", "log", "logit". 
 #' @param control a list of control parameters. See \code{\link{drmTMBcontrol}} for details.
 #'
@@ -36,7 +36,7 @@ drmTMB <- function(form, fform=NULL, rform=NULL, data, start=NULL, fix=NULL, low
   if (is.null(fix)) fix <- rep(FALSE, sum(npars))
   
   # model
-  mod <- which(model == c("logistic", "loglogistic", "weibull1", "weibull2", "lognormal", "michaelismenten", "asymptoticregression", "exponentialdecay"))
+  mod <- which(model == c("logistic", "loglogistic", "weibull1", "weibull2", "lognormal", "michaelismenten", "asymptoticregression", "exponentialdecay", "gompertz"))
   lnk <- which(link == c("identity", "log", "logit"))
   
   # random effects

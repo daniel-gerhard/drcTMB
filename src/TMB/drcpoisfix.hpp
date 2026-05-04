@@ -108,7 +108,10 @@ Type drcpoisfix(objective_function<Type>* obj) {
         break;
       case 8:
         f = f2 + (f1 - f2) / (exp(-x(i) / Xb4(i)));
-        break;   
+        break;
+      case 9:
+        f = f2 + (f1 - f2) * (exp(-exp(Xb3(i)*(x(i) - Xb4(i)))));
+        break;
       }
     nll += -dpois(y(i), f, true);
   }

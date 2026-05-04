@@ -113,7 +113,10 @@ Type drcbetafix(objective_function<Type>* obj) {
         break;  
       case 8:
         f = f2 + (f1 - f2) / (exp(-x(i) / Xb4(i)));
-        break;    
+        break;   
+      case 9:
+        f = f2 + (f1 - f2) * (exp(-exp(Xb3(i)*(x(i) - Xb4(i)))));
+        break;  
       }
     logl = lgamma(phi) - lgamma(f*phi) - lgamma((1-f)*phi) + (f*phi-1)*log(y(i)) + ((1-f)*phi - 1)*log(1 - y(i));
     nll += -1*logl;
