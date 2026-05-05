@@ -105,7 +105,8 @@ Type drcnormfix(objective_function<Type>* obj) {
       }
       break; 
     case 6:
-      f = f2 + (f1 - f2) / (1 + Xb4(i) / x(i));
+      fl = 1 + Xb4(i) / x(i);
+      f = f2 + (f1 - f2) / fl;
       break; 
     case 7:
       f = f2 + (f1 - f2) / (1 - exp(-x(i) / Xb4(i)));
