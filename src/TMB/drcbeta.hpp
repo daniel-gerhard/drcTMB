@@ -8,6 +8,7 @@ Type drcbeta(objective_function<Type>* obj) {
   DATA_IVECTOR(ind);
   DATA_VECTOR(y);
   DATA_VECTOR(x);
+  DATA_VECTOR(w);
   DATA_VECTOR(z0);
   DATA_MATRIX(X1);
   DATA_MATRIX(X2);
@@ -175,7 +176,7 @@ Type drcbeta(objective_function<Type>* obj) {
         break;         
       }
     logl = lgamma(phi) - lgamma(f*phi) - lgamma((1-f)*phi) + (f*phi-1)*log(y(i)) + ((1-f)*phi - 1)*log(1 - y(i));
-    nll += -1*logl;
+    nll += -w(i) * logl;
   }
   return nll;
 }

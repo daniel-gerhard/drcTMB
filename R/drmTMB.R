@@ -6,6 +6,7 @@
 #' @param data a data.frame object
 #' @param start a vector with starting values for each model parameter. If NA a self-starting function is called.
 #' @param fix a binary vector with same length as start. If TRUE, a model coefficient is fixed to the starting value.
+#' @param weights a vector of weights for each observation.
 #' @param lower vector of lower bounds, passed to nlminb.
 #' @param upper vector of upper bounds, passed to nlminb.
 #' @param family Specify the distributional assumptions. One of "gaussian", "binomial", "beta", and "poisson".
@@ -16,11 +17,11 @@
 #' @return A drmTMB object
 #' @useDynLib drmTMB
 
-drmTMB <- function(form, fform=NULL, rform=NULL, data, start=NULL, fix=NULL, lower=-Inf, upper=Inf, family="gaussian", model="logistic", link="identity", control=list()){
+drmTMB <- function(form, fform=NULL, rform=NULL, data, start=NULL, fix=NULL, weights=NULL, lower=-Inf, upper=Inf, family="gaussian", model="logistic", link="identity", control=list()){
   # control list
   control <- do.call(drmTMBcontrol, control)
   # response
-  mf <- model.frame(form, data=data)
+  mf <- model.frame(form, data=data)  
   # fixed effects
   if (is.null(fform)){
     fform <- vector("list", 5)
@@ -34,6 +35,7 @@ drmTMB <- function(form, fform=NULL, rform=NULL, data, start=NULL, fix=NULL, low
   npi <- rep(1:length(npars), npars)
   if (is.null(start)) start <- rep(NA, sum(npars))
   if (is.null(fix)) fix <- rep(FALSE, sum(npars))
+  if (is.null(weights)) weights <- rep(1, nrow(data))
   
   # model
   mod <- which(model == c("logistic", "loglogistic", "weibull1", "weibull2", "lognormal", "michaelismenten", "asymptoticregression", "exponentialdecay", "gompertz"))
@@ -63,9 +65,9 @@ drmTMB <- function(form, fform=NULL, rform=NULL, data, start=NULL, fix=NULL, low
   
   # data list for TMB
   if (is.null(rform)){
-    dlist <- list(y=y, x=mf[,2], bn=bn, mod=mod, lnk=lnk)
+    dlist <- list(y=y, x=mf[,2], w=weights, bn=bn, mod=mod, lnk=lnk)
   } else {
-    dlist <- list(y=y, x=mf[,2], bn=bn, mod=mod, lnk=lnk, ind=ind, z0=rep(0, nrow(data)), Z=Z)
+    dlist <- list(y=y, x=mf[,2], w=weights, bn=bn, mod=mod, lnk=lnk, ind=ind, z0=rep(0, nrow(data)), Z=Z)
   }
   datalist <- c(dlist, Xs)
   

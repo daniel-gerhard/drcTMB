@@ -7,6 +7,7 @@ Type drcnormfix(objective_function<Type>* obj) {
   DATA_INTEGER(lnk); 
   DATA_VECTOR(y);
   DATA_VECTOR(x);
+  DATA_VECTOR(w);
   DATA_MATRIX(X1);
   DATA_MATRIX(X2);
   DATA_MATRIX(X3);
@@ -118,7 +119,7 @@ Type drcnormfix(objective_function<Type>* obj) {
       f = f2 + (f1 - f2) * (exp(-exp(Xb3(i)*(x(i) - Xb4(i)))));
       break;    
     }
-    nll += -dnorm(y(i), f, exp(log_sigma), true);
+    nll += -w(i) * dnorm(y(i), f, exp(log_sigma), true);
   }
   return nll;
 }

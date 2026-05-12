@@ -7,6 +7,7 @@ Type drcbetafix(objective_function<Type>* obj) {
   DATA_INTEGER(lnk); 
   DATA_VECTOR(y);
   DATA_VECTOR(x);
+  DATA_VECTOR(w);
   DATA_MATRIX(X1);
   DATA_MATRIX(X2);
   DATA_MATRIX(X3);
@@ -119,7 +120,7 @@ Type drcbetafix(objective_function<Type>* obj) {
         break;  
       }
     logl = lgamma(phi) - lgamma(f*phi) - lgamma((1-f)*phi) + (f*phi-1)*log(y(i)) + ((1-f)*phi - 1)*log(1 - y(i));
-    nll += -1*logl;
+    nll += -w(i) * logl;
   }
   return nll;
 }

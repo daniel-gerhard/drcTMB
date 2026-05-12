@@ -7,6 +7,7 @@ Type drcbinomfix(objective_function<Type>* obj) {
   DATA_INTEGER(lnk); 
   DATA_VECTOR(y);
   DATA_VECTOR(x);
+  DATA_VECTOR(w);
   DATA_VECTOR(bn);    
   DATA_MATRIX(X1);
   DATA_MATRIX(X2);
@@ -114,7 +115,7 @@ Type drcbinomfix(objective_function<Type>* obj) {
         f = f2 + (f1 - f2) * (exp(-exp(Xb3(i)*(x(i) - Xb4(i)))));
         break;  
       }
-    nll += -dbinom(y(i), bn(i), f, true);
+    nll += -w(i) * dbinom(y(i), bn(i), f, true);
   }
   return nll;
 }

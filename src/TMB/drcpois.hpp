@@ -8,6 +8,7 @@ Type drcpois(objective_function<Type>* obj) {
   DATA_IVECTOR(ind);
   DATA_VECTOR(y);
   DATA_VECTOR(x);
+  DATA_VECTOR(w);
   DATA_VECTOR(z0);
   DATA_MATRIX(X1);
   DATA_MATRIX(X2);
@@ -169,7 +170,7 @@ Type drcpois(objective_function<Type>* obj) {
         f = f2 + (f1 - f2) * (exp(-exp(f3*(x(i) - f4))));
         break; 
       }
-    nll += -dpois(y(i), f, true);
+    nll += -w(i) * dpois(y(i), f, true);
   }
   return nll;
 }
