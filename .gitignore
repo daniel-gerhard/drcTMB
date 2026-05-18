@@ -35,6 +35,10 @@ vignettes/*.pdf
 *.utf8.md
 *.knit.md
 
+# markdown files
+README-unnamed-chunk-4-1.png
+README.Rmd
+
 # R Environment Variables
 .Renviron
 .Rproj.user
