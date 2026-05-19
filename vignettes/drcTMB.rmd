@@ -187,3 +187,45 @@ We can additionally include the residual variance in the standard error estimati
 ```{r, message=FALSE, warning=FALSE}
 (edvr <- ed(vmod, respLev=50, random=TRUE, residual=TRUE))
 ```
+
+
+### Model functions
+
+#### logistic
+
+$$ f(x) = b_2 + \frac{b_1 - b_2}{\left( 1 + \exp \left( b_3 \left( x - b_4 \right) \right) \right)^{\exp(b_5)}} $$
+
+#### loglogistic
+
+$$ f(x) = b_2 + \frac{b_1 - b_2}{\left( 1 + \exp \left( b_3 \left( \log(x) - b_4 \right) \right) \right)^{\exp(b_5)}} $$
+
+#### weibull1
+
+$$ f(x) = b_2 + \left( b_1 - b_2 \right) \exp \left( -\exp \left( b_3 \left( \log(x) - \log(b_4) \right) \right) \right) $$
+
+#### weibull2
+
+$$ f(x) = b_2 + \left( b_1 - b_2 \right) \left( 1 - \exp \left( -\exp \left( b_3 \left( \log(x) - \log(b_4) \right) \right) \right) \right) $$
+
+#### lognormal
+
+$$ f(x) = b_2 + \left( b_1 - b_2 \right) \Phi \left( b_3 \left( \log(x) - \log(b_4) \right) \right) $$
+
+where $\Phi (\cdot)$ is the cumulative distribution function of the standard normal distribution.
+
+#### michaelismenten
+
+$$ f(x) = b_2 + \frac{b_1 - b_2}{1 + \frac{b_4}{x}} $$
+
+#### asymptoticregression
+
+$$ f(x) = b_2 + \frac{b_1 - b_2}{1 - \exp \left( \frac{-x}{b_4} \right)} $$
+
+#### exponentialdecay
+
+$$ f(x) = b_2 + \frac{b_1 - b_2}{\exp \left( \frac{-x}{b_4} \right)} $$
+
+#### gompertz
+
+$$ f(x) = b_2 + \left( b_1 - b_2 \right) \exp \left( -\exp \left( b_3 \left( x - b_4 \right) \right) \right) $$
+
