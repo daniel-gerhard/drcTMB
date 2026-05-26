@@ -97,7 +97,20 @@ predict.drmTMB <- function(object, newdata=NULL, random=TRUE){
   if (object$model == "lognormal"){
     flx <- pxl[[3]]*(log(x) - log(pxl[[4]]))
     fx <- pxl[[2]] + (pxl[[1]] - pxl[[2]]) * pnorm(flx)
-  }    
+  }
+  if (object$model == "michaelismenten"){
+    flx <- 1 + pxl[[4]] / x
+    fx <- pxl[[2]] + (pxl[[1]] - pxl[[2]]) / flx
+  }
+  if (object$model == "asymptoticregression"){
+    fx <- pxl[[2]] + (pxl[[1]] - pxl[[2]]) / (1 - exp(-x / pxl[[4]]))
+  }
+  if (object$model == "exponentialdecay"){
+    fx <- pxl[[2]] + (pxl[[1]] - pxl[[2]]) / exp(-x / pxl[[4]])
+  }
+  if (object$model == "gompertz"){
+    fx <- pxl[[2]] + (pxl[[1]] - pxl[[2]]) * exp(-exp(pxl[[3]] * (x - pxl[[4]])))
+  }
   return(as.vector(fx))
 }
 
