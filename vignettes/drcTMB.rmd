@@ -20,7 +20,7 @@ The package drcTMB provides functions to fit dose-response curves using the Temp
 
 ## The drmTMB function
 
-The main function in the drcTMB package is `drmTMB()`. There is some similarity to the `drm()` function from the drc package, with a simplified input of response and dose variables through a formula interface, and specifying a nonlinear model through the `model` argument. Available models include "logistic", "loglogistic", "weibull1", "weibull2", and "lognormal".
+The main function in the drcTMB package is `drmTMB()`. There is some similarity to the `drm()` function from the drc package, with a simplified input of response and dose variables through a formula interface, and specifying a nonlinear model through the `model` argument. A full list of available models and their corresponding functions can be found at the end of this vignette.
 
 Each of these models has the same parameter names, b1 and b2 for the asymptotes, b3 for the steepness, b4 for the location of the inflection point on the dose scale, and b5 for an optional asymmetry parameter. The asymmetry parameter b5 is estimated on a logarithmic scale.
 The `start` argument provides starting values for the parameters. The `fix` argument (TRUE/FALSE) allows to fix parameters at these starting values.

@@ -17,6 +17,9 @@ drmTMB(
   family = "gaussian",
   model = "logistic",
   link = "identity",
+  gsl = NULL,
+  gsu = NULL,
+  gsn = NULL,
   control = list()
 )
 }
@@ -44,6 +47,12 @@ drmTMB(
 \item{model}{Specify the nonlinear model. One of "logistic", "loglogistic", "weibull1", "weibull2", "lognormal", "michaelismenten", "asymptoticregression", "exponentialdecay", "gompertz".}
 
 \item{link}{Specify the link function for estimating asymptote parameters. One of "identity", "log", "logit".}
+
+\item{gsl}{a vector of lower bounds for a grid search. If NULL, no grid search is performed.}
+
+\item{gsu}{a vector of upper bounds for a grid search. If NULL, no grid search is performed.}
+
+\item{gsn}{a vector of number of grid points for a grid search. If NULL, no grid search is performed.}
 
 \item{control}{a list of control parameters. See \code{\link{drmTMBcontrol}} for details.}
 }

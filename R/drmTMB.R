@@ -12,12 +12,15 @@
 #' @param family Specify the distributional assumptions. One of "gaussian", "binomial", "beta", and "poisson".
 #' @param model Specify the nonlinear model. One of "logistic", "loglogistic", "weibull1", "weibull2", "lognormal", "michaelismenten", "asymptoticregression", "exponentialdecay", "gompertz".
 #' @param link Specify the link function for estimating asymptote parameters. One of "identity", "log", "logit". 
+#' @param gsl a vector of lower bounds for a grid search. If NULL, no grid search is performed.
+#' @param gsu a vector of upper bounds for a grid search. If NULL, no grid search is performed.
+#' @param gsn a vector of number of grid points for a grid search. If NULL, no grid search is performed.
 #' @param control a list of control parameters. See \code{\link{drmTMBcontrol}} for details.
 #'
 #' @return A drmTMB object
 #' @useDynLib drmTMB
 
-drmTMB <- function(form, fform=NULL, rform=NULL, data, start=NULL, fix=NULL, weights=NULL, lower=-Inf, upper=Inf, family="gaussian", model="logistic", link="identity", control=list()){
+drmTMB <- function(form, fform=NULL, rform=NULL, data, start=NULL, fix=NULL, weights=NULL, lower=-Inf, upper=Inf, family="gaussian", model="logistic", link="identity", gsl=NULL, gsu=NULL, gsn=NULL, control=list()){
   # control list
   control <- do.call(drmTMBcontrol, control)
   # response
@@ -146,6 +149,22 @@ drmTMB <- function(form, fform=NULL, rform=NULL, data, start=NULL, fix=NULL, wei
     }
   }
   obj$hessian <- TRUE
+
+  ## grid search
+  if (!(is.null(gsl) & is.null(gsu) & is.null(gsn))){
+    if (length(gsn) == 1) gsn <- rep(gsn, length(gsl))
+    if (length(gsl) != length(gsu)) stop("gsl and gsu must have the same length.")
+    grid <- lapply(1:length(gsl), function(i) seq(gsl[i], gsu[i], length.out=gsn[i]))
+    gridpar <- expand.grid(grid)
+    objvals <- apply(gridpar, 1, function(x){
+      par <- obj$par
+      par[1:length(x)] <- x
+      obj$fn(par)
+    })
+    best <- which.min(objvals)
+    obj$par[1:length(gridpar[best,])] <- as.numeric(gridpar[best,])
+  }
+
   if (is.null(rform)){
     opt <- nlminb(start=obj$par, objective=obj$fn, gradient=obj$gr, hessian=obj$he, lower=lower, upper=upper)
   } else {
