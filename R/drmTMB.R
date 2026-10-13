@@ -7,8 +7,8 @@
 #' @param start a vector with starting values for each model parameter. NA entries are replaced by the starting values of \code{\link{drmTMBstart}}.
 #' @param fix a binary vector with same length as start. If TRUE, a model coefficient is fixed to the starting value.
 #' @param weights a vector of weights for each observation.
-#' @param lower vector of lower bounds, passed to nlminb.
-#' @param upper vector of upper bounds, passed to nlminb.
+#' @param lower lower bounds for the model coefficients b1-b5, a single value or a vector with the same length as start. Bounds of fixed coefficients are ignored; variance parameters are unbounded.
+#' @param upper upper bounds for the model coefficients b1-b5, a single value or a vector with the same length as start.
 #' @param family Specify the distributional assumptions. One of "gaussian", "binomial", "beta", and "poisson".
 #' @param model Specify the nonlinear model. One of "logistic", "loglogistic", "weibull1", "weibull2", "lognormal", "michaelismenten", "asymptoticregression", "exponentialdecay", "gompertz".
 #' @param link Specify the link function for estimating asymptote parameters. One of "identity", "log", "logit". 
@@ -32,6 +32,15 @@ drmTMB <- function(form, fform=NULL, rform=NULL, data, start=NULL, fix=NULL, wei
   start <- drmTMBstartvals(dd, start, fix, method=method, gsl=gsl, gsu=gsu, gsn=gsn)
 
   obj <- drmTMBobj(dd, start, fix, rform=rform)
+
+  # bounds apply to the free coefficients only, not to the variance parameters
+  bounds <- function(b, inf){
+    if (length(b) == 1) b <- rep(b, length(start))
+    if (length(b) != length(start)) stop("lower and upper must be a single value or have the same length as start.")
+    c(b[!fix], rep(inf, length(obj$par) - sum(!fix)))
+  }
+  lower <- bounds(lower, -Inf)
+  upper <- bounds(upper, Inf)
 
   if (is.null(rform)){
     opt <- nlminb(start=obj$par, objective=obj$fn, gradient=obj$gr, hessian=obj$he, lower=lower, upper=upper)

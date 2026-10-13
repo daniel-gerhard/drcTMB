@@ -38,9 +38,9 @@ drmTMB(
 
 \item{weights}{a vector of weights for each observation.}
 
-\item{lower}{vector of lower bounds, passed to nlminb.}
+\item{lower}{lower bounds for the model coefficients b1-b5, a single value or a vector with the same length as start. Bounds of fixed coefficients are ignored; variance parameters are unbounded.}
 
-\item{upper}{vector of upper bounds, passed to nlminb.}
+\item{upper}{upper bounds for the model coefficients b1-b5, a single value or a vector with the same length as start.}
 
 \item{family}{Specify the distributional assumptions. One of "gaussian", "binomial", "beta", and "poisson".}
 
