@@ -43,6 +43,7 @@ drmTMB <- function(form, fform=NULL, rform=NULL, data, start=NULL, fix=NULL, wei
   # model
   mod <- which(model == c("logistic", "loglogistic", "weibull1", "weibull2", "lognormal", "michaelismenten", "asymptoticregression", "exponentialdecay", "gompertz"))
   lnk <- which(link == c("identity", "log", "logit"))
+  fam <- which(family == c("gaussian", "poisson", "binomial", "beta"))
   
   # random effects
   if (!is.null(rform)){
@@ -66,12 +67,14 @@ drmTMB <- function(form, fform=NULL, rform=NULL, data, start=NULL, fix=NULL, wei
     bn <- rep(0, length(y))  
   }
   
-  # data list for TMB
+  # no random effects: empty design matrix
   if (is.null(rform)){
-    dlist <- list(y=y, x=mf[,2], w=weights, bn=bn, mod=mod, lnk=lnk)
-  } else {
-    dlist <- list(y=y, x=mf[,2], w=weights, bn=bn, mod=mod, lnk=lnk, ind=ind, z0=rep(0, nrow(data)), Z=Z)
+    ind <- rep(0, 5)
+    Z <- Matrix::sparseMatrix(i=integer(0), j=integer(0), x=numeric(0), dims=c(length(y), 0))
   }
+
+  # data list for TMB
+  dlist <- list(model="drcTMB", y=y, x=mf[,2], w=weights, bn=bn, fam=fam, mod=mod, lnk=lnk, ind=ind, Z=Z)
   datalist <- c(dlist, Xs)
   
   # Starting values
@@ -99,9 +102,8 @@ drmTMB <- function(form, fform=NULL, rform=NULL, data, start=NULL, fix=NULL, wei
   sb5[is.na(sb5)] <- 0
   
   if (is.null(rform)){
-    parameters <- list(b1=sb1, b2=sb2, b3=sb3, b4=sb4, b5=sb5)
-    if (family == "gaussian") parameters <- c(parameters, list(log_sigma=1))
-    if (family == "beta") parameters <- c(parameters, list(log_sigma=10))
+    up <- numeric(0)
+    stheta <- numeric(0)
   } else {
     nvc <- sum(ind > 0)
     m <- ncol(Z)
@@ -109,46 +111,25 @@ drmTMB <- function(form, fform=NULL, rform=NULL, data, start=NULL, fix=NULL, wei
     ctheta <- rep(0, nvc*(nvc-1)/2)
     stheta <- c(vtheta, ctheta)
     up <- matrix(rnorm(nvc*m, 0, rep(vtheta, each=m)), ncol=nvc)
-    parameters <- list(b1=sb1, b2=sb2, b3=sb3, b4=sb4, b5=sb5, u=as.vector(up), theta=stheta)
-    if (family == "gaussian") parameters <- c(parameters, list(log_sigma=0))
-    if (family == "beta") parameters <- c(parameters, list(log_sigma=10))
   }
-  
+  # log_sigma: residual sd (gaussian) or precision (beta); fixed for poisson and binomial
+  if (family == "gaussian") slsigma <- if (is.null(rform)) 1 else 0
+  if (family == "beta") slsigma <- 10
+  if (family %in% c("poisson", "binomial")) slsigma <- 0
+  parameters <- list(b1=sb1, b2=sb2, b3=sb3, b4=sb4, b5=sb5, u=as.vector(up), theta=stheta, log_sigma=slsigma)
+
   # fix parameters to starting values
-  if (!any(fix)){
-    if (is.null(rform)){
-      if (family == "gaussian") obj <- MakeADFun(c(model = "drcnormfix", datalist), parameters, DLL="drcTMB_TMBExports", silent=TRUE)
-      if (family == "poisson") obj <- MakeADFun(c(model = "drcpoisfix", datalist), parameters, DLL="drcTMB_TMBExports", silent=TRUE)
-      if (family == "binomial") obj <- MakeADFun(c(model = "drcbinomfix", datalist), parameters, DLL="drcTMB_TMBExports", silent=TRUE)
-      if (family == "beta") obj <- MakeADFun(c(model = "drcbetafix", datalist), parameters, DLL="drcTMB_TMBExports", silent=TRUE)     
-    } else {
-      if (family == "gaussian") obj <- MakeADFun(c(model = "drcnorm", datalist), parameters, random="u", DLL="drcTMB_TMBExports", silent=TRUE)
-      if (family == "poisson") obj <- MakeADFun(c(model = "drcpois", datalist), parameters, random="u", DLL="drcTMB_TMBExports", silent=TRUE)
-      if (family == "binomial") obj <- MakeADFun(c(model = "drcbinom", datalist), parameters, random="u", DLL="drcTMB_TMBExports", silent=TRUE)
-      if (family == "beta") obj <- MakeADFun(c(model = "drcbeta", datalist), parameters, random="u", DLL="drcTMB_TMBExports", silent=TRUE)
-    }
-  } else {
-    lmap <- vector("list", 5)
-    names(lmap) <- paste("b", 1:5, sep="")
-    idp <- 1:sum(npars) 
+  lmap <- list()
+  if (any(fix)){
+    idp <- 1:sum(npars)
     idp[fix] <- NA
     for (i in 1:5){
-      lmap[[i]] <- idp[npi == i]  
-    }
-    lmap <- lapply(lmap, function(x) as.factor(x))
-    if (is.null(rform)){
-      if (family == "gaussian") obj <- MakeADFun(c(model = "drcnormfix", datalist), parameters, DLL="drcTMB_TMBExports", map=lmap, silent=TRUE)
-      if (family == "poisson") obj <- MakeADFun(c(model = "drcpoisfix", datalist), parameters, DLL="drcTMB_TMBExports", map=lmap, silent=TRUE)
-      if (family == "binomial") obj <- MakeADFun(c(model = "drcbinomfix", datalist), parameters, DLL="drcTMB_TMBExports", map=lmap, silent=TRUE)
-      if (family == "beta") obj <- MakeADFun(c(model = "drcbetafix", datalist), parameters, DLL="drcTMB_TMBExports", map=lmap, silent=TRUE)
-    } else {
-      if (family == "gaussian") obj <- MakeADFun(c(model = "drcnorm", datalist), parameters, random="u", DLL="drcTMB_TMBExports", map=lmap, silent=TRUE)
-      if (family == "poisson") obj <- MakeADFun(c(model = "drcpois", datalist), parameters, random="u", DLL="drcTMB_TMBExports", map=lmap, silent=TRUE)
-      if (family == "binomial") obj <- MakeADFun(c(model = "drcbinom", datalist), parameters, random="u", DLL="drcTMB_TMBExports", map=lmap, silent=TRUE)
-      if (family == "beta") obj <- MakeADFun(c(model = "drcbeta", datalist), parameters, random="u", DLL="drcTMB_TMBExports", map=lmap, silent=TRUE)
+      lmap[[paste("b", i, sep="")]] <- as.factor(idp[npi == i])
     }
   }
-  obj$hessian <- TRUE
+  if (family %in% c("poisson", "binomial")) lmap$log_sigma <- factor(NA)
+
+  obj <- MakeADFun(datalist, parameters, map=lmap, random=if (!is.null(rform)) "u", DLL="drcTMB_TMBExports", silent=TRUE)
 
   ## grid search
   if (!(is.null(gsl) & is.null(gsu) & is.null(gsn))){
