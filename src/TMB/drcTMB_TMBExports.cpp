@@ -2,12 +2,15 @@
 
 #define TMB_LIB_INIT R_init_drcTMB_TMBExports
 #include <TMB.hpp>
+#include "drcED.hpp"
 #include "drcTMB.hpp"
 
 template<class Type>
 Type objective_function<Type>::operator() () {
   DATA_STRING(model);
-  if(model == "drcTMB") {
+  if(model == "drcED") {
+    return drcED(this);
+  } else if(model == "drcTMB") {
     return drcTMB(this);
   } else {
     Rf_error("Unknown model.");

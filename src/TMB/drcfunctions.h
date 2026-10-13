@@ -95,6 +95,44 @@ Type drcmean(int mod, Type x, Type f1, Type f2, Type f3, Type f4, Type f5){
   return f;
 }
 
+// effective dose: inverse of drcmean at relative response level p
+// r: shift on the response scale (residual), q: relative position between f2 and f1
+template<class Type>
+Type drced(int mod, Type p, Type f1, Type f2, Type f3, Type f4, Type f5, Type r){
+  Type q = p - r / (f1 - f2);
+  Type ed = 0;
+  switch (mod){
+  case 1:
+    ed = f4 + 1/f3 * log(pow(q, -1/exp(f5)) - 1);
+    break;
+  case 2:
+    ed = f4 * pow(pow(q, -1/exp(f5)) - 1, 1/f3);
+    break;
+  case 3:
+    ed = f4 * pow(-1*log(q), 1/f3);
+    break;
+  case 4:
+    ed = f4 * pow(-1*log(1 - q), -1/f3);
+    break;
+  case 5:
+    ed = f4 * exp(-1/f3 * qnorm(q));
+    break;
+  case 6:
+    ed = f4 * q / (1 - q);
+    break;
+  case 7:
+    ed = -1*f4 * log(1 - 1/q);
+    break;
+  case 8:
+    ed = f4 * log(q);
+    break;
+  case 9:
+    ed = f4 + 1/f3 * log(-1*log(q));
+    break;
+  }
+  return ed;
+}
+
 // log-likelihood contribution of a single observation
 // fam: 1 = gaussian (phi = sd), 2 = poisson, 3 = binomial (bn = number of trials),
 //      4 = beta (phi = precision)
