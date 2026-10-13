@@ -23,16 +23,15 @@ print.drmTMB <- function(x, ...){
   #lsigma <- ests[rn %in% "log_sigma",,drop=FALSE]
   cat("Coefficients:\n")
   print(coefs)
-  if (!is.null(x$rform)){
-    thetas <- ests[rn %in% "theta",,drop=FALSE]
-    corrs <- ests[rn %in% "corr",,drop=FALSE]
-    cr <- matrix(corrs[,1], nrow=sqrt(nrow(corrs)))
-    sdm <- exp(thetas[1:sqrt(nrow(corrs))])
-    names(sdm) <- rownames(cr) <- colnames(cr) <- all.vars(x$rform[[2]])
-    cat("\nStd.Dev.:\n")
-    print(sdm)
-    cat("\nCorrelation:\n")
-    print(cr)
+  for (vc in recov(x)){
+    pn <- paste("b", vc$pars, sep="")
+    names(vc$sd) <- rownames(vc$corr) <- colnames(vc$corr) <- pn
+    cat("\nRandom effects:", vc$group, "\nStd.Dev.:\n")
+    print(vc$sd)
+    if (length(pn) > 1){
+      cat("Correlation:\n")
+      print(vc$corr)
+    }
   }
 }
 
@@ -54,25 +53,24 @@ predict.drmTMB <- function(object, newdata=NULL, random=TRUE){
   pxl <- lapply(1:5, function(i) Xs[[i]] %*% cest[npi == i])
   
   if (random && !is.null(object$rform)){
-    rformrh <- rformlh <- object$rform
-    rformrh[2] <- NULL
-    rf <- model.frame(subbars(rformrh), data=newdata)
-    rt <- mkReTrms(findbars(object$rform), rf)
-    Z <- t(rt$Zt)
-    re <- ests[rn %in% "u",,drop=FALSE]
-    rformlh[3] <- NULL
-    rcoefs <- all.vars(rformlh)
-    rind <- which(paste("b", 1:5, sep="") %in% rcoefs)
-    umat <- matrix(re[,1], ncol=length(rind))
-    pxl <- lapply(1:5, function(i){
-      if (i %in% rind){
-        pxl[[i]] <- pxl[[i]] + Z %*% umat[,which(i == rind), drop=FALSE]
-      } else {
-        return(pxl[[i]]) 
+    # random effects of the fitted levels; levels not in the fitted data get zero
+    re <- ests[rn %in% "u", 1]
+    uoff <- 0
+    for (tm in object$reterms){
+      nl <- length(tm$levels)
+      np <- length(tm$pars)
+      U <- matrix(re[uoff + seq_len(nl*np)], nrow=nl)
+      uoff <- uoff + nl*np
+      rt <- mkReTrms(findbars(tm$formula), model.frame(subbars(tm$formula), data=newdata))
+      Zt <- rt$Ztlist[[tm$name]]
+      lid <- match(rownames(Zt), tm$levels)
+      Znew <- t(Zt[!is.na(lid), , drop=FALSE])
+      for (k in seq_len(np)){
+        pxl[[tm$pars[k]]] <- pxl[[tm$pars[k]]] + as.vector(Znew %*% U[lid[!is.na(lid)], k])
       }
-    })
+    }
   }
-  
+
   if (object$link == "log"){
     pxl[[1]] <- exp(pxl[[1]])
     pxl[[2]] <- exp(pxl[[2]])
@@ -145,4 +143,23 @@ simulate.drmTMB <- function(object, nsim=1, seed=NULL, random=TRUE, ...){
   sims <- as.data.frame(sims, col.names=paste("sim", seq_len(nsim), sep="_"))
   attr(sims, "seed") <- seed
   sims
+}
+
+
+# standard deviations, correlation and covariance matrix of each random effect term
+recov <- function(object){
+  ests <- object$ssdrl
+  rn <- rownames(ests)
+  thetas <- ests[rn %in% "theta", 1]
+  corrs <- ests[rn %in% "corr", 1]
+  toff <- 0
+  coff <- 0
+  lapply(object$reterms, function(tm){
+    np <- length(tm$pars)
+    sdm <- exp(thetas[toff + seq_len(np)])
+    cr <- matrix(corrs[coff + seq_len(np*np)], nrow=np)
+    toff <<- toff + np + np*(np-1)/2
+    coff <<- coff + np*np
+    list(pars=tm$pars, group=tm$group, sd=sdm, corr=cr, cov=diag(sdm, nrow=np) %*% cr %*% diag(sdm, nrow=np))
+  })
 }

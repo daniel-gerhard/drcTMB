@@ -8,7 +8,9 @@ Type drcTMB(objective_function<Type>* obj) {
   DATA_INTEGER(fam);
   DATA_INTEGER(mod);
   DATA_INTEGER(lnk);
-  DATA_IVECTOR(ind);       // 0/1 for b1-b5: parameter has a random effect
+  DATA_IVECTOR(tnp);       // random effect terms: number of parameters per term
+  DATA_IVECTOR(tnl);       // number of levels per term
+  DATA_IVECTOR(tpar);      // parameter indices (0-4) of all terms, concatenated
   DATA_INTEGER(simre);     // simulate: 1 = new random effects, 0 = keep the fitted ones
   DATA_VECTOR(y);
   DATA_VECTOR(x);
@@ -19,7 +21,7 @@ Type drcTMB(objective_function<Type>* obj) {
   DATA_MATRIX(X3);
   DATA_MATRIX(X4);
   DATA_MATRIX(X5);
-  DATA_SPARSE_MATRIX(Z);   // zero columns without random effects
+  DATA_SPARSE_MATRIX(Z);   // design matrices of all terms, side by side; zero columns without random effects
   PARAMETER_VECTOR(b1);
   PARAMETER_VECTOR(b2);
   PARAMETER_VECTOR(b3);
@@ -42,47 +44,63 @@ Type drcTMB(objective_function<Type>* obj) {
   int n = y.size();
 
   // random effects: column k of Zu is added to the linear predictor of b(k+1)
+  // term t has tnl(t) levels and random intercepts for the tnp(t) parameters tpar,
+  // correlated within a term and independent between terms
   matrix<Type> Zu(n, 5);
   Zu.setZero();
-  int rn = ind.sum();
-  if (rn > 0){
-    int un = u.size()/rn;
-    vector<int> dim(2);
-    dim << un, rn;
-    array<Type> U(u, dim);
+  int nt = tnp.size();
+  if (nt > 0){
+    int ncorr = 0;
+    for (int t = 0; t < nt; t++) ncorr += tnp(t)*tnp(t);
+    vector<Type> corr(ncorr);
 
-    vector<Type> logsd = theta.head(rn);
-    vector<Type> corr_transf = theta.tail(theta.size() - rn);
-    vector<Type> sd = exp(logsd);
-    density::UNSTRUCTURED_CORR_t<Type> nldens(corr_transf);
-    density::VECSCALE_t<density::UNSTRUCTURED_CORR_t<Type> > scnldens = density::VECSCALE(nldens, sd);
+    int uoff = 0, toff = 0, poff = 0, zoff = 0, coff = 0;
+    for (int t = 0; t < nt; t++){
+      int np = tnp(t);
+      int nl = tnl(t);
+      vector<Type> ut = u.segment(uoff, nl*np);
+      vector<int> dim(2);
+      dim << nl, np;
+      array<Type> U(ut, dim);
 
-    for (int j = 0; j < un; j++){
-      nll += scnldens(U.transpose().col(j));
-    }
+      vector<Type> logsd = theta.segment(toff, np);
+      vector<Type> corr_transf = theta.segment(toff + np, np*(np-1)/2);
+      vector<Type> sd = exp(logsd);
+      density::UNSTRUCTURED_CORR_t<Type> nldens(corr_transf);
+      density::VECSCALE_t<density::UNSTRUCTURED_CORR_t<Type> > scnldens = density::VECSCALE(nldens, sd);
 
-    // new random effects for each cluster
-    SIMULATE {
-      if (simre == 1){
-        vector<Type> uj(rn);
-        for (int j = 0; j < un; j++){
-          scnldens.simulate(uj);
-          for (int k = 0; k < rn; k++) U(j, k) = uj(k);
+      for (int j = 0; j < nl; j++){
+        nll += scnldens(U.transpose().col(j));
+      }
+
+      // new random effects for each level
+      SIMULATE {
+        if (simre == 1){
+          vector<Type> uj(np);
+          for (int j = 0; j < nl; j++){
+            scnldens.simulate(uj);
+            for (int k = 0; k < np; k++) U(j, k) = uj(k);
+          }
         }
       }
-    }
 
-    matrix<Type> corr = nldens.cov();
-    ADREPORT(corr);
-
-    int ucount = 0;
-    for (int k = 0; k < 5; k++){
-      if (ind(k) > 0){
-        vector<Type> Zuk = Z * U.col(ucount).matrix();
-        Zu.col(k) = Zuk.matrix();
-        ucount = ucount + 1;
+      matrix<Type> ct = nldens.cov();
+      for (int l = 0; l < np; l++){
+        for (int k = 0; k < np; k++) corr(coff + k + l*np) = ct(k, l);
       }
+
+      for (int k = 0; k < np; k++){
+        vector<Type> Zuk = Z.middleCols(zoff, nl) * U.col(k).matrix();
+        Zu.col(tpar(poff + k)) += Zuk.matrix();
+      }
+
+      uoff += nl*np;
+      toff += np + np*(np-1)/2;
+      poff += np;
+      zoff += nl;
+      coff += np*np;
     }
+    ADREPORT(corr);
   }
 
   vector<Type> Xb1 = X1 * b1;

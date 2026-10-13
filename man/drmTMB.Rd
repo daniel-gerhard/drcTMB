@@ -28,7 +28,7 @@ drmTMB(
 
 \item{fform}{list with fixed-effect right-hand side formulas for each model parameter}
 
-\item{rform}{random effect formula of the form b1 + b2 + b3 + b4 + b5 ~ 1 | cluster}
+\item{rform}{random intercepts: a formula of the form b1 + b2 + b4 ~ 1 | cluster, or a list of such formulas, e.g. list(b1 + b4 ~ 1 | exper, b1 ~ 1 | plate). Random intercepts within a formula are correlated across the listed parameters; different formulas, and the levels of nested factors (1 | exper/plate), are independent terms.}
 
 \item{data}{a data.frame object}
 

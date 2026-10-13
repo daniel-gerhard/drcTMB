@@ -39,20 +39,12 @@ ed <- function(x, respLev=50, linfct=diag(5), random=TRUE, residual=FALSE){
 
   ests <- x$ssdrl
 
+  # random effects: sum of the covariance matrices of all terms
+  rvc <- matrix(0, nrow=5, ncol=5)
   if (!is.null(x$rform) & random == TRUE){
-    tn <- rownames(ests)
-    thetas <- ests[tn %in% "theta",,drop=FALSE]
-    corrs <- ests[tn %in% "corr",,drop=FALSE]
-    cr <- matrix(corrs[,1], nrow=sqrt(nrow(corrs)))
-    sdm <- exp(thetas[1:sqrt(nrow(corrs))])
-    rname <- all.vars(x$rform[[2]])
-    if (length(sdm) == 1) sdm <- as.matrix(sdm)
-    vc <- diag(sdm) %*% cr %*% diag(sdm)
-    idr <- paste("b", 1:5, sep="") %in% rname
-    rvc <- matrix(0, nrow=5, ncol=5)
-    rvc[idr, idr] <- vc
-  } else {
-    rvc <- matrix(0, nrow=5, ncol=5)
+    for (vc in recov(x)){
+      rvc[vc$pars, vc$pars] <- rvc[vc$pars, vc$pars] + vc$cov
+    }
   }
 
   if (residual == TRUE){

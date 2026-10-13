@@ -79,24 +79,9 @@ drmTMBdata <- function(form, fform=NULL, rform=NULL, data, weights=NULL, family=
   }
 
   # random effects
-  if (!is.null(rform)){
-    rformrh <- rformlh <- rform
-    rformrh[2] <- NULL
-    rf <- model.frame(subbars(rformrh), data=data)
-    rt <- mkReTrms(findbars(rform), rf)
-    Z <- t(rt$Zt)
+  re <- reterms(rform, data)
 
-    # ... allow user-specific term names
-    rformlh[3] <- NULL
-    rcoefs <- all.vars(rformlh)
-    ind <- as.numeric(paste("b", 1:5, sep="") %in% rcoefs)
-  } else {
-    # no random effects: empty design matrix
-    ind <- rep(0, 5)
-    Z <- Matrix::sparseMatrix(i=integer(0), j=integer(0), x=numeric(0), dims=c(length(y), 0))
-  }
-
-  list(y=y, x=mf[,2], w=weights, bn=bn, fam=fam, mod=mod, lnk=lnk, ind=ind, Z=Z,
+  list(y=y, x=mf[,2], w=weights, bn=bn, fam=fam, mod=mod, lnk=lnk, re=re,
        Xs=Xs, fform=fform, npars=npars, npi=rep(1:5, npars),
        family=family, model=model, link=link)
 }
@@ -312,26 +297,22 @@ gridrange <- function(dd, start){
 drmTMBobj <- function(dd, start, fix, rform=NULL){
   npi <- dd$npi
   sb <- lapply(1:5, function(i) start[npi == i])
-  if (is.null(rform)){
-    Z <- Matrix::sparseMatrix(i=integer(0), j=integer(0), x=numeric(0), dims=c(length(dd$y), 0))
-    ind <- rep(0, 5)
-    up <- numeric(0)
-    stheta <- numeric(0)
-  } else {
-    Z <- dd$Z
-    ind <- dd$ind
-    nvc <- sum(ind > 0)
-    stheta <- c(rep(0.001, nvc), rep(0, nvc*(nvc-1)/2))
-    up <- rep(0, nvc*ncol(Z))
-  }
-  dlist <- list(model="drcTMB", y=dd$y, x=dd$x, w=dd$w, bn=dd$bn, fam=dd$fam, mod=dd$mod, lnk=dd$lnk, ind=ind, simre=1L, Z=Z)
+  re <- if (is.null(rform)) reterms(NULL, length(dd$y)) else dd$re
+  tnp <- vapply(re$terms, function(tm) length(tm$pars), integer(1))
+  tnl <- vapply(re$terms, function(tm) length(tm$levels), integer(1))
+  # log standard deviations and transformed correlations for each term; random effects at zero
+  stheta <- unlist(lapply(tnp, function(np) c(rep(0.001, np), rep(0, np*(np-1)/2))))
+  up <- rep(0, sum(tnp*tnl))
+  dlist <- list(model="drcTMB", y=dd$y, x=dd$x, w=dd$w, bn=dd$bn, fam=dd$fam, mod=dd$mod, lnk=dd$lnk,
+                tnp=tnp, tnl=tnl, tpar=as.integer(unlist(lapply(re$terms, function(tm) tm$pars)) - 1),
+                simre=1L, Z=re$Z)
   datalist <- c(dlist, dd$Xs)
 
   # log_sigma: residual sd (gaussian) or precision (beta); fixed for poisson and binomial
   if (dd$family == "gaussian") slsigma <- if (is.null(rform)) 1 else 0
   if (dd$family == "beta") slsigma <- 10
   if (dd$family %in% c("poisson", "binomial")) slsigma <- 0
-  parameters <- list(b1=sb[[1]], b2=sb[[2]], b3=sb[[3]], b4=sb[[4]], b5=sb[[5]], u=up, theta=stheta, log_sigma=slsigma)
+  parameters <- list(b1=sb[[1]], b2=sb[[2]], b3=sb[[3]], b4=sb[[4]], b5=sb[[5]], u=up, theta=as.numeric(stheta), log_sigma=slsigma)
 
   # fix parameters to starting values
   lmap <- list()
@@ -345,6 +326,37 @@ drmTMBobj <- function(dd, start, fix, rform=NULL){
   if (dd$family %in% c("poisson", "binomial")) lmap$log_sigma <- factor(NA)
 
   MakeADFun(datalist, parameters, map=lmap, random=if (!is.null(rform)) "u", DLL="drcTMB_TMBExports", silent=TRUE)
+}
+
+
+# random intercept terms from rform, a formula or a list of formulas of the form
+# b1 + b4 ~ 1 | group; nested grouping factors (1 | a/b) give one term per level of nesting
+reterms <- function(rform, data){
+  if (is.null(rform)){
+    n <- if (is.numeric(data)) data else nrow(data)
+    return(list(terms=list(), Z=Matrix::sparseMatrix(i=integer(0), j=integer(0), x=numeric(0), dims=c(n, 0))))
+  }
+  if (inherits(rform, "formula")) rform <- list(rform)
+  terms <- list()
+  Zl <- list()
+  for (f in rform){
+    if (length(f) != 3) stop("Each random effect formula needs parameters on the left-hand side, e.g. b1 + b4 ~ 1 | group.")
+    pnames <- all.vars(f[[2]])
+    if (!all(pnames %in% paste("b", 1:5, sep=""))) stop("The left-hand side of a random effect formula can only contain b1 to b5.")
+    pars <- sort(match(pnames, paste("b", 1:5, sep="")))
+    frh <- f
+    frh[2] <- NULL
+    rt <- mkReTrms(findbars(frh), model.frame(subbars(frh), data=data))
+    if (!all(sapply(rt$cnms, function(cn) identical(cn, "(Intercept)")))) stop("Only random intercepts are supported, e.g. b4 ~ 1 | group.")
+    for (j in seq_along(rt$Ztlist)){
+      Zt <- rt$Ztlist[[j]]
+      # name and formula identify the term again in new data (predict)
+      terms[[length(terms) + 1]] <- list(pars=pars, name=names(rt$Ztlist)[j], group=sub("^1 \\| ", "", names(rt$Ztlist)[j]),
+                                         levels=rownames(Zt), formula=frh)
+      Zl[[length(Zl) + 1]] <- t(Zt)
+    }
+  }
+  list(terms=terms, Z=do.call(cbind, Zl))
 }
 
 
