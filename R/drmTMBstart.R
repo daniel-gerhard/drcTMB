@@ -1,0 +1,302 @@
+#' Starting values for a drmTMB model
+#'
+#' Computes starting values for the fixed-effect parameters of a dose-response model,
+#' which can be inspected, modified, and passed to the \code{start} argument of \code{\link{drmTMB}}.
+#'
+#' Method "lm" takes the asymptotes from the mean response at the lowest and highest dose,
+#' transforms the response to the relative scale between the asymptotes, and estimates
+#' b3 and b4 by linear regression on a linearised version of the model function.
+#' The asymmetry parameter b5 starts at 0. With covariates in \code{fform}, the pooled
+#' starting value of each parameter is projected onto its design matrix, giving the
+#' intercept or each group the pooled value and contrasts a value of zero.
+#'
+#' Method "grid" evaluates the negative log-likelihood (without random effects) at all
+#' combinations of a grid of parameter values and returns the best grid point; parameters
+#' not included in the grid start at the values of method "lm".
+#'
+#' @param form formula with name of response and dose scale
+#' @param fform list with fixed-effect right-hand side formulas for each model parameter
+#' @param data a data.frame object
+#' @param start a vector with starting values for each model parameter. Only NA entries are replaced.
+#' @param fix a binary vector with same length as start. If TRUE, a model coefficient is fixed to the starting value.
+#' @param weights a vector of weights for each observation.
+#' @param family Specify the distributional assumptions. One of "gaussian", "binomial", "beta", and "poisson".
+#' @param model Specify the nonlinear model. One of "logistic", "loglogistic", "weibull1", "weibull2", "lognormal", "michaelismenten", "asymptoticregression", "exponentialdecay", "gompertz".
+#' @param link Specify the link function for estimating asymptote parameters. One of "identity", "log", "logit".
+#' @param method one of "lm" or "grid".
+#' @param gsl a vector of lower bounds for the grid search, same length as start; NA for parameters not included in the grid.
+#' @param gsu a vector of upper bounds for the grid search, same length as start; NA for parameters not included in the grid.
+#' @param gsn number of grid points for each parameter, a single number or a vector with the same length as start.
+#'
+#' @return a named vector of starting values
+#' @export
+#'
+drmTMBstart <- function(form, fform=NULL, data, start=NULL, fix=NULL, weights=NULL, family="gaussian", model="logistic", link="identity", method="lm", gsl=NULL, gsu=NULL, gsn=NULL){
+  dd <- drmTMBdata(form, fform=fform, data=data, weights=weights, family=family, model=model, link=link)
+  if (is.null(start)) start <- rep(NA, sum(dd$npars))
+  if (is.null(fix)) fix <- rep(FALSE, sum(dd$npars))
+  sv <- drmTMBstartvals(dd, start, fix, method=method, gsl=gsl, gsu=gsu, gsn=gsn)
+  names(sv) <- unlist(lapply(1:5, function(i) paste("b", i, ":", colnames(dd$Xs[[i]]), sep="")))
+  sv
+}
+
+
+# model data shared by drmTMB and drmTMBstart
+drmTMBdata <- function(form, fform=NULL, rform=NULL, data, weights=NULL, family="gaussian", model="logistic", link="identity"){
+  # response
+  mf <- model.frame(form, data=data)
+  # fixed effects
+  if (is.null(fform)){
+    fform <- vector("list", 5)
+    for (i in 1:5) fform[[i]] <- ~ 1
+  }
+  names(fform) <- paste("X", 1:5, sep="")
+  Xs <- lapply(fform, function(x) model.matrix(x, data=data))
+  npars <- sapply(Xs, ncol)
+  if (is.null(weights)) weights <- rep(1, nrow(data))
+
+  # model
+  mod <- which(model == c("logistic", "loglogistic", "weibull1", "weibull2", "lognormal", "michaelismenten", "asymptoticregression", "exponentialdecay", "gompertz"))
+  lnk <- which(link == c("identity", "log", "logit"))
+  fam <- which(family == c("gaussian", "poisson", "binomial", "beta"))
+
+  # response
+  y <- mr <- model.response(mf, "any")
+  if (family == "binomial" & ncol(as.matrix(mr)) == 2){
+    bn <- mr[,1] + mr[,2]
+    y <- mr[,1]
+  } else {
+    bn <- rep(0, length(y))
+  }
+
+  # random effects
+  if (!is.null(rform)){
+    rformrh <- rformlh <- rform
+    rformrh[2] <- NULL
+    rf <- model.frame(subbars(rformrh), data=data)
+    rt <- mkReTrms(findbars(rform), rf)
+    Z <- t(rt$Zt)
+
+    # ... allow user-specific term names
+    rformlh[3] <- NULL
+    rcoefs <- all.vars(rformlh)
+    ind <- as.numeric(paste("b", 1:5, sep="") %in% rcoefs)
+  } else {
+    # no random effects: empty design matrix
+    ind <- rep(0, 5)
+    Z <- Matrix::sparseMatrix(i=integer(0), j=integer(0), x=numeric(0), dims=c(length(y), 0))
+  }
+
+  list(y=y, x=mf[,2], w=weights, bn=bn, fam=fam, mod=mod, lnk=lnk, ind=ind, Z=Z,
+       Xs=Xs, fform=fform, npars=npars, npi=rep(1:5, npars),
+       family=family, model=model, link=link)
+}
+
+
+# starting values for all fixed-effect parameters; only NA entries of start are replaced
+drmTMBstartvals <- function(dd, start, fix, method="lm", gsl=NULL, gsu=NULL, gsn=NULL){
+  method <- match.arg(method, c("lm", "grid"))
+  sv <- lmstart(dd, start, fix)
+  if (method == "grid") sv <- gridstart(dd, sv, fix, gsl, gsu, gsn)
+  sv
+}
+
+
+# linearised model functions
+lmstart <- function(dd, start, fix){
+  npi <- dd$npi
+  mod <- dd$mod
+  known1 <- fix[npi == 1][1] | !is.na(start[npi == 1][1])
+  known2 <- fix[npi == 2][1] | !is.na(start[npi == 2][1])
+
+  # response on the mean scale, aggregated by dose
+  if (dd$family == "binomial" & any(dd$bn > 0)){
+    yd <- tapply(dd$w * dd$y, dd$x, sum) / tapply(dd$w * dd$bn, dd$x, sum)
+  } else {
+    yd <- tapply(dd$w * dd$y, dd$x, sum) / tapply(dd$w, dd$x, sum)
+  }
+  xd <- sort(unique(dd$x))
+  yd <- as.vector(yd)
+  ylow <- yd[1]
+  yhigh <- yd[length(yd)]
+
+  # asymptotes on the mean scale; for b3 > 0, f1 is reached at low doses for
+  # logistic, loglogistic, weibull1, exponentialdecay, gompertz, otherwise at high doses
+  f1low <- mod %in% c(1, 2, 3, 8, 9)
+  f1 <- if (f1low) ylow else yhigh
+  f2 <- if (f1low) yhigh else ylow
+  # an asymptote with a given starting value keeps it; the other one is the more distant end of the curve
+  if (known1) f1 <- linkfun(dd$lnk, start[npi == 1][1], inverse=TRUE)
+  if (known2) f2 <- linkfun(dd$lnk, start[npi == 2][1], inverse=TRUE)
+  if (known1 & !known2) f2 <- if (abs(ylow - f1) > abs(yhigh - f1)) ylow else yhigh
+  if (known2 & !known1) f1 <- if (abs(ylow - f2) > abs(yhigh - f2)) ylow else yhigh
+  # observed ends are not the asymptotes: extend the range by 5%
+  if (!known1) f1 <- f1 + 0.05*(f1 - f2)
+  if (!known2) f2 <- f2 - 0.05*(f1 - f2)
+  f1 <- linkrange(dd$lnk, f1, dd$family)
+  f2 <- linkrange(dd$lnk, f2, dd$family)
+
+  # relative response between the asymptotes; points at the asymptotes carry no information
+  q <- (yd - f2) / (f1 - f2)
+  ok <- is.finite(q) & q > 0.01 & q < 0.99
+  if (mod %in% c(2, 3, 4, 5)) ok <- ok & xd > 0
+  if (mod == 6) ok <- ok & xd > 0
+  q <- q[ok]
+  xo <- xd[ok]
+
+  b3 <- b4 <- NA
+  if (length(unique(xo)) >= 2){
+    lf <- switch(mod,
+                 lm(log(1/q - 1) ~ xo),           # logistic
+                 lm(log(1/q - 1) ~ log(xo)),      # loglogistic
+                 lm(log(-log(q)) ~ log(xo)),      # weibull1
+                 lm(log(-log(1 - q)) ~ log(xo)),  # weibull2
+                 lm(qnorm(q) ~ log(xo)),          # lognormal
+                 lm(I(1/q - 1) ~ 0 + I(1/xo)),    # michaelismenten
+                 NULL,                            # asymptoticregression
+                 lm(log(q) ~ 0 + xo),             # exponentialdecay
+                 lm(log(-log(q)) ~ xo))           # gompertz
+    if (!is.null(lf)){
+      cf <- coefficients(lf)
+      if (mod %in% c(1, 9)){
+        b3 <- cf[2]
+        b4 <- -cf[1]/cf[2]
+      }
+      if (mod %in% c(2, 3, 4, 5)){
+        b3 <- cf[2]
+        b4 <- exp(-cf[1]/cf[2])
+      }
+      if (mod == 6) b4 <- cf[1]
+      if (mod == 8) b4 <- 1/cf[1]
+    }
+  }
+  # fallback: dose at the midpoint of the curve and a unit slope in its direction
+  if (!is.finite(b3)){
+    # b3 > 0: relative response decreases with dose for logistic, loglogistic, weibull1, gompertz
+    dir <- sign((yhigh - ylow) / (f1 - f2))
+    if (dir == 0) dir <- -1
+    b3 <- if (mod %in% c(1, 2, 3, 9)) -dir else dir
+  }
+  if (!is.finite(b4) | (mod %in% c(2, 3, 4, 5, 6, 7) & b4 <= 0)){
+    xpos <- xd[xd > 0]
+    b4 <- xpos[which.min(abs((yd[xd > 0] - f2) / (f1 - f2) - 0.5))]
+    if (mod == 8) b4 <- -b4
+  }
+  if (mod %in% c(6, 7, 8)) b3 <- 0
+
+  # asymptoticregression: f2 is not approached within the dose range; for given b4 the
+  # model is linear in the asymptotes, so profile the residual sum of squares over b4
+  if (mod == 7){
+    xp <- xd[xd > 0]
+    yp <- yd[xd > 0]
+    cols <- c(!known1, !known2)
+    b4grid <- exp(seq(log(min(xp)/10), log(max(xp)*10), length.out=100))
+    pfit <- lapply(b4grid, function(b4){
+      g <- 1/(1 - exp(-xp/b4))
+      off <- (if (known1) f1*g else 0) + (if (known2) f2*(1 - g) else 0)
+      if (!any(cols)) return(list(rss=sum((yp - off)^2)))
+      fit <- lm.fit(cbind(g, 1 - g)[, cols, drop=FALSE], yp - off)
+      list(rss=sum(fit$residuals^2), coef=fit$coefficients)
+    })
+    best <- which.min(sapply(pfit, function(p) p$rss))
+    b4 <- b4grid[best]
+    fa <- c(f1, f2)
+    fa[cols] <- pfit[[best]]$coef
+    f1 <- linkrange(dd$lnk, fa[1], dd$family)
+    f2 <- linkrange(dd$lnk, fa[2], dd$family)
+  }
+
+  pooled <- c(linkfun(dd$lnk, f1), linkfun(dd$lnk, f2), b3, b4, 0)
+
+  # project the pooled value onto each design matrix
+  for (i in 1:5){
+    id <- which(npi == i)
+    X <- dd$Xs[[i]]
+    cf <- qr.coef(qr(X), rep(pooled[i], nrow(X)))
+    cf[is.na(cf) | abs(cf) < 1e-8 * max(abs(pooled[i]), 1)] <- 0
+    fill <- is.na(start[id]) & !fix[id]
+    start[id[fill]] <- cf[fill]
+  }
+  start[is.na(start)] <- 0
+  as.vector(start)
+}
+
+
+# best point of a grid of parameter values, evaluated without random effects
+gridstart <- function(dd, start, fix, gsl, gsu, gsn){
+  np <- length(start)
+  if (length(gsl) != np | length(gsu) != np) stop("gsl and gsu must have the same length as start, with NA for parameters not included in the grid.")
+  if (length(gsn) == 1) gsn <- rep(gsn, np)
+  if (length(gsn) != np) stop("gsn must be a single number or have the same length as start.")
+  gid <- which(!is.na(gsl) & !is.na(gsu) & !fix)
+  if (length(gid) == 0) return(start)
+
+  obj <- drmTMBobj(dd, start, fix, rform=NULL)
+  # position of the grid parameters in obj$par (fixed parameters are mapped out)
+  ppos <- cumsum(!fix)[gid]
+  grid <- expand.grid(lapply(gid, function(i) seq(gsl[i], gsu[i], length.out=gsn[i])))
+  objvals <- apply(grid, 1, function(g){
+    par <- obj$par
+    par[ppos] <- g
+    obj$fn(par)
+  })
+  start[gid] <- as.numeric(grid[which.min(objvals), ])
+  start
+}
+
+
+# TMB objective function for given starting values
+drmTMBobj <- function(dd, start, fix, rform=NULL){
+  npi <- dd$npi
+  sb <- lapply(1:5, function(i) start[npi == i])
+  if (is.null(rform)){
+    Z <- Matrix::sparseMatrix(i=integer(0), j=integer(0), x=numeric(0), dims=c(length(dd$y), 0))
+    ind <- rep(0, 5)
+    up <- numeric(0)
+    stheta <- numeric(0)
+  } else {
+    Z <- dd$Z
+    ind <- dd$ind
+    nvc <- sum(ind > 0)
+    stheta <- c(rep(0.001, nvc), rep(0, nvc*(nvc-1)/2))
+    up <- rep(0, nvc*ncol(Z))
+  }
+  dlist <- list(model="drcTMB", y=dd$y, x=dd$x, w=dd$w, bn=dd$bn, fam=dd$fam, mod=dd$mod, lnk=dd$lnk, ind=ind, Z=Z)
+  datalist <- c(dlist, dd$Xs)
+
+  # log_sigma: residual sd (gaussian) or precision (beta); fixed for poisson and binomial
+  if (dd$family == "gaussian") slsigma <- if (is.null(rform)) 1 else 0
+  if (dd$family == "beta") slsigma <- 10
+  if (dd$family %in% c("poisson", "binomial")) slsigma <- 0
+  parameters <- list(b1=sb[[1]], b2=sb[[2]], b3=sb[[3]], b4=sb[[4]], b5=sb[[5]], u=up, theta=stheta, log_sigma=slsigma)
+
+  # fix parameters to starting values
+  lmap <- list()
+  if (any(fix)){
+    idp <- 1:length(start)
+    idp[fix] <- NA
+    for (i in 1:5){
+      lmap[[paste("b", i, sep="")]] <- as.factor(idp[npi == i])
+    }
+  }
+  if (dd$family %in% c("poisson", "binomial")) lmap$log_sigma <- factor(NA)
+
+  MakeADFun(datalist, parameters, map=lmap, random=if (!is.null(rform)) "u", DLL="drcTMB_TMBExports", silent=TRUE)
+}
+
+
+# link function (inverse=FALSE) or inverse link for the asymptote parameters
+linkfun <- function(lnk, x, inverse=FALSE){
+  if (inverse){
+    switch(lnk, x, exp(x), plogis(x))
+  } else {
+    switch(lnk, x, log(x), qlogis(x))
+  }
+}
+
+# keep asymptotes inside the range of the link function, and inside (0, 1) for proportions
+linkrange <- function(lnk, f, family){
+  if (family %in% c("binomial", "beta") | lnk == 3) return(min(max(f, 1e-4), 1 - 1e-4))
+  if (lnk == 2) return(max(f, 1e-8))
+  f
+}

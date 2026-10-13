@@ -32,7 +32,7 @@ drmTMB(
 
 \item{data}{a data.frame object}
 
-\item{start}{a vector with starting values for each model parameter. If NA a self-starting function is called.}
+\item{start}{a vector with starting values for each model parameter. NA entries are replaced by the starting values of \code{\link{drmTMBstart}}.}
 
 \item{fix}{a binary vector with same length as start. If TRUE, a model coefficient is fixed to the starting value.}
 
@@ -48,11 +48,11 @@ drmTMB(
 
 \item{link}{Specify the link function for estimating asymptote parameters. One of "identity", "log", "logit".}
 
-\item{gsl}{a vector of lower bounds for a grid search. If NULL, no grid search is performed.}
+\item{gsl}{a vector of lower bounds for a grid search, same length as start; NA for parameters not included in the grid. If NULL, no grid search is performed.}
 
-\item{gsu}{a vector of upper bounds for a grid search. If NULL, no grid search is performed.}
+\item{gsu}{a vector of upper bounds for a grid search, same length as start; NA for parameters not included in the grid.}
 
-\item{gsn}{a vector of number of grid points for a grid search. If NULL, no grid search is performed.}
+\item{gsn}{number of grid points for each parameter, a single number or a vector with the same length as start.}
 
 \item{control}{a list of control parameters. See \code{\link{drmTMBcontrol}} for details.}
 }
