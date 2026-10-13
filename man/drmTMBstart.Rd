@@ -41,11 +41,11 @@ drmTMBstart(
 
 \item{method}{one of "lm" or "grid".}
 
-\item{gsl}{a vector of lower bounds for the grid search, same length as start; NA for parameters not included in the grid.}
+\item{gsl}{a vector of lower bounds for the grid search, same length as start; NA (or NULL) for the default range.}
 
-\item{gsu}{a vector of upper bounds for the grid search, same length as start; NA for parameters not included in the grid.}
+\item{gsu}{a vector of upper bounds for the grid search, same length as start; NA (or NULL) for the default range.}
 
-\item{gsn}{number of grid points for each parameter, a single number or a vector with the same length as start.}
+\item{gsn}{number of grid points for each parameter, a single number or a vector with the same length as start (default 10). A parameter with gsn = 1 stays at its "lm" starting value.}
 }
 \value{
 a named vector of starting values
@@ -65,4 +65,10 @@ intercept or each group the pooled value and contrasts a value of zero.
 Method "grid" evaluates the negative log-likelihood (without random effects) at all
 combinations of a grid of parameter values and returns the best grid point; parameters
 not included in the grid start at the values of method "lm".
+Without bounds in \code{gsl} and \code{gsu}, default ranges are used for b3 (the sign
+of the "lm" starting value, with 1/4 to 4 times its steepness, log-spaced), b4 (the dose
+range extended at both ends; log-spaced for models on the log-dose scale), and b5
+(-2 to 2, logistic and loglogistic only). Default ranges are only used for parameters
+with a single coefficient in \code{fform}; the asymptotes b1 and b2 are only included
+in the grid with user-specified bounds.
 }

@@ -12,9 +12,9 @@
 #' @param family Specify the distributional assumptions. One of "gaussian", "binomial", "beta", and "poisson".
 #' @param model Specify the nonlinear model. One of "logistic", "loglogistic", "weibull1", "weibull2", "lognormal", "michaelismenten", "asymptoticregression", "exponentialdecay", "gompertz".
 #' @param link Specify the link function for estimating asymptote parameters. One of "identity", "log", "logit". 
-#' @param gsl a vector of lower bounds for a grid search, same length as start; NA for parameters not included in the grid. If NULL, no grid search is performed.
-#' @param gsu a vector of upper bounds for a grid search, same length as start; NA for parameters not included in the grid.
-#' @param gsn number of grid points for each parameter, a single number or a vector with the same length as start.
+#' @param gsl a vector of lower bounds for a grid search, same length as start; NA for the default range. If gsl, gsu and gsn are all NULL, no grid search is performed. See \code{\link{drmTMBstart}}.
+#' @param gsu a vector of upper bounds for a grid search, same length as start; NA for the default range.
+#' @param gsn number of grid points for each parameter, a single number or a vector with the same length as start. \code{gsn=10} alone runs a grid search over the default ranges.
 #' @param control a list of control parameters. See \code{\link{drmTMBcontrol}} for details.
 #'
 #' @return A drmTMB object

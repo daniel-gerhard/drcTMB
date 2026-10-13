@@ -13,6 +13,12 @@
 #' Method "grid" evaluates the negative log-likelihood (without random effects) at all
 #' combinations of a grid of parameter values and returns the best grid point; parameters
 #' not included in the grid start at the values of method "lm".
+#' Without bounds in \code{gsl} and \code{gsu}, default ranges are used for b3 (the sign
+#' of the "lm" starting value, with 1/4 to 4 times its steepness, log-spaced), b4 (the dose
+#' range extended at both ends; log-spaced for models on the log-dose scale), and b5
+#' (-2 to 2, logistic and loglogistic only). Default ranges are only used for parameters
+#' with a single coefficient in \code{fform}; the asymptotes b1 and b2 are only included
+#' in the grid with user-specified bounds.
 #'
 #' @param form formula with name of response and dose scale
 #' @param fform list with fixed-effect right-hand side formulas for each model parameter
@@ -24,9 +30,9 @@
 #' @param model Specify the nonlinear model. One of "logistic", "loglogistic", "weibull1", "weibull2", "lognormal", "michaelismenten", "asymptoticregression", "exponentialdecay", "gompertz".
 #' @param link Specify the link function for estimating asymptote parameters. One of "identity", "log", "logit".
 #' @param method one of "lm" or "grid".
-#' @param gsl a vector of lower bounds for the grid search, same length as start; NA for parameters not included in the grid.
-#' @param gsu a vector of upper bounds for the grid search, same length as start; NA for parameters not included in the grid.
-#' @param gsn number of grid points for each parameter, a single number or a vector with the same length as start.
+#' @param gsl a vector of lower bounds for the grid search, same length as start; NA (or NULL) for the default range.
+#' @param gsu a vector of upper bounds for the grid search, same length as start; NA (or NULL) for the default range.
+#' @param gsn number of grid points for each parameter, a single number or a vector with the same length as start (default 10). A parameter with gsn = 1 stays at its "lm" starting value.
 #'
 #' @return a named vector of starting values
 #' @export
@@ -225,16 +231,33 @@ lmstart <- function(dd, start, fix){
 # best point of a grid of parameter values, evaluated without random effects
 gridstart <- function(dd, start, fix, gsl, gsu, gsn){
   np <- length(start)
-  if (length(gsl) != np | length(gsu) != np) stop("gsl and gsu must have the same length as start, with NA for parameters not included in the grid.")
+  if (is.null(gsl)) gsl <- rep(NA, np)
+  if (is.null(gsu)) gsu <- rep(NA, np)
+  if (is.null(gsn)) gsn <- 10
+  if (length(gsl) != np | length(gsu) != np) stop("gsl and gsu must have the same length as start, with NA for default ranges.")
   if (length(gsn) == 1) gsn <- rep(gsn, np)
   if (length(gsn) != np) stop("gsn must be a single number or have the same length as start.")
-  gid <- which(!is.na(gsl) & !is.na(gsu) & !fix)
+  gsn[is.na(gsn)] <- 10
+
+  # grid values for each parameter: user bounds, otherwise default ranges
+  dflt <- gridrange(dd, start)
+  gvals <- lapply(1:np, function(i){
+    if (fix[i] | gsn[i] < 2) return(NULL)
+    if (!is.na(gsl[i]) & !is.na(gsu[i])) return(seq(gsl[i], gsu[i], length.out=gsn[i]))
+    if (is.null(dflt[[i]])) return(NULL)
+    r <- dflt[[i]]
+    if (!is.na(gsl[i])) r$lower <- gsl[i]
+    if (!is.na(gsu[i])) r$upper <- gsu[i]
+    if (r$log) sign(r$lower) * exp(seq(log(abs(r$lower)), log(abs(r$upper)), length.out=gsn[i]))
+    else seq(r$lower, r$upper, length.out=gsn[i])
+  })
+  gid <- which(!sapply(gvals, is.null))
   if (length(gid) == 0) return(start)
 
   obj <- drmTMBobj(dd, start, fix, rform=NULL)
   # position of the grid parameters in obj$par (fixed parameters are mapped out)
   ppos <- cumsum(!fix)[gid]
-  grid <- expand.grid(lapply(gid, function(i) seq(gsl[i], gsu[i], length.out=gsn[i])))
+  grid <- expand.grid(gvals[gid])
   objvals <- apply(grid, 1, function(g){
     par <- obj$par
     par[ppos] <- g
@@ -242,6 +265,43 @@ gridstart <- function(dd, start, fix, gsl, gsu, gsn){
   })
   start[gid] <- as.numeric(grid[which.min(objvals), ])
   start
+}
+
+
+# default grid ranges for b3, b4 and b5 from the data and the "lm" starting values;
+# only for parameters with a single coefficient, and not for the asymptotes
+gridrange <- function(dd, start){
+  mod <- dd$mod
+  npi <- dd$npi
+  x <- dd$x
+  xp <- x[x > 0]
+  rng <- vector("list", length(start))
+  single <- function(i) if (dd$npars[i] == 1) which(npi == i) else NULL
+
+  # b3: keep the sign of the starting value, steepness between 1/4 and 4 times
+  i3 <- single(3)
+  if (!is.null(i3) & mod %in% c(1, 2, 3, 4, 5, 9)){
+    b3 <- start[i3]
+    if (b3 == 0) b3 <- 1
+    rng[[i3]] <- list(lower=b3/4, upper=b3*4, log=TRUE)
+  }
+  # b4: location within the dose range, extended at both ends
+  i4 <- single(4)
+  if (!is.null(i4)){
+    if (mod %in% c(1, 9)){
+      ext <- 0.25*diff(range(x))
+      rng[[i4]] <- list(lower=min(x) - ext, upper=max(x) + ext, log=FALSE)
+    } else if (length(xp) > 0){
+      rng[[i4]] <- list(lower=min(xp)/2, upper=max(xp)*2, log=TRUE)
+      if (mod == 8) rng[[i4]] <- list(lower=-min(xp)/2, upper=-max(xp)*2, log=TRUE)
+    }
+  }
+  # b5: asymmetry on the log scale, only used by logistic and loglogistic
+  i5 <- single(5)
+  if (!is.null(i5) & mod %in% c(1, 2)){
+    rng[[i5]] <- list(lower=-2, upper=2, log=FALSE)
+  }
+  rng
 }
 
 

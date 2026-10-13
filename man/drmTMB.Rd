@@ -48,11 +48,11 @@ drmTMB(
 
 \item{link}{Specify the link function for estimating asymptote parameters. One of "identity", "log", "logit".}
 
-\item{gsl}{a vector of lower bounds for a grid search, same length as start; NA for parameters not included in the grid. If NULL, no grid search is performed.}
+\item{gsl}{a vector of lower bounds for a grid search, same length as start; NA for the default range. If gsl, gsu and gsn are all NULL, no grid search is performed. See \code{\link{drmTMBstart}}.}
 
-\item{gsu}{a vector of upper bounds for a grid search, same length as start; NA for parameters not included in the grid.}
+\item{gsu}{a vector of upper bounds for a grid search, same length as start; NA for the default range.}
 
-\item{gsn}{number of grid points for each parameter, a single number or a vector with the same length as start.}
+\item{gsn}{number of grid points for each parameter, a single number or a vector with the same length as start. \code{gsn=10} alone runs a grid search over the default ranges.}
 
 \item{control}{a list of control parameters. See \code{\link{drmTMBcontrol}} for details.}
 }
