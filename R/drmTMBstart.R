@@ -71,6 +71,9 @@ drmTMBdata <- function(form, fform=NULL, rform=NULL, data, weights=NULL, family=
   if (family == "binomial" & ncol(as.matrix(mr)) == 2){
     bn <- mr[,1] + mr[,2]
     y <- mr[,1]
+  } else if (family == "binomial"){
+    # binary response: one trial per observation
+    bn <- rep(1, length(y))
   } else {
     bn <- rep(0, length(y))
   }
@@ -321,7 +324,7 @@ drmTMBobj <- function(dd, start, fix, rform=NULL){
     stheta <- c(rep(0.001, nvc), rep(0, nvc*(nvc-1)/2))
     up <- rep(0, nvc*ncol(Z))
   }
-  dlist <- list(model="drcTMB", y=dd$y, x=dd$x, w=dd$w, bn=dd$bn, fam=dd$fam, mod=dd$mod, lnk=dd$lnk, ind=ind, Z=Z)
+  dlist <- list(model="drcTMB", y=dd$y, x=dd$x, w=dd$w, bn=dd$bn, fam=dd$fam, mod=dd$mod, lnk=dd$lnk, ind=ind, simre=1L, Z=Z)
   datalist <- c(dlist, dd$Xs)
 
   # log_sigma: residual sd (gaussian) or precision (beta); fixed for poisson and binomial

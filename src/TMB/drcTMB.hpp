@@ -9,6 +9,7 @@ Type drcTMB(objective_function<Type>* obj) {
   DATA_INTEGER(mod);
   DATA_INTEGER(lnk);
   DATA_IVECTOR(ind);       // 0/1 for b1-b5: parameter has a random effect
+  DATA_INTEGER(simre);     // simulate: 1 = new random effects, 0 = keep the fitted ones
   DATA_VECTOR(y);
   DATA_VECTOR(x);
   DATA_VECTOR(w);
@@ -60,6 +61,17 @@ Type drcTMB(objective_function<Type>* obj) {
       nll += scnldens(U.transpose().col(j));
     }
 
+    // new random effects for each cluster
+    SIMULATE {
+      if (simre == 1){
+        vector<Type> uj(rn);
+        for (int j = 0; j < un; j++){
+          scnldens.simulate(uj);
+          for (int k = 0; k < rn; k++) U(j, k) = uj(k);
+        }
+      }
+    }
+
     matrix<Type> corr = nldens.cov();
     ADREPORT(corr);
 
@@ -88,6 +100,12 @@ Type drcTMB(objective_function<Type>* obj) {
                 Type(Xb4(i) + Zu(i, 3)),
                 Type(Xb5(i) + Zu(i, 4)));
     nll += -w(i) * loglik(fam, y(i), f, bn(i), phi);
+    SIMULATE {
+      y(i) = simobs(fam, f, bn(i), phi);
+    }
+  }
+  SIMULATE {
+    REPORT(y);
   }
   return nll;
 }

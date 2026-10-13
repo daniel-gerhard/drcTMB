@@ -2,14 +2,18 @@
 #'
 #' @param x,object a drmTMB object
 #' @param newdata a data frame for prediction. If NULL, the original data is used.
-#' @param random logical, if TRUE, the random effects are included in the predictions
+#' @param random logical, if TRUE, the random effects are included in the predictions. For simulate, if TRUE, new random effects are drawn for each simulation, otherwise the fitted random effects are kept.
+#' @param nsim number of response vectors to simulate
+#' @param seed an optional seed for the random number generator
 #' @param ... anything else
 #'
-#' @return Estimated model coefficients, variance-covariance matrix, or predictions
+#' @return Estimated model coefficients, variance-covariance matrix, or predictions.
+#' simulate returns a data frame with nsim columns of simulated responses at the estimated
+#' parameters; for a binomial response given as cbind(successes, failures), the number of successes.
 #' @export
 #'
 #' @name drmTMB-methods
-#' @aliases print.drmTMB predict.drmTMB coef.drmTMB vcov.drmTMB
+#' @aliases print.drmTMB predict.drmTMB coef.drmTMB vcov.drmTMB simulate.drmTMB
 #' 
 #' @rdname drmTMB-methods
 print.drmTMB <- function(x, ...){
@@ -122,4 +126,23 @@ coef.drmTMB <- function(object, ...){
 #' @rdname drmTMB-methods
 vcov.drmTMB <- function(object, ...){
     return(object$sdrl$cov.fixed)
+}
+
+#' @rdname drmTMB-methods
+simulate.drmTMB <- function(object, nsim=1, seed=NULL, random=TRUE, ...){
+  if (!is.null(seed)) set.seed(seed)
+  obj <- object$obj
+  par <- obj$env$last.par.best
+  if (!is.null(object$rform) && !random){
+    # keep the fitted random effects: rebuild the objective with simre = 0
+    dat <- obj$env$data
+    dat$simre <- 0
+    obj <- MakeADFun(dat, obj$env$parList(par=par), map=obj$env$map, random="u", DLL="drcTMB_TMBExports", silent=TRUE)
+  }
+  sims <- lapply(seq_len(nsim), function(i) obj$simulate(par)$y)
+  nbad <- sum(sapply(sims, function(y) any(!is.finite(y))))
+  if (nbad > 0) warning(nbad, " of ", nsim, " simulations contain non-finite values; simulated random effects may fall outside the valid parameter range (e.g., b4 <= 0).")
+  sims <- as.data.frame(sims, col.names=paste("sim", seq_len(nsim), sep="_"))
+  attr(sims, "seed") <- seed
+  sims
 }

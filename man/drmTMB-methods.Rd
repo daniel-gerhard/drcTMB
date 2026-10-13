@@ -6,6 +6,7 @@
 \alias{predict.drmTMB}
 \alias{coef.drmTMB}
 \alias{vcov.drmTMB}
+\alias{simulate.drmTMB}
 \title{drmTMB Methods}
 \usage{
 \method{print}{drmTMB}(x, ...)
@@ -15,6 +16,8 @@
 \method{coef}{drmTMB}(object, ...)
 
 \method{vcov}{drmTMB}(object, ...)
+
+\method{simulate}{drmTMB}(object, nsim = 1, seed = NULL, random = TRUE, ...)
 }
 \arguments{
 \item{x, object}{a drmTMB object}
@@ -23,10 +26,16 @@
 
 \item{newdata}{a data frame for prediction. If NULL, the original data is used.}
 
-\item{random}{logical, if TRUE, the random effects are included in the predictions}
+\item{random}{logical, if TRUE, the random effects are included in the predictions. For simulate, if TRUE, new random effects are drawn for each simulation, otherwise the fitted random effects are kept.}
+
+\item{nsim}{number of response vectors to simulate}
+
+\item{seed}{an optional seed for the random number generator}
 }
 \value{
-Estimated model coefficients, variance-covariance matrix, or predictions
+Estimated model coefficients, variance-covariance matrix, or predictions.
+simulate returns a data frame with nsim columns of simulated responses at the estimated
+parameters; for a binomial response given as cbind(successes, failures), the number of successes.
 }
 \description{
 drmTMB Methods

@@ -152,4 +152,21 @@ Type loglik(int fam, Type y, Type f, Type bn, Type phi){
   }
 }
 
+// simulate a single observation with mean f, same parameterisation as loglik
+template<class Type>
+Type simobs(int fam, Type f, Type bn, Type phi){
+  switch (fam){
+  case 1:
+    return rnorm(f, phi);
+  case 2:
+    return rpois(f);
+  case 3:
+    return rbinom(bn, f);
+  case 4:
+    return rbeta(f*phi, (1-f)*phi);
+  default:
+    return 0;
+  }
+}
+
 #endif
