@@ -23,7 +23,7 @@ The package drcTMB provides functions to fit dose-response curves using the Temp
 The main function in the drcTMB package is `drmTMB()`. There is some similarity to the `drm()` function from the drc package, with a simplified input of response and dose variables through a formula interface, and specifying a nonlinear model through the `model` argument. A full list of available models and their corresponding functions can be found at the end of this vignette.
 
 Each of these models has the same parameter names, b1 for the lower and b2 for the upper asymptote, b3 for the steepness, b4 for the location of the inflection point on the dose scale, and b5 for an optional asymmetry parameter. The steepness b3 is positive for an increasing and negative for a decreasing curve. The asymmetry parameter b5 is estimated on a logarithmic scale. The models michaelismenten, asymptoticregression, and exponentialdecay have no steepness parameter; here b1 is the response at dose zero and b2 the asymptote at high doses.
-The `start` argument provides starting values for the parameters. The `fix` argument (TRUE/FALSE) allows to fix parameters at these starting values.
+The `start` argument provides starting values for the parameters. The `fix` argument (TRUE/FALSE) allows to fix parameters at these starting values. Parameters that a model does not use, such as b5 for the Weibull models, are fixed automatically.
 
 ```{r}
 library(drcTMB)

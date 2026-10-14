@@ -24,7 +24,7 @@
 #' @param fform list with fixed-effect right-hand side formulas for each model parameter
 #' @param data a data.frame object
 #' @param start a vector with starting values for each model parameter. Only NA entries are replaced.
-#' @param fix a binary vector with same length as start. If TRUE, a model coefficient is fixed to the starting value.
+#' @param fix a binary vector with same length as start. If TRUE, a model coefficient is fixed to the starting value. Parameters not used by the model (b5 except for logistic and loglogistic, b3 for michaelismenten, asymptoticregression and exponentialdecay) are always fixed, at 0 unless given in start.
 #' @param weights a vector of weights for each observation.
 #' @param family Specify the distributional assumptions. One of "gaussian", "binomial", "beta", and "poisson".
 #' @param model Specify the nonlinear model. One of "logistic", "loglogistic", "weibull1", "weibull2", "lognormal", "michaelismenten", "asymptoticregression", "exponentialdecay", "gompertz".
@@ -41,6 +41,7 @@ drmTMBstart <- function(form, fform=NULL, data, start=NULL, fix=NULL, weights=NU
   dd <- drmTMBdata(form, fform=fform, data=data, weights=weights, family=family, model=model, link=link)
   if (is.null(start)) start <- rep(NA, sum(dd$npars))
   if (is.null(fix)) fix <- rep(FALSE, sum(dd$npars))
+  fix[dd$npi %in% unusedpars(dd$mod)] <- TRUE
   sv <- drmTMBstartvals(dd, start, fix, method=method, gsl=gsl, gsu=gsu, gsn=gsn)
   names(sv) <- unlist(lapply(1:5, function(i) paste("b", i, ":", colnames(dd$Xs[[i]]), sep="")))
   sv
@@ -65,6 +66,7 @@ drmTMBdata <- function(form, fform=NULL, rform=NULL, data, weights=NULL, family=
   mod <- which(model == c("logistic", "loglogistic", "weibull1", "weibull2", "lognormal", "michaelismenten", "asymptoticregression", "exponentialdecay", "gompertz"))
   lnk <- which(link == c("identity", "log", "logit"))
   fam <- which(family == c("gaussian", "poisson", "binomial", "beta"))
+  if (length(mod) != 1) stop("Unknown model: ", model)
 
   # response
   y <- mr <- model.response(mf, "any")
@@ -80,6 +82,9 @@ drmTMBdata <- function(form, fform=NULL, rform=NULL, data, weights=NULL, family=
 
   # random effects
   re <- reterms(rform, data)
+  rpars <- unlist(lapply(re$terms, function(tm) tm$pars))
+  unused <- intersect(unusedpars(mod), rpars)
+  if (length(unused) > 0) stop("The ", model, " model does not use ", paste("b", unused, sep="", collapse=", "), "; remove it from rform.")
 
   list(y=y, x=mf[,2], w=weights, bn=bn, fam=fam, mod=mod, lnk=lnk, re=re,
        Xs=Xs, fform=fform, npars=npars, npi=rep(1:5, npars),
@@ -368,6 +373,12 @@ drcmeanR <- function(mod, x, f1, f2, f3, f4, f5){
                1 - exp(-x / f4),          # exponentialdecay
                exp(-exp(-t)))             # gompertz
   f1 + (f2 - f1) * Fx
+}
+
+# parameters not used by the model, which cannot be estimated: b3 without steepness
+# (michaelismenten, asymptoticregression, exponentialdecay), b5 without asymmetry
+unusedpars <- function(mod){
+  c(if (mod %in% c(6, 7, 8)) 3, if (!(mod %in% c(1, 2))) 5)
 }
 
 # link function (inverse=FALSE) or inverse link for the asymptote parameters

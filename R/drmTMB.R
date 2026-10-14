@@ -5,7 +5,7 @@
 #' @param rform random intercepts: a formula of the form b1 + b2 + b4 ~ 1 | cluster, or a list of such formulas, e.g. list(b1 + b4 ~ 1 | exper, b1 ~ 1 | plate). Random intercepts within a formula are correlated across the listed parameters; different formulas, and the levels of nested factors (1 | exper/plate), are independent terms.
 #' @param data a data.frame object
 #' @param start a vector with starting values for each model parameter. NA entries are replaced by the starting values of \code{\link{drmTMBstart}}.
-#' @param fix a binary vector with same length as start. If TRUE, a model coefficient is fixed to the starting value.
+#' @param fix a binary vector with same length as start. If TRUE, a model coefficient is fixed to the starting value. Parameters not used by the model (b5 except for logistic and loglogistic, b3 for michaelismenten, asymptoticregression and exponentialdecay) are always fixed, at 0 unless given in start.
 #' @param weights a vector of weights for each observation.
 #' @param lower lower bounds for the model coefficients b1-b5, a single value or a vector with the same length as start. Bounds of fixed coefficients are ignored; variance parameters are unbounded.
 #' @param upper upper bounds for the model coefficients b1-b5, a single value or a vector with the same length as start.
@@ -34,6 +34,7 @@ drmTMB <- function(form, fform=NULL, rform=NULL, data, start=NULL, fix=NULL, wei
   dd <- drmTMBdata(form, fform=fform, rform=rform, data=data, weights=weights, family=family, model=model, link=link)
   if (is.null(start)) start <- rep(NA, sum(dd$npars))
   if (is.null(fix)) fix <- rep(FALSE, sum(dd$npars))
+  fix[dd$npi %in% unusedpars(dd$mod)] <- TRUE
 
   # starting values for parameters with NA in start
   method <- if (is.null(gsl) & is.null(gsu) & is.null(gsn)) "lm" else "grid"

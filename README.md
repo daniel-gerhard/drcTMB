@@ -30,6 +30,8 @@ exponentialdecay have no steepness parameter; here b1 is the response at
 dose zero and b2 the asymptote at high doses. The `start` argument
 provides starting values for the parameters. The `fix` argument
 (TRUE/FALSE) allows to fix parameters at these starting values.
+Parameters that a model does not use, such as b5 for the Weibull models,
+are fixed automatically.
 
 ``` r
 library(drcTMB)
@@ -93,13 +95,13 @@ confint(effdose_glht)
 #> 
 #> Fit: NULL
 #> 
-#> Quantile = 2.3199
+#> Quantile = 2.3188
 #> 95% family-wise confidence level
 #>  
 #> 
 #> Linear Hypotheses:
 #>           Estimate lwr    upr   
-#> ED25 == 0 2.0918   1.6867 2.4970
-#> ED50 == 0 3.2634   2.8371 3.6896
-#> ED75 == 0 5.0910   4.1769 6.0052
+#> ED25 == 0 2.0918   1.6869 2.4968
+#> ED50 == 0 3.2634   2.8373 3.6894
+#> ED75 == 0 5.0910   4.1773 6.0047
 ```

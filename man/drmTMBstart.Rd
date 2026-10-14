@@ -29,7 +29,7 @@ drmTMBstart(
 
 \item{start}{a vector with starting values for each model parameter. Only NA entries are replaced.}
 
-\item{fix}{a binary vector with same length as start. If TRUE, a model coefficient is fixed to the starting value.}
+\item{fix}{a binary vector with same length as start. If TRUE, a model coefficient is fixed to the starting value. Parameters not used by the model (b5 except for logistic and loglogistic, b3 for michaelismenten, asymptoticregression and exponentialdecay) are always fixed, at 0 unless given in start.}
 
 \item{weights}{a vector of weights for each observation.}
 
