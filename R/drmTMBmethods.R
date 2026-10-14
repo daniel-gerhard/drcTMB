@@ -71,48 +71,10 @@ predict.drmTMB <- function(object, newdata=NULL, random=TRUE){
     }
   }
 
-  if (object$link == "log"){
-    pxl[[1]] <- exp(pxl[[1]])
-    pxl[[2]] <- exp(pxl[[2]])
-  }
-  if (object$link == "logit"){
-    pxl[[1]] <- 1/(1 + exp(-1*pxl[[1]]))
-    pxl[[2]] <- 1/(1 + exp(-1*pxl[[2]]))
-  }
-  
-  if (object$model == "logistic"){
-    flx <- 1 + exp(pxl[[3]]*(x - pxl[[4]]))
-    fx <- pxl[[2]] + (pxl[[1]] - pxl[[2]]) / (flx^exp(pxl[[5]]))
-  }
-  if (object$model == "loglogistic"){
-    flx <- 1 + exp(pxl[[3]]*(log(x) - log(pxl[[4]])))
-    fx <- pxl[[2]] + (pxl[[1]] - pxl[[2]]) / (flx^exp(pxl[[5]]))
-  }  
-  if (object$model == "weibull1"){
-    flx <- exp(-1*exp(pxl[[3]]*(log(x) - log(pxl[[4]]))))
-    fx <- pxl[[2]] + (pxl[[1]] - pxl[[2]]) * flx
-  } 
-  if (object$model == "weibull2"){
-    flx <- 1 - exp(-1*exp(pxl[[3]]*(log(x) - log(pxl[[4]]))))
-    fx <- pxl[[2]] + (pxl[[1]] - pxl[[2]]) * flx
-  }   
-  if (object$model == "lognormal"){
-    flx <- pxl[[3]]*(log(x) - log(pxl[[4]]))
-    fx <- pxl[[2]] + (pxl[[1]] - pxl[[2]]) * pnorm(flx)
-  }
-  if (object$model == "michaelismenten"){
-    flx <- 1 + pxl[[4]] / x
-    fx <- pxl[[2]] + (pxl[[1]] - pxl[[2]]) / flx
-  }
-  if (object$model == "asymptoticregression"){
-    fx <- pxl[[2]] + (pxl[[1]] - pxl[[2]]) / (1 - exp(-x / pxl[[4]]))
-  }
-  if (object$model == "exponentialdecay"){
-    fx <- pxl[[2]] + (pxl[[1]] - pxl[[2]]) / exp(-x / pxl[[4]])
-  }
-  if (object$model == "gompertz"){
-    fx <- pxl[[2]] + (pxl[[1]] - pxl[[2]]) * exp(-exp(pxl[[3]] * (x - pxl[[4]])))
-  }
+  mod <- which(object$model == c("logistic", "loglogistic", "weibull1", "weibull2", "lognormal", "michaelismenten", "asymptoticregression", "exponentialdecay", "gompertz"))
+  lnk <- which(object$link == c("identity", "log", "logit"))
+  fx <- drcmeanR(mod, x, linkfun(lnk, pxl[[1]], inverse=TRUE), linkfun(lnk, pxl[[2]], inverse=TRUE),
+                 pxl[[3]], pxl[[4]], pxl[[5]])
   return(as.vector(fx))
 }
 

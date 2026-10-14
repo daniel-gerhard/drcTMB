@@ -62,3 +62,12 @@ A drmTMB object
 \description{
 Fit a drmTMB model
 }
+\details{
+All models are of the form f(x) = b1 + (b2 - b1) F(x), with a function F increasing
+from 0 to 1. For the models with steepness b3 (logistic, loglogistic, weibull1, weibull2,
+lognormal, gompertz), F depends on b3 (x - b4) or b3 (log(x) - log(b4)); b1 is the lower and b2
+the upper asymptote, and b3 is positive for an increasing and negative for a decreasing curve.
+For michaelismenten, asymptoticregression and exponentialdecay (b3 and b5 are not used),
+b1 is the response at dose zero and b2 the asymptote at high doses. The asymmetry parameter b5
+of the logistic and loglogistic models is on the log scale. See the vignette for the model functions.
+}

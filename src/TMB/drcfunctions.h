@@ -21,113 +21,84 @@ Type linkinv(int lnk, Type eta){
 // dose-response mean function
 // mod: 1 = logistic, 2 = loglogistic, 3 = weibull1, 4 = weibull2, 5 = lognormal,
 //      6 = michaelismenten, 7 = asymptoticregression, 8 = exponentialdecay, 9 = gompertz
+// f(x) = f1 + (f2 - f1) * F(x), with F increasing from 0 to 1 in its argument.
+// Models with steepness f3: F(f3 * z), z = x - f4 or log(x) - log(f4); f1 is the lower and
+// f2 the upper asymptote, f3 > 0 for an increasing and f3 < 0 for a decreasing curve.
+// michaelismenten, asymptoticregression, exponentialdecay: F(x) increases with dose, f1 is
+// the asymptote at dose zero and f2 the asymptote at high doses.
 template<class Type>
 Type drcmean(int mod, Type x, Type f1, Type f2, Type f3, Type f4, Type f5){
-  Type fl;
-  Type f = 0;
+  bool logdose = (mod >= 2 && mod <= 5);
+  // log-dose models at dose zero: the asymptote approached at low doses
+  if (logdose && x == 0){
+    if (f3 > 0){
+      return f1;
+    } else {
+      return f2;
+    }
+  }
+  if (mod == 6 && x == 0) return f1;
+
+  Type t = f3 * (logdose ? Type(log(x) - log(f4)) : Type(x - f4));
+  Type F = 0;
   switch (mod){
   case 1:
-    fl = 1 + exp(f3*(x - f4));
-    f = f2 + (f1 - f2) / (pow(fl, exp(f5)));
-    break;
   case 2:
-    if (x == 0){
-      if (f3 > 0){
-        f = f2 + (f1 - f2);
-      } else {
-        f = f2;
-      }
-    } else {
-      fl = 1 + exp(f3*(log(x) - log(f4)));
-      f = f2 + (f1 - f2) / (pow(fl, exp(f5)));
-    }
+    // (1 + exp(-t))^(-exp(f5)), on the log scale for numerical stability
+    F = exp(-exp(f5) * logspace_add(Type(0), Type(-t)));
     break;
   case 3:
-    if (x == 0){
-      if (f3 > 0){
-        f = f2 + (f1 - f2);
-      } else {
-        f = f2;
-      }
-    } else {
-      fl = exp(-1*exp(f3*(log(x) - log(f4))));
-      f = f2 + (f1 - f2) * fl;
-    }
+  case 9:
+    F = exp(-exp(-t));
     break;
   case 4:
-    if (x == 0){
-      if (f3 < 0){
-        f = f2 + (f1 - f2);
-      } else {
-        f = f2;
-      }
-    } else {
-      fl = 1 - exp(-1*exp(f3*(log(x) - log(f4))));
-      f = f2 + (f1 - f2) * fl;
-    }
+    F = 1 - exp(-exp(t));
     break;
   case 5:
-    if (x == 0){
-      if (f3 < 0){
-        f = f2 + (f1 - f2);
-      } else {
-        f = f2;
-      }
-    } else {
-      fl = f3*(log(x) - log(f4));
-      f = f2 + (f1 - f2) * pnorm(fl);
-    }
+    F = pnorm(t);
     break;
   case 6:
-    fl = 1 + f4 / x;
-    f = f2 + (f1 - f2) / fl;
+    F = 1 / (1 + f4 / x);
     break;
   case 7:
-    f = f2 + (f1 - f2) / (1 - exp(-x / f4));
-    break;
   case 8:
-    f = f2 + (f1 - f2) / (exp(-x / f4));
-    break;
-  case 9:
-    f = f2 + (f1 - f2) * (exp(-exp(f3*(x - f4))));
+    F = 1 - exp(-x / f4);
     break;
   }
-  return f;
+  return f1 + (f2 - f1) * F;
 }
 
-// effective dose: inverse of drcmean at relative response level p
-// r: shift on the response scale (residual), q: relative position between f2 and f1
+// effective dose: inverse of drcmean, the dose at which F equals q
+// r: shift on the response scale (residual)
 template<class Type>
-Type drced(int mod, Type p, Type f1, Type f2, Type f3, Type f4, Type f5, Type r){
-  Type q = p - r / (f1 - f2);
+Type drced(int mod, Type q, Type f1, Type f2, Type f3, Type f4, Type f5, Type r){
+  Type qr = q - r / (f2 - f1);
   Type ed = 0;
   switch (mod){
   case 1:
-    ed = f4 + 1/f3 * log(pow(q, -1/exp(f5)) - 1);
+    ed = f4 - log(pow(qr, -1/exp(f5)) - 1) / f3;
     break;
   case 2:
-    ed = f4 * pow(pow(q, -1/exp(f5)) - 1, 1/f3);
+    ed = f4 * pow(pow(qr, -1/exp(f5)) - 1, -1/f3);
     break;
   case 3:
-    ed = f4 * pow(-1*log(q), 1/f3);
+    ed = f4 * pow(-1*log(qr), -1/f3);
     break;
   case 4:
-    ed = f4 * pow(-1*log(1 - q), -1/f3);
+    ed = f4 * pow(-1*log(1 - qr), 1/f3);
     break;
   case 5:
-    ed = f4 * exp(-1/f3 * qnorm(q));
+    ed = f4 * exp(qnorm(qr) / f3);
     break;
   case 6:
-    ed = f4 * q / (1 - q);
+    ed = f4 * qr / (1 - qr);
     break;
   case 7:
-    ed = -1*f4 * log(1 - 1/q);
-    break;
   case 8:
-    ed = f4 * log(q);
+    ed = -1*f4 * log(1 - qr);
     break;
   case 9:
-    ed = f4 + 1/f3 * log(-1*log(q));
+    ed = f4 - log(-1*log(qr)) / f3;
     break;
   }
   return ed;

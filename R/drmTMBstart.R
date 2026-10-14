@@ -96,7 +96,7 @@ drmTMBstartvals <- function(dd, start, fix, method="lm", gsl=NULL, gsu=NULL, gsn
 }
 
 
-# linearised model functions
+# starting values from linearised model functions
 lmstart <- function(dd, start, fix){
   npi <- dd$npi
   mod <- dd$mod
@@ -114,11 +114,12 @@ lmstart <- function(dd, start, fix){
   ylow <- yd[1]
   yhigh <- yd[length(yd)]
 
-  # asymptotes on the mean scale; for b3 > 0, f1 is reached at low doses for
-  # logistic, loglogistic, weibull1, exponentialdecay, gompertz, otherwise at high doses
-  f1low <- mod %in% c(1, 2, 3, 8, 9)
-  f1 <- if (f1low) ylow else yhigh
-  f2 <- if (f1low) yhigh else ylow
+  # asymptotes on the mean scale: for the models with steepness b3, b1 is the lower and b2 the
+  # upper asymptote; for michaelismenten, asymptoticregression and exponentialdecay, b1 is
+  # approached at dose zero and b2 at high doses
+  hasb3 <- !(mod %in% c(6, 7, 8))
+  f1 <- if (hasb3) min(ylow, yhigh) else ylow
+  f2 <- if (hasb3) max(ylow, yhigh) else yhigh
   # an asymptote with a given starting value keeps it; the other one is the more distant end of the curve
   if (known1) f1 <- linkfun(dd$lnk, start[npi == 1][1], inverse=TRUE)
   if (known2) f2 <- linkfun(dd$lnk, start[npi == 2][1], inverse=TRUE)
@@ -130,26 +131,26 @@ lmstart <- function(dd, start, fix){
   f1 <- linkrange(dd$lnk, f1, dd$family)
   f2 <- linkrange(dd$lnk, f2, dd$family)
 
-  # relative response between the asymptotes; points at the asymptotes carry no information
-  q <- (yd - f2) / (f1 - f2)
+  # value of the increasing function F of the model; points at the asymptotes carry no information
+  q <- (yd - f1) / (f2 - f1)
   ok <- is.finite(q) & q > 0.01 & q < 0.99
-  if (mod %in% c(2, 3, 4, 5)) ok <- ok & xd > 0
-  if (mod == 6) ok <- ok & xd > 0
+  if (mod %in% c(2, 3, 4, 5, 6)) ok <- ok & xd > 0
   q <- q[ok]
   xo <- xd[ok]
 
+  # linearised model functions: inverse of F, linear in the dose (or log dose) with slope b3
   b3 <- b4 <- NA
   if (length(unique(xo)) >= 2){
     lf <- switch(mod,
-                 lm(log(1/q - 1) ~ xo),           # logistic
-                 lm(log(1/q - 1) ~ log(xo)),      # loglogistic
-                 lm(log(-log(q)) ~ log(xo)),      # weibull1
-                 lm(log(-log(1 - q)) ~ log(xo)),  # weibull2
-                 lm(qnorm(q) ~ log(xo)),          # lognormal
-                 lm(I(1/q - 1) ~ 0 + I(1/xo)),    # michaelismenten
-                 NULL,                            # asymptoticregression
-                 lm(log(q) ~ 0 + xo),             # exponentialdecay
-                 lm(log(-log(q)) ~ xo))           # gompertz
+                 lm(qlogis(q) ~ xo),                # logistic
+                 lm(qlogis(q) ~ log(xo)),           # loglogistic
+                 lm(I(-log(-log(q))) ~ log(xo)),    # weibull1
+                 lm(log(-log(1 - q)) ~ log(xo)),    # weibull2
+                 lm(qnorm(q) ~ log(xo)),            # lognormal
+                 lm(I(1/q - 1) ~ 0 + I(1/xo)),      # michaelismenten
+                 NULL,                              # asymptoticregression
+                 NULL,                              # exponentialdecay
+                 lm(I(-log(-log(q))) ~ xo))         # gompertz
     if (!is.null(lf)){
       cf <- coefficients(lf)
       if (mod %in% c(1, 9)){
@@ -161,35 +162,27 @@ lmstart <- function(dd, start, fix){
         b4 <- exp(-cf[1]/cf[2])
       }
       if (mod == 6) b4 <- cf[1]
-      if (mod == 8) b4 <- 1/cf[1]
     }
   }
-  # fallback: dose at the midpoint of the curve and a unit slope in its direction
-  if (!is.finite(b3)){
-    # b3 > 0: relative response decreases with dose for logistic, loglogistic, weibull1, gompertz
-    dir <- sign((yhigh - ylow) / (f1 - f2))
-    if (dir == 0) dir <- -1
-    b3 <- if (mod %in% c(1, 2, 3, 9)) -dir else dir
-  }
-  if (!is.finite(b4) | (mod %in% c(2, 3, 4, 5, 6, 7) & b4 <= 0)){
+  # fallback: unit slope in the direction of the curve (b3 > 0: increasing), dose at its midpoint
+  if (!is.finite(b3)) b3 <- if (yhigh >= ylow) 1 else -1
+  if (!is.finite(b4) | (mod %in% c(2, 3, 4, 5, 6, 7, 8) & b4 <= 0)){
     xpos <- xd[xd > 0]
-    b4 <- xpos[which.min(abs((yd[xd > 0] - f2) / (f1 - f2) - 0.5))]
-    if (mod == 8) b4 <- -b4
+    b4 <- xpos[which.min(abs((yd[xd > 0] - f1) / (f2 - f1) - 0.5))]
   }
   if (mod %in% c(6, 7, 8)) b3 <- 0
 
-  # asymptoticregression: f2 is not approached within the dose range; for given b4 the
-  # model is linear in the asymptotes, so profile the residual sum of squares over b4
-  if (mod == 7){
+  # asymptoticregression, exponentialdecay: b2 is often not approached within the dose range;
+  # for given b4 the model is linear in the asymptotes, so profile the residual sum of squares over b4
+  if (mod %in% c(7, 8)){
     xp <- xd[xd > 0]
-    yp <- yd[xd > 0]
     cols <- c(!known1, !known2)
     b4grid <- exp(seq(log(min(xp)/10), log(max(xp)*10), length.out=100))
     pfit <- lapply(b4grid, function(b4){
-      g <- 1/(1 - exp(-xp/b4))
-      off <- (if (known1) f1*g else 0) + (if (known2) f2*(1 - g) else 0)
-      if (!any(cols)) return(list(rss=sum((yp - off)^2)))
-      fit <- lm.fit(cbind(g, 1 - g)[, cols, drop=FALSE], yp - off)
+      g <- 1 - exp(-xd/b4)
+      off <- (if (known1) f1*(1 - g) else 0) + (if (known2) f2*g else 0)
+      if (!any(cols)) return(list(rss=sum((yd - off)^2)))
+      fit <- lm.fit(cbind(1 - g, g)[, cols, drop=FALSE], yd - off)
       list(rss=sum(fit$residuals^2), coef=fit$coefficients)
     })
     best <- which.min(sapply(pfit, function(p) p$rss))
@@ -281,7 +274,6 @@ gridrange <- function(dd, start){
       rng[[i4]] <- list(lower=min(x) - ext, upper=max(x) + ext, log=FALSE)
     } else if (length(xp) > 0){
       rng[[i4]] <- list(lower=min(xp)/2, upper=max(xp)*2, log=TRUE)
-      if (mod == 8) rng[[i4]] <- list(lower=-min(xp)/2, upper=-max(xp)*2, log=TRUE)
     }
   }
   # b5: asymmetry on the log scale, only used by logistic and loglogistic
@@ -359,6 +351,24 @@ reterms <- function(rform, data){
   list(terms=terms, Z=do.call(cbind, Zl))
 }
 
+
+# dose-response mean function, same as drcmean in the TMB template: f1 + (f2 - f1) * F,
+# with F increasing from 0 to 1; f1 is the lower and f2 the upper asymptote for the models with
+# steepness f3, and the asymptotes at dose zero and at high doses for models 6 to 8
+drcmeanR <- function(mod, x, f1, f2, f3, f4, f5){
+  t <- f3 * (if (mod %in% c(2, 3, 4, 5)) log(x) - log(f4) else x - f4)
+  Fx <- switch(mod,
+               (1 + exp(-t))^(-exp(f5)),  # logistic
+               (1 + exp(-t))^(-exp(f5)),  # loglogistic
+               exp(-exp(-t)),             # weibull1
+               1 - exp(-exp(t)),          # weibull2
+               pnorm(t),                  # lognormal
+               1 / (1 + f4 / x),          # michaelismenten
+               1 - exp(-x / f4),          # asymptoticregression
+               1 - exp(-x / f4),          # exponentialdecay
+               exp(-exp(-t)))             # gompertz
+  f1 + (f2 - f1) * Fx
+}
 
 # link function (inverse=FALSE) or inverse link for the asymptote parameters
 linkfun <- function(lnk, x, inverse=FALSE){

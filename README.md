@@ -20,11 +20,15 @@ interface, and specifying a nonlinear model through the `model`
 argument. Available models include “logistic”, “loglogistic”,
 “weibull1”, “weibull2”, and “lognormal”.
 
-Each of these models has the same parameter names, b1 and b2 for the
-asymptotes, b3 for the steepness, b4 for the location of the inflection
-point on the dose scale, and b5 for an optional asymmetry parameter. The
-asymmetry parameter b5 is estimated on a logarithmic scale. The `start`
-argument provides starting values for the parameters. The `fix` argument
+Each of these models has the same parameter names, b1 for the lower and
+b2 for the upper asymptote, b3 for the steepness, b4 for the location of
+the inflection point on the dose scale, and b5 for an optional asymmetry
+parameter. The steepness b3 is positive for an increasing and negative
+for a decreasing curve. The asymmetry parameter b5 is estimated on a
+logarithmic scale. The models michaelismenten, asymptoticregression, and
+exponentialdecay have no steepness parameter; here b1 is the response at
+dose zero and b2 the asymptote at high doses. The `start` argument
+provides starting values for the parameters. The `fix` argument
 (TRUE/FALSE) allows to fix parameters at these starting values.
 
 ``` r
@@ -33,13 +37,13 @@ library(drcData)
 data(ryegrass)
 # Fitting a 3-parameter log-logistic model
 mod <- drmTMB(rootl ~ conc, data = ryegrass, model = "loglogistic", 
-              start=c(8, 0, 1, 2, 0), fix=c(FALSE, TRUE, FALSE, FALSE, TRUE))
+              start=c(0, 8, -1, 2, 0), fix=c(TRUE, FALSE, FALSE, FALSE, TRUE))
 print(mod)
 #> Coefficients:
-#>    Estimate Std. Error
-#> b1 7.855428  0.1911812
-#> b3 2.470324  0.3196156
-#> b4 3.263356  0.1837212
+#>     Estimate Std. Error
+#> b2  7.855428  0.1911812
+#> b3 -2.470324  0.3196156
+#> b4  3.263356  0.1837212
 ```
 
 With the `predict()` method, we can visualize the fitted curve.
@@ -61,16 +65,18 @@ ggplot(ryegrass, aes(x = log(conc), y = rootl)) +
 
 The `ed()` function can be used to estimate effective doses (e.g., ED50,
 ED90) from the fitted model, given a specified response level
-(`respLev`).
+(`respLev`). The effective dose ED p is the dose at which the response
+has changed by p% of the difference between the asymptote at low doses
+(the control) and the asymptote at high doses.
 
 ``` r
 (effdose <- ed(mod, respLev = c(25, 50, 75)))
 #> Effective dose estimates:
 #> 
 #>        Estimate Std.Error
-#> 25:lf1     5.09     0.394
+#> 25:lf1     2.09     0.175
 #> 50:lf2     3.26     0.184
-#> 75:lf3     2.09     0.175
+#> 75:lf3     5.09     0.394
 ```
 
 Simultaneous confidence intervals can be constructed through the package
@@ -87,13 +93,13 @@ confint(effdose_glht)
 #> 
 #> Fit: NULL
 #> 
-#> Quantile = 2.3201
+#> Quantile = 2.3199
 #> 95% family-wise confidence level
 #>  
 #> 
 #> Linear Hypotheses:
 #>           Estimate lwr    upr   
-#> ED25 == 0 5.0910   4.1768 6.0053
+#> ED25 == 0 2.0918   1.6867 2.4970
 #> ED50 == 0 3.2634   2.8371 3.6896
-#> ED75 == 0 2.0918   1.6866 2.4970
+#> ED75 == 0 5.0910   4.1769 6.0052
 ```

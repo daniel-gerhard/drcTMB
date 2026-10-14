@@ -1,7 +1,7 @@
 #' Effective dose estimation
 #'
 #' @param x a drmTMB object
-#' @param respLev effective dose level, default is 50
+#' @param respLev effective dose level in percent, default is 50. The effective dose ED p is the dose at which the response has changed by p percent of the difference between the asymptote at low doses (the control) and the asymptote at high doses.
 #' @param linfct a matrix of linear functions to indentify the parameters of the dose-response curve (each row vector results in parameters b1-b5), default is the identity matrix
 #' @param random logical, if TRUE, the variance-covariance matrix of the random effects is included in the standard error estimation
 #' @param residual logical, if TRUE, the residual variance is included in the standard error estimation
@@ -63,14 +63,13 @@ ed <- function(x, respLev=50, linfct=diag(5), random=TRUE, residual=FALSE){
   for (i in seq_along(linfct)){
     lpv <- as.vector(linfct[[i]] %*% pv)
 
-    if ((lpv[2] > lpv[1] & lpv[3] < 0) | (lpv[2] < lpv[1] & lpv[3] > 0)){
-      p <- respLev[i]/100
-    } else {
-      p <- 1 - respLev[i]/100
-    }
+    # level of the increasing function F of the model at the ED: the control is b1 for an
+    # increasing curve (b3 > 0) and for the models without b3, and b2 for a decreasing curve
+    q <- respLev[i]/100
+    if (!(mod %in% c(6, 7, 8)) && lpv[3] < 0) q <- 1 - q
 
     # ED and its gradient w.r.t. (b1-b5, u1-u5, r) from the drcED TMB template
-    eobj <- MakeADFun(list(model="drcED", mod=mod, lnk=lnk, p=p),
+    eobj <- MakeADFun(list(model="drcED", mod=mod, lnk=lnk, q=q),
                       list(b=lpv, u=rep(0, 5), r=0),
                       ADreport=TRUE, DLL="drcTMB_TMBExports", silent=TRUE)
     edl[i] <- eobj$fn()
