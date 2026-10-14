@@ -20,7 +20,7 @@ print.drmTMB <- function(x, ...){
   ests <- x$ssdrl
   rn <- rownames(ests)
   coefs <- ests[rn %in% paste("b", 1:5, sep=""),,drop=FALSE]
-  #lsigma <- ests[rn %in% "log_sigma",,drop=FALSE]
+  rownames(coefs) <- x$coefnames[!x$fix]
   cat("Coefficients:\n")
   print(coefs)
   for (vc in recov(x)){
@@ -80,12 +80,16 @@ predict.drmTMB <- function(object, newdata=NULL, random=TRUE){
 
 #' @rdname drmTMB-methods
 coef.drmTMB <- function(object, ...){
-    return(object$estimates)
+    est <- object$estimates
+    names(est)[seq_len(sum(!object$fix))] <- object$coefnames[!object$fix]
+    return(est)
 }
 
 #' @rdname drmTMB-methods
 vcov.drmTMB <- function(object, ...){
-    return(object$sdrl$cov.fixed)
+    vc <- object$sdrl$cov.fixed
+    rownames(vc) <- colnames(vc) <- names(coef(object))
+    return(vc)
 }
 
 #' @rdname drmTMB-methods

@@ -91,13 +91,13 @@ ggplot(d48, aes(x = dose, y = no/total)) +
 
 ## Additional parameters
 
-We can include a right-hand side formula for each of the model parameters through the argument `fform`, adding covariates on the parameter level.
+We can add covariates on the parameter level through the argument `fform`, with the parameters on the left-hand side of a formula, e.g. `b3 + b4 ~ 0 + time`, or a list of such formulas. Parameters that are not listed have a single intercept.
 
 ```{r}
 # using the full daphnids dataset with groups 24h and 48h
 dmodg <- drmTMB(cbind(no, total-no) ~ dose, data=daphnids, 
                 model="loglogistic", family="binomial",
-                fform=list(X1=~1, X2=~1, X3=~0+time, X4=~0+time, X5=~1),
+                fform=b3 + b4 ~ 0 + time,
                 start=c(0, 1, 1, 1, 1000, 1000, 0), 
                 fix=c(TRUE, TRUE, FALSE, FALSE, FALSE, FALSE, FALSE))
 dmodg

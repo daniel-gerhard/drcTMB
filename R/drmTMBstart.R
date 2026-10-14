@@ -21,7 +21,7 @@
 #' in the grid with user-specified bounds.
 #'
 #' @param form formula with name of response and dose scale
-#' @param fform list with fixed-effect right-hand side formulas for each model parameter
+#' @param fform fixed effects for the model parameters: a formula of the form b2 + b4 ~ Stress, or a list of such formulas, e.g. list(b2 ~ Stress, b4 ~ Stress + Time). Parameters not listed have a single intercept (~ 1). A list of five right-hand side formulas, one for each of b1-b5 (X1 = ~ 1, ..., X5 = ~ 1), is also accepted.
 #' @param data a data.frame object
 #' @param start a vector with starting values for each model parameter. Only NA entries are replaced.
 #' @param fix a binary vector with same length as start. If TRUE, a model coefficient is fixed to the starting value. Parameters not used by the model (b5 except for logistic and loglogistic, b3 for michaelismenten, asymptoticregression and exponentialdecay) are always fixed, at 0 unless given in start.
@@ -43,7 +43,7 @@ drmTMBstart <- function(form, fform=NULL, data, start=NULL, fix=NULL, weights=NU
   if (is.null(fix)) fix <- rep(FALSE, sum(dd$npars))
   fix[dd$npi %in% unusedpars(dd$mod)] <- TRUE
   sv <- drmTMBstartvals(dd, start, fix, method=method, gsl=gsl, gsu=gsu, gsn=gsn)
-  names(sv) <- unlist(lapply(1:5, function(i) paste("b", i, ":", colnames(dd$Xs[[i]]), sep="")))
+  names(sv) <- coefnames(dd$Xs)
   sv
 }
 
@@ -53,11 +53,7 @@ drmTMBdata <- function(form, fform=NULL, rform=NULL, data, weights=NULL, family=
   # response
   mf <- model.frame(form, data=data)
   # fixed effects
-  if (is.null(fform)){
-    fform <- vector("list", 5)
-    for (i in 1:5) fform[[i]] <- ~ 1
-  }
-  names(fform) <- paste("X", 1:5, sep="")
+  fform <- fforms(fform)
   Xs <- lapply(fform, function(x) model.matrix(x, data=data))
   npars <- sapply(Xs, ncol)
   if (is.null(weights)) weights <- rep(1, nrow(data))
@@ -325,6 +321,40 @@ drmTMBobj <- function(dd, start, fix, rform=NULL){
   MakeADFun(datalist, parameters, map=lmap, random=if (!is.null(rform)) "u", DLL="drcTMB_TMBExports", silent=TRUE)
 }
 
+
+# right-hand side formulas X1-X5 for b1-b5 from fform: a formula b2 + b4 ~ Stress, a list of
+# such formulas, or a list of five right-hand side formulas
+fforms <- function(fform){
+  res <- rep(list(~ 1), 5)
+  names(res) <- paste("X", 1:5, sep="")
+  if (is.null(fform)) return(res)
+  if (inherits(fform, "formula")) fform <- list(fform)
+  if (!is.list(fform) || !all(sapply(fform, inherits, "formula"))) stop("fform must be a formula or a list of formulas.")
+  twosided <- sapply(fform, length) == 3
+  if (!any(twosided)){
+    if (length(fform) != 5) stop("A list of right-hand side formulas in fform needs one formula for each of b1 to b5.")
+    res[] <- fform
+    return(res)
+  }
+  if (!all(twosided)) stop("Each formula in fform needs parameters on the left-hand side, e.g. b2 + b4 ~ Stress.")
+  done <- integer(0)
+  for (f in fform){
+    pnames <- all.vars(f[[2]])
+    if (!all(pnames %in% paste("b", 1:5, sep=""))) stop("The left-hand side of a formula in fform can only contain b1 to b5.")
+    pars <- match(pnames, paste("b", 1:5, sep=""))
+    if (any(pars %in% done)) stop("Each parameter can only appear once in fform.")
+    done <- c(done, pars)
+    rhs <- f
+    rhs[2] <- NULL
+    res[pars] <- list(rhs)
+  }
+  res
+}
+
+# coefficient names of the form b2:Stressdrought
+coefnames <- function(Xs){
+  unlist(lapply(1:5, function(i) paste("b", i, ":", colnames(Xs[[i]]), sep="")))
+}
 
 # random intercept terms from rform, a formula or a list of formulas of the form
 # b1 + b4 ~ 1 | group; nested grouping factors (1 | a/b) give one term per level of nesting

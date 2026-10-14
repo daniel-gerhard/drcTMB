@@ -23,7 +23,7 @@ drmTMBstart(
 \arguments{
 \item{form}{formula with name of response and dose scale}
 
-\item{fform}{list with fixed-effect right-hand side formulas for each model parameter}
+\item{fform}{fixed effects for the model parameters: a formula of the form b2 + b4 ~ Stress, or a list of such formulas, e.g. list(b2 ~ Stress, b4 ~ Stress + Time). Parameters not listed have a single intercept (~ 1). A list of five right-hand side formulas, one for each of b1-b5 (X1 = ~ 1, ..., X5 = ~ 1), is also accepted.}
 
 \item{data}{a data.frame object}
 

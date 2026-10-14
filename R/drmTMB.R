@@ -1,7 +1,7 @@
 #' Fit a drmTMB model
 #'
 #' @param form formula with name of response and dose scale
-#' @param fform list with fixed-effect right-hand side formulas for each model parameter
+#' @param fform fixed effects for the model parameters: a formula of the form b2 + b4 ~ Stress, or a list of such formulas, e.g. list(b2 ~ Stress, b4 ~ Stress + Time). Parameters not listed have a single intercept (~ 1). A list of five right-hand side formulas, one for each of b1-b5 (X1 = ~ 1, ..., X5 = ~ 1), is also accepted.
 #' @param rform random intercepts: a formula of the form b1 + b2 + b4 ~ 1 | cluster, or a list of such formulas, e.g. list(b1 + b4 ~ 1 | exper, b1 ~ 1 | plate). Random intercepts within a formula are correlated across the listed parameters; different formulas, and the levels of nested factors (1 | exper/plate), are independent terms.
 #' @param data a data.frame object
 #' @param start a vector with starting values for each model parameter. NA entries are replaced by the starting values of \code{\link{drmTMBstart}}.
@@ -66,6 +66,7 @@ drmTMB <- function(form, fform=NULL, rform=NULL, data, start=NULL, fix=NULL, wei
   res$fix <- fix
   res$Xs <- dd$Xs
   res$fform <- dd$fform
+  res$coefnames <- coefnames(dd$Xs)
   res$rform <- rform
   res$reterms <- dd$re$terms
   res$estimates <- opt$par

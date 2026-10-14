@@ -42,10 +42,10 @@ mod <- drmTMB(rootl ~ conc, data = ryegrass, model = "loglogistic",
               start=c(0, 8, -1, 2, 0), fix=c(TRUE, FALSE, FALSE, FALSE, TRUE))
 print(mod)
 #> Coefficients:
-#>     Estimate Std. Error
-#> b2  7.855428  0.1911812
-#> b3 -2.470324  0.3196156
-#> b4  3.263356  0.1837212
+#>                 Estimate Std. Error
+#> b2:(Intercept)  7.855428  0.1911812
+#> b3:(Intercept) -2.470324  0.3196156
+#> b4:(Intercept)  3.263356  0.1837212
 ```
 
 With the `predict()` method, we can visualize the fitted curve.
@@ -95,13 +95,13 @@ confint(effdose_glht)
 #> 
 #> Fit: NULL
 #> 
-#> Quantile = 2.3188
+#> Quantile = 2.3179
 #> 95% family-wise confidence level
 #>  
 #> 
 #> Linear Hypotheses:
 #>           Estimate lwr    upr   
-#> ED25 == 0 2.0918   1.6869 2.4968
-#> ED50 == 0 3.2634   2.8373 3.6894
-#> ED75 == 0 5.0910   4.1773 6.0047
+#> ED25 == 0 2.0918   1.6870 2.4966
+#> ED50 == 0 3.2634   2.8375 3.6892
+#> ED75 == 0 5.0910   4.1777 6.0044
 ```
