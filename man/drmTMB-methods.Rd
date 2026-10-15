@@ -61,6 +61,10 @@
 }
 \value{
 Estimated model coefficients, variance-covariance matrix, or predictions.
+coef and vcov include the variance parameters: for each random effect term the log standard deviations
+(log_sd:b1|group) and, for correlated random effects, the parameters of the correlation matrix
+(corr_par:b2,b1|group, unconstrained elements of the lower triangle of its Cholesky factor, by row);
+and the log residual standard deviation (log_sigma, gaussian) or log precision (log_phi, beta).
 summary returns a summary.drmTMB object with the coefficient table (Estimate, Std. Error), the
 variance components, log-likelihood, AIC and BIC, sample sizes, a Pearson dispersion statistic for
 poisson and binomial models, and convergence information. logLik returns the log-likelihood at the

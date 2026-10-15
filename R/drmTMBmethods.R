@@ -10,6 +10,10 @@
 #' @param ... anything else
 #'
 #' @return Estimated model coefficients, variance-covariance matrix, or predictions.
+#' coef and vcov include the variance parameters: for each random effect term the log standard deviations
+#' (log_sd:b1|group) and, for correlated random effects, the parameters of the correlation matrix
+#' (corr_par:b2,b1|group, unconstrained elements of the lower triangle of its Cholesky factor, by row);
+#' and the log residual standard deviation (log_sigma, gaussian) or log precision (log_phi, beta).
 #' summary returns a summary.drmTMB object with the coefficient table (Estimate, Std. Error), the
 #' variance components, log-likelihood, AIC and BIC, sample sizes, a Pearson dispersion statistic for
 #' poisson and binomial models, and convergence information. logLik returns the log-likelihood at the
@@ -240,7 +244,7 @@ predict.drmTMB <- function(object, newdata=NULL, random=TRUE){
 #' @rdname drmTMB-methods
 coef.drmTMB <- function(object, ...){
     est <- object$estimates
-    names(est)[seq_len(sum(!object$fix))] <- object$coefnames[!object$fix]
+    names(est) <- parnames(object)
     return(est)
 }
 
@@ -336,4 +340,20 @@ residpar <- function(object){
 printresid <- function(family, residpar, digits){
   if (family == "gaussian") cat("\nResidual standard deviation: ", format(residpar, digits=digits), "\n", sep="")
   if (family == "beta") cat("\nPrecision: ", format(residpar, digits=digits), "\n", sep="")
+}
+
+# names of the estimated parameters: the free coefficients; for each random effect term the log
+# standard deviations (log_sd:b1|grp) and the parameters of the correlation matrix
+# (corr_par:b2,b1|grp, for the pairs of the lower triangle by row, on the unconstrained scale of TMB);
+# the log residual standard deviation (gaussian) or log precision (beta)
+parnames <- function(object){
+  renames <- unlist(lapply(object$reterms, function(tm){
+    pn <- paste("b", tm$pars, sep="")
+    np <- length(pn)
+    pairs <- unlist(lapply(seq_len(np)[-1], function(i) paste(pn[i], pn[seq_len(i - 1)], sep=",")))
+    c(paste("log_sd:", pn, "|", tm$group, sep=""),
+      if (np > 1) paste("corr_par:", pairs, "|", tm$group, sep=""))
+  }))
+  c(object$coefnames[!object$fix], renames,
+    switch(object$family, gaussian="log_sigma", beta="log_phi"))
 }

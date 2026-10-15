@@ -148,3 +148,32 @@ test_that("quantile residuals are standard normal under the model", {
   set.seed(1); r2 <- residuals(fits$poisson, type="quantile")
   expect_identical(r1, r2)
 })
+
+test_that("coef names the variance parameters", {
+  d <- simgroups(ng=30, seed=18)
+  u <- matrix(rnorm(120, 0, 0.4), 30)
+  d$y <- 1 + u[d$grp, 1] + (7 + u[d$grp, 2] - u[d$grp, 1]) /
+    (1 + exp((1.5 + u[d$grp, 4])*(log(d$dose) - log(3*exp(u[d$grp, 3]))))) + rnorm(nrow(d), 0, 0.2)
+  f <- fit4(y ~ dose, rform=list(b1 + b2 + b4 ~ 1 | grp, b3 ~ 1 | grp), data=d, model="loglogistic")
+  cf <- coef(f)
+  expect_equal(names(cf)[-(1:4)],
+               c("log_sd:b1|grp", "log_sd:b2|grp", "log_sd:b4|grp",
+                 "corr_par:b2,b1|grp", "corr_par:b4,b1|grp", "corr_par:b4,b2|grp",
+                 "log_sd:b3|grp", "log_sigma"))
+  expect_equal(rownames(vcov(f)), names(cf))
+
+  # the correlation matrix from the named parameters, as in TMB: lower triangle of L by row
+  L <- diag(3)
+  L[2, 1] <- cf[["corr_par:b2,b1|grp"]]
+  L[3, 1] <- cf[["corr_par:b4,b1|grp"]]
+  L[3, 2] <- cf[["corr_par:b4,b2|grp"]]
+  expect_equal(cov2cor(L %*% t(L)), drcTMB:::recov(f)[[1]]$corr, tolerance=1e-6)
+  expect_equal(exp(unname(cf[c("log_sd:b1|grp", "log_sd:b2|grp", "log_sd:b4|grp")])), unname(drcTMB:::recov(f)[[1]]$sd))
+
+  # beta: log precision
+  set.seed(19)
+  db <- data.frame(dose=rep(c(0, 1, 2, 4, 8), each=6))
+  mu <- drcmean("loglogistic", db$dose, c(0.1, 0.9, 1.5, 2.5, 0))
+  db$y <- rbeta(nrow(db), 30*mu, 30*(1 - mu))
+  expect_equal(tail(names(coef(fit4(y ~ dose, data=db, model="loglogistic", family="beta"))), 1), "log_phi")
+})
