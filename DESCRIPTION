@@ -14,6 +14,13 @@ Suggests:
     ggplot2,
     drcData,
     multcomp,
+    testthat (>= 3.0.0),
+    numDeriv,
+    drc,
+    nlme,
+    lme4,
+    glmmTMB
+Config/testthat/edition: 3
 Encoding: UTF-8
 Roxygen: list(markdown = TRUE)
 RoxygenNote: 8.0.0
