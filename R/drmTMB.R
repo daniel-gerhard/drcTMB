@@ -51,11 +51,13 @@ drmTMB <- function(form, fform=NULL, rform=NULL, data, start=NULL, fix=NULL, wei
   lower <- bounds(lower, -Inf)
   upper <- bounds(upper, Inf)
 
+  ctrl <- list(iter.max=control$iter.max, eval.max=control$eval.max)
   if (is.null(rform)){
-    opt <- nlminb(start=obj$par, objective=obj$fn, gradient=obj$gr, hessian=obj$he, lower=lower, upper=upper)
+    opt <- nlminb(start=obj$par, objective=obj$fn, gradient=obj$gr, hessian=obj$he, lower=lower, upper=upper, control=ctrl)
   } else {
-    opt <- nlminb(start=obj$par, objective=obj$fn, gradient=obj$gr, lower=lower, upper=upper)
+    opt <- nlminb(start=obj$par, objective=obj$fn, gradient=obj$gr, lower=lower, upper=upper, control=ctrl)
   }
+  if (opt$convergence != 0) warning("the optimiser did not converge: ", opt$message, call.=FALSE)
   res <- list()
   res$data <- data
   res$formula <- form
