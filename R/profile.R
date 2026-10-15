@@ -19,7 +19,7 @@
 #'   estimated coefficients b1-b5, without the variance parameters.
 #' @param level the highest confidence level the profiles are computed for: each profile extends until
 #'   the deviance from the maximum exceeds the quantile of the chi-square distribution with one degree
-#'   of freedom.
+#'   of freedom. For confint and plot, the confidence level of the intervals and of the cutoff line.
 #' @param trace logical, print the progress of \code{\link[TMB]{tmbprofile}}
 #' @param object,x a profile.drmTMB object
 #' @param ... further arguments passed to \code{\link[TMB]{tmbprofile}}, e.g. \code{ystep}; ignored by
@@ -28,6 +28,9 @@
 #' @return profile returns a profile.drmTMB object, a list with a data frame for each parameter with
 #'   the parameter values (\code{par}) and the deviance from the maximum (\code{deviance}), i.e. twice
 #'   the difference of the negative log-likelihoods. confint returns a matrix of confidence intervals.
+#'   plot returns a ggplot object (package ggplot2) with a panel for each parameter, showing the
+#'   deviance, the quantile of the chi-square distribution for \code{level} (dashed), and the
+#'   estimate (dotted).
 #' @export
 #'
 #' @name profile.drmTMB
@@ -105,14 +108,18 @@ confint.profile.drmTMB <- function(object, parm=NULL, level=0.95, ...){
 
 #' @rdname profile.drmTMB
 plot.profile.drmTMB <- function(x, level=0.95, ...){
+  if (!requireNamespace("ggplot2", quietly=TRUE)) stop("the plot method needs the package ggplot2.")
   nm <- names(x)
-  op <- par(mfrow=n2mfrow(length(nm)))
-  on.exit(par(op))
-  for (i in seq_along(nm)){
-    d <- x[[i]]
-    plot(d$par, d$deviance, type="l", xlab=nm[i], ylab="deviance", ...)
-    abline(h=qchisq(level, 1), lty=2)
-    abline(v=attr(x, "estimates")[i], lty=3)
-  }
-  invisible(x)
+  d <- do.call(rbind, lapply(nm, function(n) data.frame(parameter=n, par=x[[n]]$par, deviance=x[[n]]$deviance)))
+  d$parameter <- factor(d$parameter, levels=nm)
+  est <- data.frame(parameter=factor(nm, levels=nm), par=unname(attr(x, "estimates")))
+  ggplot2::ggplot(d, ggplot2::aes(x=par, y=deviance)) +
+    ggplot2::geom_line() +
+    ggplot2::geom_hline(yintercept=qchisq(level, 1), linetype="dashed") +
+    ggplot2::geom_vline(data=est, ggplot2::aes(xintercept=par), linetype="dotted") +
+    ggplot2::facet_wrap(~ parameter, scales="free_x") +
+    ggplot2::labs(x=NULL, y="Deviance")
 }
+
+# columns of the profile data used in the aesthetics of plot.profile.drmTMB
+utils::globalVariables(c("par", "deviance"))

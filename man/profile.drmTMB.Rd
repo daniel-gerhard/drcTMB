@@ -20,7 +20,7 @@ estimated coefficients b1-b5, without the variance parameters.}
 
 \item{level}{the highest confidence level the profiles are computed for: each profile extends until
 the deviance from the maximum exceeds the quantile of the chi-square distribution with one degree
-of freedom.}
+of freedom. For confint and plot, the confidence level of the intervals and of the cutoff line.}
 
 \item{trace}{logical, print the progress of \code{\link[TMB]{tmbprofile}}}
 
@@ -33,6 +33,9 @@ the confint and plot methods}
 profile returns a profile.drmTMB object, a list with a data frame for each parameter with
 the parameter values (\code{par}) and the deviance from the maximum (\code{deviance}), i.e. twice
 the difference of the negative log-likelihoods. confint returns a matrix of confidence intervals.
+plot returns a ggplot object (package ggplot2) with a panel for each parameter, showing the
+deviance, the quantile of the chi-square distribution for \code{level} (dashed), and the
+estimate (dotted).
 }
 \description{
 Profiles the (marginal) log-likelihood for single parameters by fixing the parameter at a sequence

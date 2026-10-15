@@ -1,7 +1,6 @@
 importFrom("Matrix", "t", "bdiag")
 importFrom("stats", "coefficients", "lm", "model.frame", "model.matrix", "model.response", "nlminb", "pnorm", "qnorm", "plogis", "qlogis", "simulate", "predict", "coef", "lm.fit", "setNames", "logLik", "nobs", "AIC", "BIC", "printCoefmat", "fitted", "residuals", "runif", "ppois", "pbinom", "pbeta", "profile", "confint", "qchisq", "approx")
-importFrom("graphics", "plot", "abline", "par")
-importFrom("grDevices", "n2mfrow")
+importFrom("graphics", "plot")
 importFrom("reformulas", "subbars", "mkReTrms", "findbars") 
 importFrom("TMB", "MakeADFun", "sdreport") 
 export("drmTMB", "drmTMBstart", "ed", "drmTMBcontrol")

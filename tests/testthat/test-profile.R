@@ -71,10 +71,15 @@ test_that("the profiled coefficient stays within its bounds", {
   expect_true(is.na(ci[1, 2]))
 })
 
-test_that("plot draws the profiles", {
+test_that("plot draws the profiles with ggplot2", {
+  skip_if_not_installed("ggplot2")
   f <- fit4(y ~ dose, data=simgauss("loglogistic"), model="loglogistic")
   p <- profile(f, parm=3:4)
+  g <- plot(p)
+  expect_s3_class(g, "ggplot")
+  expect_equal(levels(g$data$parameter), names(p))
+  expect_equal(nrow(g$data), sum(sapply(p, nrow)))
   pdf(NULL)
   on.exit(dev.off())
-  expect_identical(plot(p), p)
+  expect_silent(print(g))
 })
