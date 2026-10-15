@@ -9,12 +9,16 @@
 #' @param ... anything else
 #'
 #' @return Estimated model coefficients, variance-covariance matrix, or predictions.
+#' summary returns a summary.drmTMB object with the coefficient table (Estimate, Std. Error), the
+#' variance components, log-likelihood, AIC and BIC, sample sizes, a Pearson dispersion statistic for
+#' poisson and binomial models, and convergence information. logLik returns the log-likelihood at the
+#' estimates, with the number of free coefficients and variance parameters as degrees of freedom.
 #' simulate returns a data frame with nsim columns of simulated responses at the estimated
 #' parameters; for a binomial response given as cbind(successes, failures), the number of successes.
 #' @export
 #'
 #' @name drmTMB-methods
-#' @aliases print.drmTMB predict.drmTMB coef.drmTMB vcov.drmTMB simulate.drmTMB
+#' @aliases print.drmTMB summary.drmTMB print.summary.drmTMB logLik.drmTMB nobs.drmTMB predict.drmTMB coef.drmTMB vcov.drmTMB simulate.drmTMB
 #' 
 #' @rdname drmTMB-methods
 print.drmTMB <- function(x, digits=max(3L, getOption("digits") - 3L), ...){
@@ -28,39 +32,124 @@ print.drmTMB <- function(x, digits=max(3L, getOption("digits") - 3L), ...){
 
   cat("\nCoefficients:\n")
   print.default(format(coef(x)[seq_len(sum(!x$fix))], digits=digits), print.gap=2L, quote=FALSE)
-
-  # coefficients fixed by the user; the parameters the model does not use are always fixed
-  mod <- which(x$model == c("logistic", "loglogistic", "weibull1", "weibull2", "lognormal", "michaelismenten", "asymptoticregression", "exponentialdecay", "gompertz"))
-  npi <- as.integer(sub("^b([1-5]):.*", "\\1", x$coefnames))
-  ufix <- x$fix & !(npi %in% unusedpars(mod))
-  if (any(ufix)){
-    cat("Fixed: ", paste(x$coefnames[ufix], "=", format(x$start[ufix], digits=digits), collapse=", "), "\n", sep="")
-  }
-
-  # random effects: one row per parameter of each term, with standard deviation and correlations
-  vcs <- recov(x)
-  if (length(vcs) > 0){
-    rows <- lapply(vcs, function(vc){
-      np <- length(vc$pars)
-      cr <- matrix("", np, max(np - 1, 0))
-      for (i in seq_len(np)[-1]) cr[i, seq_len(i - 1)] <- format(vc$corr[i, seq_len(i - 1)], digits=2, nsmall=2)
-      cbind(Groups=c(vc$group, rep("", np - 1)), Name=paste("b", vc$pars, sep=""),
-            Std.Dev.=format(unname(vc$sd), digits=digits), cr)
-    })
-    ncr <- max(sapply(rows, ncol)) - 3
-    rows <- lapply(rows, function(r) cbind(r, matrix("", nrow(r), ncr - (ncol(r) - 3))))
-    tab <- do.call(rbind, rows)
-    colnames(tab) <- c("Groups", "Name", "Std.Dev.", if (ncr > 0) c("Corr", rep("", ncr - 1)))
-    rownames(tab) <- rep("", nrow(tab))
-    cat("\nRandom effects:\n")
-    print(tab, quote=FALSE, right=FALSE)
-  }
-
-  # residual standard deviation (gaussian) or precision (beta)
-  lsig <- x$sdrl$par.fixed["log_sigma"]
-  if (x$family == "gaussian") cat("\nResidual standard deviation: ", format(exp(lsig), digits=digits), "\n", sep="")
-  if (x$family == "beta") cat("\nPrecision: ", format(exp(lsig), digits=digits), "\n", sep="")
+  printfixed(userfixed(x), digits)
+  printre(recov(x), digits)
+  printresid(x$family, residpar(x), digits)
   invisible(x)
+}
+
+#' @rdname drmTMB-methods
+summary.drmTMB <- function(object, ...){
+  dat <- object$obj$env$data
+  mod <- modelindex(object$model)
+  vcs <- recov(object)
+  ll <- logLik(object)
+
+  # coefficient table of the free coefficients
+  ests <- object$ssdrl
+  coefs <- ests[rownames(ests) %in% paste("b", 1:5, sep=""), , drop=FALSE]
+  rownames(coefs) <- object$coefnames[!object$fix]
+
+  # direction of the curve from the sign of the steepness b3 at the observations
+  npi <- rep(1:5, sapply(object$Xs, ncol))
+  direction <- NULL
+  if (!(mod %in% 6:8)){
+    b <- object$start
+    b[!object$fix] <- coefs[, 1]
+    s3 <- sign(object$Xs[[3]] %*% b[npi == 3])
+    direction <- if (all(s3 > 0)) "increasing" else if (all(s3 < 0)) "decreasing" else "increasing and decreasing"
+  }
+
+  # standard deviations at the boundary (singular fit): the likelihood is flat in the log standard
+  # deviation, which gives a very large or no standard error, independent of the scale of the parameter
+  ses <- ests[rownames(ests) == "theta", 2]
+  toff <- 0
+  singular <- unlist(lapply(vcs, function(vc){
+    np <- length(vc$pars)
+    se <- ses[toff + seq_len(np)]
+    toff <<- toff + np + np*(np - 1)/2
+    nm <- paste(vc$group, paste("b", vc$pars, sep=""))
+    nm[!is.finite(se) | se > 100 | vc$sd < 1e-8]
+  }))
+
+  # Pearson dispersion for the families without a dispersion parameter, conditional on the
+  # random effects; residual degrees of freedom from the number of estimated parameters
+  dispersion <- NULL
+  if (object$family %in% c("poisson", "binomial")){
+    mu <- predict(object)
+    if (object$family == "poisson"){
+      r2 <- (dat$y - mu)^2 / mu
+    } else {
+      r2 <- (dat$y - dat$bn*mu)^2 / (dat$bn*mu*(1 - mu))
+    }
+    rdf <- nobs(object) - attr(ll, "df")
+    chisq <- sum(dat$w * r2)
+    dispersion <- c(chisq=chisq, df=rdf, ratio=chisq/rdf)
+  }
+
+  # number of levels of each grouping factor, once per factor
+  ngroups <- sapply(object$reterms, function(tm) length(tm$levels))
+  names(ngroups) <- sapply(object$reterms, function(tm) tm$group)
+  ngroups <- ngroups[!duplicated(names(ngroups))]
+
+  gr <- object$obj$gr(object$opt$par)
+  res <- list(call=object$call, model=object$model, family=object$family, link=object$link,
+              direction=direction, b5=any(!object$fix[npi == 5]),
+              nobs=nobs(object), ntrials=if (object$family == "binomial") sum(dat$bn), ngroups=ngroups,
+              logLik=ll, AIC=AIC(object), BIC=BIC(object),
+              coefficients=coefs, fixed=userfixed(object), varcor=vcs, residpar=residpar(object),
+              singular=singular, dispersion=dispersion,
+              convergence=object$opt$convergence, message=object$opt$message,
+              maxgrad=max(abs(gr)), pdHess=object$sdrl$pdHess)
+  class(res) <- "summary.drmTMB"
+  res
+}
+
+#' @rdname drmTMB-methods
+print.summary.drmTMB <- function(x, digits=max(3L, getOption("digits") - 3L), ...){
+  if (!is.null(x$call)){
+    cat("Call:\n")
+    print(x$call)
+    cat("\n")
+  }
+  cat("Model:  ", x$model, if (!is.null(x$direction)) paste(",", x$direction, "curve"), "\n", sep="")
+  cat("Family: ", x$family, ", ", x$link, " link for the asymptotes\n", sep="")
+
+  cat("\nNumber of observations: ", x$nobs, sep="")
+  if (!is.null(x$ntrials)) cat(", number of trials: ", x$ntrials, sep="")
+  if (length(x$ngroups) > 0) cat(", groups: ", paste(names(x$ngroups), x$ngroups, sep=" ", collapse="; "), sep="")
+  cat("\n")
+  cat("Log-likelihood: ", format(as.numeric(x$logLik), digits=digits), " (df = ", attr(x$logLik, "df"), ")",
+      ", AIC: ", format(x$AIC, digits=digits), ", BIC: ", format(x$BIC, digits=digits), "\n", sep="")
+
+  cat("\nCoefficients:\n")
+  printCoefmat(x$coefficients, digits=digits)
+  if (x$b5) cat("The asymmetry parameter b5 is on the log scale.\n")
+  printfixed(x$fixed, digits)
+  printre(x$varcor, digits)
+  if (length(x$singular) > 0){
+    cat("Standard deviations close to zero (singular fit): ", paste(x$singular, collapse=", "), "\n", sep="")
+  }
+  printresid(x$family, x$residpar, digits)
+  if (!is.null(x$dispersion)){
+    cat("\nPearson dispersion: ", format(x$dispersion["ratio"], digits=digits),
+        " (chi-square ", format(x$dispersion["chisq"], digits=digits), " on ", x$dispersion["df"], " df)\n", sep="")
+  }
+
+  cat("\nOptimiser: ", x$message, ", maximum absolute gradient ", format(x$maxgrad, digits=2), "\n", sep="")
+  if (!isTRUE(x$pdHess)) cat("Warning: the Hessian is not positive definite; the standard errors are not reliable.\n")
+  invisible(x)
+}
+
+#' @rdname drmTMB-methods
+logLik.drmTMB <- function(object, ...){
+  # degrees of freedom: free coefficients and variance parameters
+  structure(-object$opt$objective, df=length(object$opt$par), nobs=nobs(object), class="logLik")
+}
+
+#' @rdname drmTMB-methods
+nobs.drmTMB <- function(object, ...){
+  length(object$obj$env$data$y)
 }
 
 #' @rdname drmTMB-methods
@@ -156,4 +245,53 @@ recov <- function(object){
     coff <<- coff + np*np
     list(pars=tm$pars, group=tm$group, sd=sdm, corr=cr, cov=diag(sdm, nrow=np) %*% cr %*% diag(sdm, nrow=np))
   })
+}
+
+
+# index of the model, as in the TMB template
+modelindex <- function(model){
+  which(model == c("logistic", "loglogistic", "weibull1", "weibull2", "lognormal", "michaelismenten", "asymptoticregression", "exponentialdecay", "gompertz"))
+}
+
+# coefficients fixed by the user, named; the parameters the model does not use are always fixed
+userfixed <- function(object){
+  npi <- as.integer(sub("^b([1-5]):.*", "\\1", object$coefnames))
+  ufix <- object$fix & !(npi %in% unusedpars(modelindex(object$model)))
+  setNames(object$start[ufix], object$coefnames[ufix])
+}
+
+printfixed <- function(fixed, digits){
+  if (length(fixed) > 0){
+    cat("Fixed: ", paste(names(fixed), "=", format(fixed, digits=digits), collapse=", "), "\n", sep="")
+  }
+}
+
+# random effects: one row per parameter of each term, with standard deviation and correlations
+printre <- function(vcs, digits){
+  if (length(vcs) == 0) return(invisible())
+  rows <- lapply(vcs, function(vc){
+    np <- length(vc$pars)
+    cr <- matrix("", np, max(np - 1, 0))
+    for (i in seq_len(np)[-1]) cr[i, seq_len(i - 1)] <- format(vc$corr[i, seq_len(i - 1)], digits=2, nsmall=2)
+    cbind(Groups=c(vc$group, rep("", np - 1)), Name=paste("b", vc$pars, sep=""),
+          Std.Dev.=format(unname(vc$sd), digits=digits), cr)
+  })
+  ncr <- max(sapply(rows, ncol)) - 3
+  rows <- lapply(rows, function(r) cbind(r, matrix("", nrow(r), ncr - (ncol(r) - 3))))
+  tab <- do.call(rbind, rows)
+  colnames(tab) <- c("Groups", "Name", "Std.Dev.", if (ncr > 0) c("Corr", rep("", ncr - 1)))
+  rownames(tab) <- rep("", nrow(tab))
+  cat("\nRandom effects:\n")
+  print(tab, quote=FALSE, right=FALSE)
+}
+
+# residual standard deviation (gaussian) or precision (beta); NULL for poisson and binomial
+residpar <- function(object){
+  if (!(object$family %in% c("gaussian", "beta"))) return(NULL)
+  unname(exp(object$sdrl$par.fixed["log_sigma"]))
+}
+
+printresid <- function(family, residpar, digits){
+  if (family == "gaussian") cat("\nResidual standard deviation: ", format(residpar, digits=digits), "\n", sep="")
+  if (family == "beta") cat("\nPrecision: ", format(residpar, digits=digits), "\n", sep="")
 }

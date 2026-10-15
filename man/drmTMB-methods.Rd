@@ -3,6 +3,10 @@
 \name{drmTMB-methods}
 \alias{drmTMB-methods}
 \alias{print.drmTMB}
+\alias{summary.drmTMB}
+\alias{print.summary.drmTMB}
+\alias{logLik.drmTMB}
+\alias{nobs.drmTMB}
 \alias{predict.drmTMB}
 \alias{coef.drmTMB}
 \alias{vcov.drmTMB}
@@ -10,6 +14,14 @@
 \title{drmTMB Methods}
 \usage{
 \method{print}{drmTMB}(x, digits = max(3L, getOption("digits") - 3L), ...)
+
+\method{summary}{drmTMB}(object, ...)
+
+\method{print}{summary.drmTMB}(x, digits = max(3L, getOption("digits") - 3L), ...)
+
+\method{logLik}{drmTMB}(object, ...)
+
+\method{nobs}{drmTMB}(object, ...)
 
 \method{predict}{drmTMB}(object, newdata = NULL, random = TRUE)
 
@@ -36,6 +48,10 @@
 }
 \value{
 Estimated model coefficients, variance-covariance matrix, or predictions.
+summary returns a summary.drmTMB object with the coefficient table (Estimate, Std. Error), the
+variance components, log-likelihood, AIC and BIC, sample sizes, a Pearson dispersion statistic for
+poisson and binomial models, and convergence information. logLik returns the log-likelihood at the
+estimates, with the number of free coefficients and variance parameters as degrees of freedom.
 simulate returns a data frame with nsim columns of simulated responses at the estimated
 parameters; for a binomial response given as cbind(successes, failures), the number of successes.
 }
