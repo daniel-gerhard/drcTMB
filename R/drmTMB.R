@@ -61,7 +61,11 @@ drmTMB <- function(form, fform=NULL, rform=NULL, data, start=NULL, fix=NULL, wei
   } else {
     opt <- nlminb(start=obj$par, objective=obj$fn, gradient=obj$gr, lower=lower, upper=upper, control=ctrl)
   }
-  if (opt$convergence != 0) warning("the optimiser did not converge: ", opt$message, call.=FALSE)
+  if (!is.finite(opt$objective)){
+    warning("the negative log-likelihood is not finite at the estimates; some observations may be impossible under the model, e.g. responses at dose zero with an asymptote fixed at 0.", call.=FALSE)
+  } else if (opt$convergence != 0){
+    warning("the optimiser did not converge: ", opt$message, call.=FALSE)
+  }
   res <- list()
   res$data <- data
   res$formula <- form
