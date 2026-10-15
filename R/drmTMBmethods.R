@@ -199,7 +199,7 @@ residuals.drmTMB <- function(object, type=c("pearson", "response", "quantile"), 
 }
 
 #' @rdname drmTMB-methods
-predict.drmTMB <- function(object, newdata=NULL, random=TRUE){
+predict.drmTMB <- function(object, newdata=NULL, random=TRUE, ...){
   if (is.null(newdata)) newdata <- object$data
   form <- object$formula
   form[2] <- NULL

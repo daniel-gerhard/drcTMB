@@ -34,7 +34,7 @@
   ...
 )
 
-\method{predict}{drmTMB}(object, newdata = NULL, random = TRUE)
+\method{predict}{drmTMB}(object, newdata = NULL, random = TRUE, ...)
 
 \method{coef}{drmTMB}(object, ...)
 
