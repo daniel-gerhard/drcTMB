@@ -3,6 +3,7 @@
 #' @param x,object a drmTMB object
 #' @param newdata a data frame for prediction. If NULL, the original data is used.
 #' @param random logical, if TRUE, the random effects are included in the predictions. For simulate, if TRUE, new random effects are drawn for each simulation, otherwise the fitted random effects are kept.
+#' @param digits number of significant digits in the printed output
 #' @param nsim number of response vectors to simulate
 #' @param seed an optional seed for the random number generator
 #' @param ... anything else
@@ -16,23 +17,50 @@
 #' @aliases print.drmTMB predict.drmTMB coef.drmTMB vcov.drmTMB simulate.drmTMB
 #' 
 #' @rdname drmTMB-methods
-print.drmTMB <- function(x, ...){
-  ests <- x$ssdrl
-  rn <- rownames(ests)
-  coefs <- ests[rn %in% paste("b", 1:5, sep=""),,drop=FALSE]
-  rownames(coefs) <- x$coefnames[!x$fix]
-  cat("Coefficients:\n")
-  print(coefs)
-  for (vc in recov(x)){
-    pn <- paste("b", vc$pars, sep="")
-    names(vc$sd) <- rownames(vc$corr) <- colnames(vc$corr) <- pn
-    cat("\nRandom effects:", vc$group, "\nStd.Dev.:\n")
-    print(vc$sd)
-    if (length(pn) > 1){
-      cat("Correlation:\n")
-      print(vc$corr)
-    }
+print.drmTMB <- function(x, digits=max(3L, getOption("digits") - 3L), ...){
+  if (!is.null(x$call)){
+    cat("Call:\n")
+    print(x$call)
+    cat("\n")
   }
+  cat("Model:  ", x$model, "\n", sep="")
+  cat("Family: ", x$family, ", ", x$link, " link for the asymptotes\n", sep="")
+
+  cat("\nCoefficients:\n")
+  print.default(format(coef(x)[seq_len(sum(!x$fix))], digits=digits), print.gap=2L, quote=FALSE)
+
+  # coefficients fixed by the user; the parameters the model does not use are always fixed
+  mod <- which(x$model == c("logistic", "loglogistic", "weibull1", "weibull2", "lognormal", "michaelismenten", "asymptoticregression", "exponentialdecay", "gompertz"))
+  npi <- as.integer(sub("^b([1-5]):.*", "\\1", x$coefnames))
+  ufix <- x$fix & !(npi %in% unusedpars(mod))
+  if (any(ufix)){
+    cat("Fixed: ", paste(x$coefnames[ufix], "=", format(x$start[ufix], digits=digits), collapse=", "), "\n", sep="")
+  }
+
+  # random effects: one row per parameter of each term, with standard deviation and correlations
+  vcs <- recov(x)
+  if (length(vcs) > 0){
+    rows <- lapply(vcs, function(vc){
+      np <- length(vc$pars)
+      cr <- matrix("", np, max(np - 1, 0))
+      for (i in seq_len(np)[-1]) cr[i, seq_len(i - 1)] <- format(vc$corr[i, seq_len(i - 1)], digits=2, nsmall=2)
+      cbind(Groups=c(vc$group, rep("", np - 1)), Name=paste("b", vc$pars, sep=""),
+            Std.Dev.=format(unname(vc$sd), digits=digits), cr)
+    })
+    ncr <- max(sapply(rows, ncol)) - 3
+    rows <- lapply(rows, function(r) cbind(r, matrix("", nrow(r), ncr - (ncol(r) - 3))))
+    tab <- do.call(rbind, rows)
+    colnames(tab) <- c("Groups", "Name", "Std.Dev.", if (ncr > 0) c("Corr", rep("", ncr - 1)))
+    rownames(tab) <- rep("", nrow(tab))
+    cat("\nRandom effects:\n")
+    print(tab, quote=FALSE, right=FALSE)
+  }
+
+  # residual standard deviation (gaussian) or precision (beta)
+  lsig <- x$sdrl$par.fixed["log_sigma"]
+  if (x$family == "gaussian") cat("\nResidual standard deviation: ", format(exp(lsig), digits=digits), "\n", sep="")
+  if (x$family == "beta") cat("\nPrecision: ", format(exp(lsig), digits=digits), "\n", sep="")
+  invisible(x)
 }
 
 #' @rdname drmTMB-methods

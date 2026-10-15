@@ -1,0 +1,22 @@
+test_that("print shows the call, model, coefficients and variance parameters", {
+  d <- simgroups(ng=8, seed=7)
+  u <- rnorm(8, 0, 0.5)
+  d$y <- drcmean("loglogistic", d$dose, c(1, 8, -1.5, 3, 0)) + u[d$grp] + rnorm(nrow(d), 0, 0.3)
+  f <- fit4(y ~ dose, rform=b1 + b2 ~ 1 | grp, data=d, model="loglogistic")
+  out <- capture.output(res <- print(f))
+  expect_identical(res, f)
+  expect_true(any(grepl("^Call:", out)))
+  expect_true(any(grepl("^Model:  loglogistic", out)))
+  expect_true(any(grepl("^Family: gaussian, identity link", out)))
+  expect_true(any(grepl("^Fixed: b5:\\(Intercept\\) = 0", out)))
+  expect_true(any(grepl("^ grp +b1", out)))
+  expect_true(any(grepl("^Residual standard deviation", out)))
+  expect_false(any(grepl("Std. Error", out)))
+
+  # unused parameters are not listed as fixed; no residual line for poisson
+  dp <- data.frame(dose=rep(c(0, 1, 2, 4, 8), each=3))
+  dp$y <- rpois(nrow(dp), 20*exp(-dp$dose/3))
+  out <- capture.output(print(drmTMB(y ~ dose, data=dp, model="exponentialdecay", family="poisson")))
+  expect_false(any(grepl("^Fixed:", out)))
+  expect_false(any(grepl("^Residual|^Precision", out)))
+})

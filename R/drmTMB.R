@@ -67,6 +67,7 @@ drmTMB <- function(form, fform=NULL, rform=NULL, data, start=NULL, fix=NULL, wei
     warning("the optimiser did not converge: ", opt$message, call.=FALSE)
   }
   res <- list()
+  res$call <- match.call()
   res$data <- data
   res$formula <- form
   res$family <- family

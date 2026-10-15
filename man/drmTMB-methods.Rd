@@ -9,7 +9,7 @@
 \alias{simulate.drmTMB}
 \title{drmTMB Methods}
 \usage{
-\method{print}{drmTMB}(x, ...)
+\method{print}{drmTMB}(x, digits = max(3L, getOption("digits") - 3L), ...)
 
 \method{predict}{drmTMB}(object, newdata = NULL, random = TRUE)
 
@@ -21,6 +21,8 @@
 }
 \arguments{
 \item{x, object}{a drmTMB object}
+
+\item{digits}{number of significant digits in the printed output}
 
 \item{...}{anything else}
 
