@@ -158,3 +158,13 @@ test_that("rescaling the dose rescales b4 only", {
   expect_equal(unname(bcoef(f2)), unname(bcoef(f1) * c(1, 1, 1, 1000)), tolerance=1e-4)
   expect_equal(unname(ed(f2)$estimates), unname(ed(f1)$estimates * 1000), tolerance=1e-4)
 })
+
+test_that("a non-finite objective at the estimates gives a warning", {
+  # responses at dose zero are impossible with the lower asymptote fixed at 0
+  set.seed(13)
+  d <- data.frame(dose=rep(c(0, 0.5, 1, 2, 4, 8, 16), each=3), n=20)
+  d$y <- rbinom(nrow(d), d$n, drcmean("loglogistic", d$dose, c(0.1, 0.9, 2, 2.5, 0)))
+  expect_warning(drmTMB(cbind(y, n - y) ~ dose, data=d, model="loglogistic", family="binomial",
+                        start=c(b1=0, b2=1, b5=0), fix=c(b1=TRUE, b2=TRUE, b5=TRUE)),
+                 "not finite")
+})
