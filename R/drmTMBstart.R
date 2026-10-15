@@ -405,6 +405,21 @@ drcmeanR <- function(mod, x, f1, f2, f3, f4, f5){
   f1 + (f2 - f1) * Fx
 }
 
+# start or fix as a vector with one entry per coefficient: an unnamed vector is used as it is,
+# a vector named by parameter (e.g. c(b1=0, b5=0)) gives the value for all coefficients of that parameter
+parvector <- function(v, npi, default, arg){
+  out <- rep(default, length(npi))
+  if (is.null(v)) return(out)
+  if (is.null(names(v))){
+    if (length(v) != length(npi)) stop(arg, " must have one entry for each of the ", length(npi), " model coefficients, or be named by parameter, e.g. c(b5=0).")
+    return(v)
+  }
+  pn <- match(names(v), paste("b", 1:5, sep=""))
+  if (any(is.na(pn)) | any(duplicated(pn))) stop("the names of ", arg, " must be distinct parameter names b1-b5.")
+  for (i in seq_along(v)) out[npi == pn[i]] <- v[[i]]
+  out
+}
+
 # parameters not used by the model, which cannot be estimated: b3 without steepness
 # (michaelismenten, asymptoticregression, exponentialdecay), b5 without asymmetry
 unusedpars <- function(mod){
