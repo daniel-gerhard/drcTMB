@@ -2,8 +2,9 @@
 #'
 #' @param x,object a drmTMB object
 #' @param newdata a data frame for prediction. If NULL, the original data is used.
-#' @param random logical, if TRUE, the random effects are included in the predictions. For simulate, if TRUE, new random effects are drawn for each simulation, otherwise the fitted random effects are kept.
+#' @param random logical, if TRUE, the random effects are included in the predictions, fitted values and residuals (conditional residuals). For simulate, if TRUE, new random effects are drawn for each simulation, otherwise the fitted random effects are kept.
 #' @param digits number of significant digits in the printed output
+#' @param type type of residuals: "pearson" (default), the response residuals divided by the standard deviation of the fitted distribution and multiplied by the square root of the weights; "response", the observed minus the fitted values, as proportions for a binomial response; or "quantile", randomised quantile residuals (Dunn and Smyth, 1996), which are standard normal under the model. The quantile residuals do not use the weights, and are random for poisson and binomial responses; use set.seed for reproducible values.
 #' @param nsim number of response vectors to simulate
 #' @param seed an optional seed for the random number generator
 #' @param ... anything else
@@ -18,7 +19,7 @@
 #' @export
 #'
 #' @name drmTMB-methods
-#' @aliases print.drmTMB summary.drmTMB print.summary.drmTMB logLik.drmTMB nobs.drmTMB predict.drmTMB coef.drmTMB vcov.drmTMB simulate.drmTMB
+#' @aliases print.drmTMB summary.drmTMB print.summary.drmTMB logLik.drmTMB nobs.drmTMB fitted.drmTMB residuals.drmTMB predict.drmTMB coef.drmTMB vcov.drmTMB simulate.drmTMB
 #' 
 #' @rdname drmTMB-methods
 print.drmTMB <- function(x, digits=max(3L, getOption("digits") - 3L), ...){
@@ -150,6 +151,47 @@ logLik.drmTMB <- function(object, ...){
 #' @rdname drmTMB-methods
 nobs.drmTMB <- function(object, ...){
   length(object$obj$env$data$y)
+}
+
+#' @rdname drmTMB-methods
+fitted.drmTMB <- function(object, random=TRUE, ...){
+  predict(object, random=random)
+}
+
+#' @rdname drmTMB-methods
+residuals.drmTMB <- function(object, type=c("pearson", "response", "quantile"), random=TRUE, ...){
+  type <- match.arg(type)
+  dat <- object$obj$env$data
+  mu <- predict(object, random=random)
+  cnt <- as.vector(dat$y)
+  n <- as.vector(dat$bn)
+  phi <- residpar(object)
+  # binomial: on the scale of proportions
+  y <- if (object$family == "binomial") cnt/n else cnt
+
+  if (type == "response") return(y - mu)
+
+  if (type == "pearson"){
+    v <- switch(object$family,
+                gaussian=phi^2,
+                poisson=mu,
+                binomial=mu*(1 - mu)/n,
+                beta=mu*(1 - mu)/(1 + phi))
+    return((y - mu)/sqrt(v) * sqrt(as.vector(dat$w)))
+  }
+
+  # randomised quantile residuals: normal quantiles of the fitted distribution function at the
+  # observations, drawn uniformly between its left and right limits for the discrete families
+  if (object$family == "gaussian") return((y - mu)/phi)
+  if (object$family == "beta") return(qnorm(pbeta(y, mu*phi, (1 - mu)*phi)))
+  if (object$family == "poisson"){
+    lo <- ppois(cnt - 1, mu)
+    hi <- ppois(cnt, mu)
+  } else {
+    lo <- pbinom(cnt - 1, n, mu)
+    hi <- pbinom(cnt, n, mu)
+  }
+  qnorm(runif(length(y), lo, hi))
 }
 
 #' @rdname drmTMB-methods

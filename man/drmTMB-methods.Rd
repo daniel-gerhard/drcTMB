@@ -7,6 +7,8 @@
 \alias{print.summary.drmTMB}
 \alias{logLik.drmTMB}
 \alias{nobs.drmTMB}
+\alias{fitted.drmTMB}
+\alias{residuals.drmTMB}
 \alias{predict.drmTMB}
 \alias{coef.drmTMB}
 \alias{vcov.drmTMB}
@@ -23,6 +25,15 @@
 
 \method{nobs}{drmTMB}(object, ...)
 
+\method{fitted}{drmTMB}(object, random = TRUE, ...)
+
+\method{residuals}{drmTMB}(
+  object,
+  type = c("pearson", "response", "quantile"),
+  random = TRUE,
+  ...
+)
+
 \method{predict}{drmTMB}(object, newdata = NULL, random = TRUE)
 
 \method{coef}{drmTMB}(object, ...)
@@ -38,9 +49,11 @@
 
 \item{...}{anything else}
 
-\item{newdata}{a data frame for prediction. If NULL, the original data is used.}
+\item{random}{logical, if TRUE, the random effects are included in the predictions, fitted values and residuals (conditional residuals). For simulate, if TRUE, new random effects are drawn for each simulation, otherwise the fitted random effects are kept.}
 
-\item{random}{logical, if TRUE, the random effects are included in the predictions. For simulate, if TRUE, new random effects are drawn for each simulation, otherwise the fitted random effects are kept.}
+\item{type}{type of residuals: "pearson" (default), the response residuals divided by the standard deviation of the fitted distribution and multiplied by the square root of the weights; "response", the observed minus the fitted values, as proportions for a binomial response; or "quantile", randomised quantile residuals (Dunn and Smyth, 1996), which are standard normal under the model. The quantile residuals do not use the weights, and are random for poisson and binomial responses; use set.seed for reproducible values.}
+
+\item{newdata}{a data frame for prediction. If NULL, the original data is used.}
 
 \item{nsim}{number of response vectors to simulate}
 

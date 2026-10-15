@@ -86,3 +86,65 @@ test_that("summary warns when the Hessian is not positive definite", {
   s$pdHess <- FALSE
   expect_true(any(grepl("not positive definite", capture.output(print(s)))))
 })
+
+test_that("fitted values and response residuals", {
+  d <- simgroups(ng=8, seed=7)
+  u <- rnorm(8, 0, 0.5)
+  d$y <- drcmean("loglogistic", d$dose, c(1, 8, -1.5, 3, 0)) + u[d$grp] + rnorm(nrow(d), 0, 0.3)
+  f <- fit4(y ~ dose, rform=b2 ~ 1 | grp, data=d, model="loglogistic")
+  expect_equal(fitted(f), predict(f))
+  expect_equal(fitted(f, random=FALSE), predict(f, random=FALSE))
+  expect_equal(residuals(f, type="response"), d$y - predict(f))
+  expect_equal(residuals(f, type="response", random=FALSE), d$y - predict(f, random=FALSE))
+  sig <- exp(coef(f)[["log_sigma"]])
+  expect_equal(residuals(f), (d$y - predict(f))/sig)
+  expect_equal(residuals(f, type="quantile"), residuals(f))
+})
+
+test_that("pearson residuals agree with glm", {
+  set.seed(15)
+  d <- data.frame(dose=rep(c(0, 1, 2, 4, 6, 8, 10), each=3), n=20)
+  d$y <- rbinom(nrow(d), d$n, plogis(0.9*(d$dose - 5)))
+  d$cnt <- rpois(nrow(d), exp(log(50) - d$dose/4))
+  w <- rep(1:3, length.out=nrow(d))
+
+  fb <- drmTMB(cbind(y, n - y) ~ dose, data=d, model="logistic", family="binomial",
+               start=c(b1=0, b2=1, b5=0), fix=c(b1=TRUE, b2=TRUE, b5=TRUE))
+  gb <- glm(cbind(y, n - y) ~ dose, data=d, family=binomial)
+  expect_equal(residuals(fb), unname(residuals(gb, type="pearson")), tolerance=1e-5)
+  expect_equal(residuals(fb, type="response"), unname(residuals(gb, type="response")), tolerance=1e-5)
+
+  fp <- drmTMB(cnt ~ dose, data=d, model="exponentialdecay", family="poisson", link="log",
+               start=c(b2=-30), fix=c(b2=TRUE), weights=w)
+  gp <- glm(cnt ~ dose, data=d, family=poisson, weights=w)
+  expect_equal(residuals(fp), unname(residuals(gp, type="pearson")), tolerance=1e-5)
+
+  # sum of squares: the Pearson statistic of summary
+  expect_equal(sum(residuals(fp)^2), unname(summary(fp)$dispersion["chisq"]))
+})
+
+test_that("quantile residuals are standard normal under the model", {
+  set.seed(16)
+  d <- data.frame(dose=rep(c(0, 0.5, 1, 2, 4, 8, 16), each=60), n=10)
+  mu <- drcmean("loglogistic", d$dose, c(0.1, 0.9, 1.5, 2.5, 0))
+  d$yb <- rbinom(nrow(d), d$n, mu)
+  d$yp <- rpois(nrow(d), 10*mu)
+  d$yr <- rbeta(nrow(d), 20*mu, 20*(1 - mu))
+  fits <- list(
+    binomial=fit4(cbind(yb, n - yb) ~ dose, data=d, model="loglogistic", family="binomial"),
+    poisson=fit4(yp ~ dose, data=d, model="loglogistic", family="poisson"),
+    beta=fit4(yr ~ dose, data=d, model="loglogistic", family="beta")
+  )
+  for (nm in names(fits)){
+    set.seed(17)
+    r <- residuals(fits[[nm]], type="quantile")
+    expect_true(all(is.finite(r)), label=nm)
+    expect_lt(abs(mean(r)), 0.1)
+    expect_lt(abs(sd(r) - 1), 0.1)
+    expect_gt(suppressWarnings(ks.test(r, "pnorm"))$p.value, 0.01)
+  }
+  # discrete families: randomised, reproducible with a seed
+  set.seed(1); r1 <- residuals(fits$poisson, type="quantile")
+  set.seed(1); r2 <- residuals(fits$poisson, type="quantile")
+  expect_identical(r1, r2)
+})
