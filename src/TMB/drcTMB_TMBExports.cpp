@@ -2,34 +2,16 @@
 
 #define TMB_LIB_INIT R_init_drcTMB_TMBExports
 #include <TMB.hpp>
-#include "drcnorm.hpp"
-#include "drcnormfix.hpp"
-#include "drcpois.hpp"
-#include "drcpoisfix.hpp"
-#include "drcbinom.hpp"
-#include "drcbinomfix.hpp"
-#include "drcbeta.hpp"
-#include "drcbetafix.hpp"
+#include "drcED.hpp"
+#include "drcTMB.hpp"
 
 template<class Type>
 Type objective_function<Type>::operator() () {
   DATA_STRING(model);
-  if(model == "drcnorm") {
-    return drcnorm(this);
-  } else if(model == "drcnormfix") {
-    return drcnormfix(this);
-  } else if(model == "drcpois") {
-    return drcpois(this);
-  } else if(model == "drcpoisfix") {
-    return drcpoisfix(this);
-  } else if(model == "drcbinom") {
-    return drcbinom(this);
-  } else if(model == "drcbinomfix") {
-    return drcbinomfix(this);
-  } else if(model == "drcbeta") {
-    return drcbeta(this);
-  } else if(model == "drcbetafix") {
-    return drcbetafix(this);
+  if(model == "drcED") {
+    return drcED(this);
+  } else if(model == "drcTMB") {
+    return drcTMB(this);
   } else {
     Rf_error("Unknown model.");
   }

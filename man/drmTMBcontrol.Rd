@@ -4,10 +4,14 @@
 \alias{drmTMBcontrol}
 \title{Set control parameters for drcTMB}
 \usage{
-drmTMBcontrol(optimiser = "nlminb")
+drmTMBcontrol(optimiser = "nlminb", iter.max = 1000, eval.max = 2000)
 }
 \arguments{
 \item{optimiser}{character string specifying the optimiser to use}
+
+\item{iter.max}{maximum number of iterations of the optimiser, see \code{\link{nlminb}}.}
+
+\item{eval.max}{maximum number of evaluations of the objective function, see \code{\link{nlminb}}.}
 }
 \value{
 a list with control parameters

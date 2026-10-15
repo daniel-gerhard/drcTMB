@@ -45,3 +45,8 @@ README.Rmd
 src/drcTMB_TMBExports.so
 drcTMB.Rproj
 .positai
+
+# compiled code
+*.o
+*.so
+*.dll

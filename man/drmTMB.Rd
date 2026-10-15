@@ -26,21 +26,21 @@ drmTMB(
 \arguments{
 \item{form}{formula with name of response and dose scale}
 
-\item{fform}{list with fixed-effect right-hand side formulas for each model parameter}
+\item{fform}{fixed effects for the model parameters: a formula of the form b2 + b4 ~ Stress, or a list of such formulas, e.g. list(b2 ~ Stress, b4 ~ Stress + Time). Parameters not listed have a single intercept (~ 1). A list of five right-hand side formulas, one for each of b1-b5 (X1 = ~ 1, ..., X5 = ~ 1), is also accepted.}
 
-\item{rform}{random effect formula of the form b1 + b2 + b3 + b4 + b5 ~ 1 | cluster}
+\item{rform}{random intercepts: a formula of the form b1 + b2 + b4 ~ 1 | cluster, or a list of such formulas, e.g. list(b1 + b4 ~ 1 | exper, b1 ~ 1 | plate). Random intercepts within a formula are correlated across the listed parameters; different formulas, and the levels of nested factors (1 | exper/plate), are independent terms.}
 
 \item{data}{a data.frame object}
 
-\item{start}{a vector with starting values for each model parameter. If NA a self-starting function is called.}
+\item{start}{a vector with starting values for each model coefficient. NA entries are replaced by the starting values of \code{\link{drmTMBstart}}. Alternatively, a vector named by parameter, e.g. c(b1=0, b5=0), gives the same starting value to all coefficients of each named parameter.}
 
-\item{fix}{a binary vector with same length as start. If TRUE, a model coefficient is fixed to the starting value.}
+\item{fix}{a logical vector with one entry for each model coefficient. If TRUE, a model coefficient is fixed to its value in start. Alternatively, a vector named by parameter, e.g. c(b1=TRUE, b5=TRUE), fixes all coefficients of the named parameters; their values must then be given in start, e.g. start=c(b1=0, b5=0). Parameters not used by the model (b5 except for logistic and loglogistic, b3 for michaelismenten, asymptoticregression and exponentialdecay) are always fixed, at 0 unless given in start.}
 
 \item{weights}{a vector of weights for each observation.}
 
-\item{lower}{vector of lower bounds, passed to nlminb.}
+\item{lower}{lower bounds for the model coefficients b1-b5, a single value or a vector with the same length as start. Bounds of fixed coefficients are ignored; variance parameters are unbounded.}
 
-\item{upper}{vector of upper bounds, passed to nlminb.}
+\item{upper}{upper bounds for the model coefficients b1-b5, a single value or a vector with the same length as start.}
 
 \item{family}{Specify the distributional assumptions. One of "gaussian", "binomial", "beta", and "poisson".}
 
@@ -48,11 +48,11 @@ drmTMB(
 
 \item{link}{Specify the link function for estimating asymptote parameters. One of "identity", "log", "logit".}
 
-\item{gsl}{a vector of lower bounds for a grid search. If NULL, no grid search is performed.}
+\item{gsl}{a vector of lower bounds for a grid search, same length as start; NA for the default range. If gsl, gsu and gsn are all NULL, no grid search is performed. See \code{\link{drmTMBstart}}.}
 
-\item{gsu}{a vector of upper bounds for a grid search. If NULL, no grid search is performed.}
+\item{gsu}{a vector of upper bounds for a grid search, same length as start; NA for the default range.}
 
-\item{gsn}{a vector of number of grid points for a grid search. If NULL, no grid search is performed.}
+\item{gsn}{number of grid points for each parameter, a single number or a vector with the same length as start. \code{gsn=10} alone runs a grid search over the default ranges.}
 
 \item{control}{a list of control parameters. See \code{\link{drmTMBcontrol}} for details.}
 }
@@ -61,4 +61,13 @@ A drmTMB object
 }
 \description{
 Fit a drmTMB model
+}
+\details{
+All models are of the form f(x) = b1 + (b2 - b1) F(x), with a function F increasing
+from 0 to 1. For the models with steepness b3 (logistic, loglogistic, weibull1, weibull2,
+lognormal, gompertz), F depends on b3 (x - b4) or b3 (log(x) - log(b4)); b1 is the lower and b2
+the upper asymptote, and b3 is positive for an increasing and negative for a decreasing curve.
+For michaelismenten, asymptoticregression and exponentialdecay (b3 and b5 are not used),
+b1 is the response at dose zero and b2 the asymptote at high doses. The asymmetry parameter b5
+of the logistic and loglogistic models is on the log scale. See the vignette for the model functions.
 }

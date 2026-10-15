@@ -19,7 +19,6 @@ Roxygen: list(markdown = TRUE)
 RoxygenNote: 8.0.0
 Imports: 
     Matrix,
-    Deriv,
     reformulas,
     TMB (>= 1.9.2)
 LinkingTo: 

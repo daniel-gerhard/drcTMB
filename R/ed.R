@@ -1,7 +1,7 @@
 #' Effective dose estimation
 #'
 #' @param x a drmTMB object
-#' @param respLev effective dose level, default is 50
+#' @param respLev effective dose level in percent, default is 50. The effective dose ED p is the dose at which the response has changed by p percent of the difference between the asymptote at low doses (the control) and the asymptote at high doses.
 #' @param linfct a matrix of linear functions to indentify the parameters of the dose-response curve (each row vector results in parameters b1-b5), default is the identity matrix
 #' @param random logical, if TRUE, the variance-covariance matrix of the random effects is included in the standard error estimation
 #' @param residual logical, if TRUE, the residual variance is included in the standard error estimation
@@ -39,20 +39,12 @@ ed <- function(x, respLev=50, linfct=diag(5), random=TRUE, residual=FALSE){
 
   ests <- x$ssdrl
 
+  # random effects: sum of the covariance matrices of all terms
+  rvc <- matrix(0, nrow=5, ncol=5)
   if (!is.null(x$rform) & random == TRUE){
-    tn <- rownames(ests)
-    thetas <- ests[tn %in% "theta",,drop=FALSE]
-    corrs <- ests[tn %in% "corr",,drop=FALSE]
-    cr <- matrix(corrs[,1], nrow=sqrt(nrow(corrs)))
-    sdm <- exp(thetas[1:sqrt(nrow(corrs))])
-    rname <- all.vars(x$rform[[2]])
-    if (length(sdm) == 1) sdm <- as.matrix(sdm)
-    vc <- diag(sdm) %*% cr %*% diag(sdm)
-    idr <- paste("b", 1:5, sep="") %in% rname
-    rvc <- matrix(0, nrow=5, ncol=5)
-    rvc[idr, idr] <- vc
-  } else {
-    rvc <- matrix(0, nrow=5, ncol=5)
+    for (vc in recov(x)){
+      rvc[vc$pars, vc$pars] <- rvc[vc$pars, vc$pars] + vc$cov
+    }
   }
 
   if (residual == TRUE){
@@ -61,111 +53,32 @@ ed <- function(x, respLev=50, linfct=diag(5), random=TRUE, residual=FALSE){
       rvar <- 0
   }
 
+  mod <- which(x$model == c("logistic", "loglogistic", "weibull1", "weibull2", "lognormal", "michaelismenten", "asymptoticregression", "exponentialdecay", "gompertz"))
+  lnk <- which(x$link == c("identity", "log", "logit"))
+
+  # gradient of each ED w.r.t. (parameters, u1-u5, r)
   edl <- numeric(length=length(linfct))
-  if (x$model %in% c("logistic", "loglogistic")){
-    grad <- matrix(0, nrow=length(linfct), ncol=11)
-  } else {
-    if (x$model %in% c("michaelismenten", "asymptoticregression", "exponentialdecay")){
-      grad <- matrix(0, nrow=length(linfct), ncol=7)
-    } else {
-      grad <- matrix(0, nrow=length(linfct), ncol=9)
-    }
-  }
-  
+  grad <- matrix(0, nrow=length(linfct), ncol=length(pv) + 6)
 
   for (i in seq_along(linfct)){
     lpv <- as.vector(linfct[[i]] %*% pv)
-    lpvar <- linfct[[i]] %*% pvar %*% t(linfct[[i]])
 
-    cvc <- as.matrix(bdiag(lpvar, rvc, rvar))
-    cvc4 <- cvc[-c(5, 10), -c(5, 10), drop=FALSE]
-    cvc3 <- cvc[-c(3, 5, 8, 10), -c(3, 5, 8, 10), drop=FALSE]
+    # level of the increasing function F of the model at the ED: the control is b1 for an
+    # increasing curve (b3 > 0) and for the models without b3, and b2 for a decreasing curve
+    q <- respLev[i]/100
+    if (!(mod %in% c(6, 7, 8)) && lpv[3] < 0) q <- 1 - q
 
-    b1 <- lpv[1]
-    b2 <- lpv[2]
-    b3 <- lpv[3]
-    b4 <- lpv[4]
-    b5 <- lpv[5]
-    u1 <- 0
-    u2 <- 0
-    u3 <- 0
-    u4 <- 0
-    u5 <- 0
-    r <- 0
-
-    if ((b2 > b1 & b3 < 0) | (b2 < b1 & b3 > 0)){
-      p <- respLev[i]/100
-    } else {
-      p <- 1 - respLev[i]/100
-    }
-
-    # logistic
-    if (x$model == "logistic"){
-      edls <- eval(deriv(expression((b4+u4) + 1/(b3+u3) * log((((b1+u1)-(b2+u2))/(((b1+u1)-(b2+u2))*p - r))^(1/exp(b5 + u5)) - 1)), c("b1", "b2", "b3", "b4", "b5", "u1", "u2", "u3", "u4", "u5", "r")))
-      edl[i] <- edls
-      grad[i, ] <- as.vector(attr(edls, "gradient"))
-    }
-   
-    # loglogistic   
-    if (x$model == "loglogistic"){
-      edls <- eval(deriv(expression((b4+u4) * ((((b1 + u1)-(b2 + u2))/(((b1+u1)-(b2+u2))*p - r))^(1/exp(b5 + u5)) - 1)^(1/(b3 + u3))), c("b1", "b2", "b3", "b4", "b5", "u1", "u2", "u3", "u4", "u5", "r")))
-      edl[i] <- edls
-      grad[i, ] <- as.vector(attr(edls, "gradient"))
-    }
-  
-    # Weibull
-    if (x$model == "weibull1"){    
-      edls <- eval(deriv(expression((b4+u4) * (-1*log(p - (r / ((b1+u1) - (b2+u2)))))^(1/(b3+u3))), c("b1", "b2", "b3", "b4", "u1", "u2", "u3", "u4", "r")))
-      edl[i] <- edls
-      grad[i, ] <- as.vector(attr(edls, "gradient"))
-    }
-  
-    if (x$model == "weibull2"){
-      edls <- eval(deriv(expression((b4+u4) * (-1*log(1 - p + (r / ((b1+u1) - (b2+u2)))))^(-1/(b3+u3))), c("b1", "b2", "b3", "b4", "u1", "u2", "u3", "u4", "r")))
-      edl[i] <- edls
-      grad[i, ] <- as.vector(attr(edls, "gradient"))
-    }
-
-    # lognormal
-    if (x$model == "lognormal"){
-      edl[i] <- b4 * exp((-1/b3)*qnorm(p - (r / (b1 - b2))))
-      grad[i, ] <- eval(Deriv(expression((b4+u4) * exp((-1/(b3+u3))*qnorm(p - (r / ((b1+u1) - (b2+u2)))))), c("b1", "b2", "b3", "b4", "u1", "u2", "u3", "u4", "r")))
-    }
-
-    # Michaelis-Menten
-    if (x$model == "michaelismenten"){
-      edl[i] <- b4*(p - (r / (b1 - b2))) / (1 - (p - (r / (b1 - b2))))
-      grad[i, ] <- eval(Deriv(expression((b4+u4) * ((p - (r / ((b1+u1) - (b2+u2)))) / (1 - (p - (r / ((b1+u1) - (b2+u2))))))), c("b1", "b2", "b4", "u1", "u2", "u4", "r")))
-    }
-
-    # Asymptotic regression
-    if (x$model == "asymptoticregression"){
-      edl[i] <- -b4 * log(1 - (1 / (p - (r / (b1 - b2)))))
-      grad[i, ] <- eval(Deriv(expression(-(b4+u4) * log(1 - (1 / (p - (r / ((b1+u1) - (b2+u2))))))), c("b1", "b2", "b4", "u1", "u2", "u4", "r")))
-    }
-
-    # Exponential decay
-    if (x$model == "exponentialdecay"){
-      edl[i] <- b4 * log(p - (r / (b1 - b2)))
-      grad[i, ] <- eval(Deriv(expression((b4+u4) * log(p - (r / ((b1+u1) - (b2+u2))))), c("b1", "b2", "b4", "u1", "u2", "u4", "r")))
-    }
-
-    # Gompertz
-    if (x$model == "gompertz"){
-      edl[i] <- b4 + (1/b3) * log(-log(p - (r / (b1 - b2))))
-      grad[i, ] <- eval(Deriv(expression((b4+u4) + (1/(b3+u3)) * log(-log(p - (r / ((b1+u1) - (b2+u2)))))), c("b1", "b2", "b3", "b4", "u1", "u2", "u3", "u4", "r")))
-    }
+    # ED and its gradient w.r.t. (b1-b5, u1-u5, r) from the drcED TMB template
+    eobj <- MakeADFun(list(model="drcED", mod=mod, lnk=lnk, q=q),
+                      list(b=lpv, u=rep(0, 5), r=0),
+                      ADreport=TRUE, DLL="drcTMB_TMBExports", silent=TRUE)
+    edl[i] <- eobj$fn()
+    egrad <- eobj$gr()
+    grad[i, ] <- c(egrad[1:5] %*% linfct[[i]], egrad[6:11])
   }
 
-  if (x$model %in% c("logistic", "loglogistic")){
-    edvar <- grad %*% cvc %*% t(grad)
-  } else {
-    if (x$model %in% c("michaelismenten", "asymptoticregression", "exponentialdecay")){
-      edvar <- grad %*% cvc3 %*% t(grad)
-    } else {
-      edvar <- grad %*% cvc4 %*% t(grad)
-    }    
-  }
+  cvc <- as.matrix(bdiag(pvar, rvc, rvar))
+  edvar <- grad %*% cvc %*% t(grad)
   names(edl) <- paste(respLev, names(linfct), sep=":")
   colnames(edvar) <- rownames(edvar) <- paste(respLev, names(linfct), sep=":")
   res <- list(estimates=edl, variance=edvar)

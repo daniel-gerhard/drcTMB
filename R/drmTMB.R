@@ -1,21 +1,29 @@
 #' Fit a drmTMB model
 #'
 #' @param form formula with name of response and dose scale
-#' @param fform list with fixed-effect right-hand side formulas for each model parameter
-#' @param rform random effect formula of the form b1 + b2 + b3 + b4 + b5 ~ 1 | cluster
+#' @param fform fixed effects for the model parameters: a formula of the form b2 + b4 ~ Stress, or a list of such formulas, e.g. list(b2 ~ Stress, b4 ~ Stress + Time). Parameters not listed have a single intercept (~ 1). A list of five right-hand side formulas, one for each of b1-b5 (X1 = ~ 1, ..., X5 = ~ 1), is also accepted.
+#' @param rform random intercepts: a formula of the form b1 + b2 + b4 ~ 1 | cluster, or a list of such formulas, e.g. list(b1 + b4 ~ 1 | exper, b1 ~ 1 | plate). Random intercepts within a formula are correlated across the listed parameters; different formulas, and the levels of nested factors (1 | exper/plate), are independent terms.
 #' @param data a data.frame object
-#' @param start a vector with starting values for each model parameter. If NA a self-starting function is called.
-#' @param fix a binary vector with same length as start. If TRUE, a model coefficient is fixed to the starting value.
+#' @param start a vector with starting values for each model coefficient. NA entries are replaced by the starting values of \code{\link{drmTMBstart}}. Alternatively, a vector named by parameter, e.g. c(b1=0, b5=0), gives the same starting value to all coefficients of each named parameter.
+#' @param fix a logical vector with one entry for each model coefficient. If TRUE, a model coefficient is fixed to its value in start. Alternatively, a vector named by parameter, e.g. c(b1=TRUE, b5=TRUE), fixes all coefficients of the named parameters; their values must then be given in start, e.g. start=c(b1=0, b5=0). Parameters not used by the model (b5 except for logistic and loglogistic, b3 for michaelismenten, asymptoticregression and exponentialdecay) are always fixed, at 0 unless given in start.
 #' @param weights a vector of weights for each observation.
-#' @param lower vector of lower bounds, passed to nlminb.
-#' @param upper vector of upper bounds, passed to nlminb.
+#' @param lower lower bounds for the model coefficients b1-b5, a single value or a vector with the same length as start. Bounds of fixed coefficients are ignored; variance parameters are unbounded.
+#' @param upper upper bounds for the model coefficients b1-b5, a single value or a vector with the same length as start.
 #' @param family Specify the distributional assumptions. One of "gaussian", "binomial", "beta", and "poisson".
 #' @param model Specify the nonlinear model. One of "logistic", "loglogistic", "weibull1", "weibull2", "lognormal", "michaelismenten", "asymptoticregression", "exponentialdecay", "gompertz".
 #' @param link Specify the link function for estimating asymptote parameters. One of "identity", "log", "logit". 
-#' @param gsl a vector of lower bounds for a grid search. If NULL, no grid search is performed.
-#' @param gsu a vector of upper bounds for a grid search. If NULL, no grid search is performed.
-#' @param gsn a vector of number of grid points for a grid search. If NULL, no grid search is performed.
+#' @param gsl a vector of lower bounds for a grid search, same length as start; NA for the default range. If gsl, gsu and gsn are all NULL, no grid search is performed. See \code{\link{drmTMBstart}}.
+#' @param gsu a vector of upper bounds for a grid search, same length as start; NA for the default range.
+#' @param gsn number of grid points for each parameter, a single number or a vector with the same length as start. \code{gsn=10} alone runs a grid search over the default ranges.
 #' @param control a list of control parameters. See \code{\link{drmTMBcontrol}} for details.
+#'
+#' @details All models are of the form f(x) = b1 + (b2 - b1) F(x), with a function F increasing
+#' from 0 to 1. For the models with steepness b3 (logistic, loglogistic, weibull1, weibull2,
+#' lognormal, gompertz), F depends on b3 (x - b4) or b3 (log(x) - log(b4)); b1 is the lower and b2
+#' the upper asymptote, and b3 is positive for an increasing and negative for a decreasing curve.
+#' For michaelismenten, asymptoticregression and exponentialdecay (b3 and b5 are not used),
+#' b1 is the response at dose zero and b2 the asymptote at high doses. The asymmetry parameter b5
+#' of the logistic and loglogistic models is on the log scale. See the vignette for the model functions.
 #'
 #' @return A drmTMB object
 #' @useDynLib drmTMB
@@ -23,153 +31,37 @@
 drmTMB <- function(form, fform=NULL, rform=NULL, data, start=NULL, fix=NULL, weights=NULL, lower=-Inf, upper=Inf, family="gaussian", model="logistic", link="identity", gsl=NULL, gsu=NULL, gsn=NULL, control=list()){
   # control list
   control <- do.call(drmTMBcontrol, control)
-  # response
-  mf <- model.frame(form, data=data)  
-  # fixed effects
-  if (is.null(fform)){
-    fform <- vector("list", 5)
-    names(fform) <- paste("X", 1:5, sep="")
-    for (i in 1:5) fform[[i]] <- ~ 1
-  } else {
-    names(fform) <- paste("X", 1:5, sep="")
+  dd <- drmTMBdata(form, fform=fform, rform=rform, data=data, weights=weights, family=family, model=model, link=link)
+  fixnamed <- !is.null(names(fix))
+  start <- parvector(start, dd$npi, NA, "start")
+  fix <- parvector(fix, dd$npi, FALSE, "fix")
+  if (fixnamed && any(fix & is.na(start))){
+    stop("give the values of the fixed parameters in start, e.g. start=c(b5=0), fix=c(b5=TRUE).")
   }
-  Xs <- lapply(fform, function(x) model.matrix(x, data=data))
-  npars <- sapply(Xs, ncol)
-  npi <- rep(1:length(npars), npars)
-  if (is.null(start)) start <- rep(NA, sum(npars))
-  if (is.null(fix)) fix <- rep(FALSE, sum(npars))
-  if (is.null(weights)) weights <- rep(1, nrow(data))
-  
-  # model
-  mod <- which(model == c("logistic", "loglogistic", "weibull1", "weibull2", "lognormal", "michaelismenten", "asymptoticregression", "exponentialdecay", "gompertz"))
-  lnk <- which(link == c("identity", "log", "logit"))
-  
-  # random effects
-  if (!is.null(rform)){
-    rformrh <- rformlh <- rform
-    rformrh[2] <- NULL
-    rf <- model.frame(subbars(rformrh), data=data)
-    rt <- mkReTrms(findbars(rform), rf)
-    Z <- t(rt$Zt)
-    
-    # ... allow user-specific term names
-    rformlh[3] <- NULL
-    rcoefs <- all.vars(rformlh)
-    ind <- as.numeric(paste("b", 1:5, sep="") %in% rcoefs)
-  }
-  # response
-  y <- mr <- model.response(mf, "any")
-  if (family == "binomial" & ncol(as.matrix(mr)) == 2){
-    bn <- mr[,1] + mr[,2]
-    y <- mr[,1]
-  } else {
-    bn <- rep(0, length(y))  
-  }
-  
-  # data list for TMB
-  if (is.null(rform)){
-    dlist <- list(y=y, x=mf[,2], w=weights, bn=bn, mod=mod, lnk=lnk)
-  } else {
-    dlist <- list(y=y, x=mf[,2], w=weights, bn=bn, mod=mod, lnk=lnk, ind=ind, z0=rep(0, nrow(data)), Z=Z)
-  }
-  datalist <- c(dlist, Xs)
-  
-  # Starting values
-  #drcfunction <- logistic
-  #drcstart <- start[c(which(npi == 3), which(npi == 1), which(npi == 2), which(npi == 4), which(npi == 5))]
-  #drcstart[which(npi == 5)] <- exp(drcstart[which(npi == 5)])
-  #drcstart[!fix] <- NA
-  #fformdrc <- fform[c(which(npi == 3), which(npi == 1), which(npi == 2), which(npi == 4), which(npi == 5))]
-  #drcoef <- coef(drm(form, fct=drcfunction(fixed=drcstart), data=data, pmodels=fformdrc))
+  fix[dd$npi %in% unusedpars(dd$mod)] <- TRUE
 
-  sb1 <- start[which(npi == 1)]
-  if (is.na(sb1[1]) & !fix[which(npi == 1)[1]]) sb1[1] <- mean(dlist$y[which(dlist$x == max(dlist$x))])
-  sb1[is.na(sb1)] <- 0
-  sb2 <- start[which(npi == 2)]
-  if (is.na(sb2[1]) & !fix[which(npi == 2)[1]]) sb2[1] <- mean(dlist$y[which(dlist$x == min(dlist$x))])
-  sb2[is.na(sb2)] <- 0
-  sb3 <- start[which(npi == 3)]
-  if (is.na(sb3[1]) & !fix[which(npi == 3)[1]]) sb3[1] <- -coefficients(lm(dlist$y ~ dlist$x))[2]
-  sb3[is.na(sb3)] <- 0
-  sb4 <- start[which(npi == 4)]
-  if (is.na(sb4[1]) & !fix[which(npi == 4)[1]]) sb4[1] <- min(dlist$x[rank(dlist$y)/length(dlist$y) > 0.5])
-  sb4[is.na(sb4)] <- 0
-  sb5 <- start[which(npi == 5)]
-  if (is.na(sb5[1]) & !fix[which(npi == 5)[1]]) sb5[1] <- 0
-  sb5[is.na(sb5)] <- 0
-  
-  if (is.null(rform)){
-    parameters <- list(b1=sb1, b2=sb2, b3=sb3, b4=sb4, b5=sb5)
-    if (family == "gaussian") parameters <- c(parameters, list(log_sigma=1))
-    if (family == "beta") parameters <- c(parameters, list(log_sigma=10))
-  } else {
-    nvc <- sum(ind > 0)
-    m <- ncol(Z)
-    vtheta <- rep(0.001, nvc)
-    ctheta <- rep(0, nvc*(nvc-1)/2)
-    stheta <- c(vtheta, ctheta)
-    up <- matrix(rnorm(nvc*m, 0, rep(vtheta, each=m)), ncol=nvc)
-    parameters <- list(b1=sb1, b2=sb2, b3=sb3, b4=sb4, b5=sb5, u=as.vector(up), theta=stheta)
-    if (family == "gaussian") parameters <- c(parameters, list(log_sigma=0))
-    if (family == "beta") parameters <- c(parameters, list(log_sigma=10))
-  }
-  
-  # fix parameters to starting values
-  if (!any(fix)){
-    if (is.null(rform)){
-      if (family == "gaussian") obj <- MakeADFun(c(model = "drcnormfix", datalist), parameters, DLL="drcTMB_TMBExports", silent=TRUE)
-      if (family == "poisson") obj <- MakeADFun(c(model = "drcpoisfix", datalist), parameters, DLL="drcTMB_TMBExports", silent=TRUE)
-      if (family == "binomial") obj <- MakeADFun(c(model = "drcbinomfix", datalist), parameters, DLL="drcTMB_TMBExports", silent=TRUE)
-      if (family == "beta") obj <- MakeADFun(c(model = "drcbetafix", datalist), parameters, DLL="drcTMB_TMBExports", silent=TRUE)     
-    } else {
-      if (family == "gaussian") obj <- MakeADFun(c(model = "drcnorm", datalist), parameters, random="u", DLL="drcTMB_TMBExports", silent=TRUE)
-      if (family == "poisson") obj <- MakeADFun(c(model = "drcpois", datalist), parameters, random="u", DLL="drcTMB_TMBExports", silent=TRUE)
-      if (family == "binomial") obj <- MakeADFun(c(model = "drcbinom", datalist), parameters, random="u", DLL="drcTMB_TMBExports", silent=TRUE)
-      if (family == "beta") obj <- MakeADFun(c(model = "drcbeta", datalist), parameters, random="u", DLL="drcTMB_TMBExports", silent=TRUE)
-    }
-  } else {
-    lmap <- vector("list", 5)
-    names(lmap) <- paste("b", 1:5, sep="")
-    idp <- 1:sum(npars) 
-    idp[fix] <- NA
-    for (i in 1:5){
-      lmap[[i]] <- idp[npi == i]  
-    }
-    lmap <- lapply(lmap, function(x) as.factor(x))
-    if (is.null(rform)){
-      if (family == "gaussian") obj <- MakeADFun(c(model = "drcnormfix", datalist), parameters, DLL="drcTMB_TMBExports", map=lmap, silent=TRUE)
-      if (family == "poisson") obj <- MakeADFun(c(model = "drcpoisfix", datalist), parameters, DLL="drcTMB_TMBExports", map=lmap, silent=TRUE)
-      if (family == "binomial") obj <- MakeADFun(c(model = "drcbinomfix", datalist), parameters, DLL="drcTMB_TMBExports", map=lmap, silent=TRUE)
-      if (family == "beta") obj <- MakeADFun(c(model = "drcbetafix", datalist), parameters, DLL="drcTMB_TMBExports", map=lmap, silent=TRUE)
-    } else {
-      if (family == "gaussian") obj <- MakeADFun(c(model = "drcnorm", datalist), parameters, random="u", DLL="drcTMB_TMBExports", map=lmap, silent=TRUE)
-      if (family == "poisson") obj <- MakeADFun(c(model = "drcpois", datalist), parameters, random="u", DLL="drcTMB_TMBExports", map=lmap, silent=TRUE)
-      if (family == "binomial") obj <- MakeADFun(c(model = "drcbinom", datalist), parameters, random="u", DLL="drcTMB_TMBExports", map=lmap, silent=TRUE)
-      if (family == "beta") obj <- MakeADFun(c(model = "drcbeta", datalist), parameters, random="u", DLL="drcTMB_TMBExports", map=lmap, silent=TRUE)
-    }
-  }
-  obj$hessian <- TRUE
+  # starting values for parameters with NA in start
+  method <- if (is.null(gsl) & is.null(gsu) & is.null(gsn)) "lm" else "grid"
+  start <- drmTMBstartvals(dd, start, fix, method=method, gsl=gsl, gsu=gsu, gsn=gsn)
 
-  ## grid search
-  if (!(is.null(gsl) & is.null(gsu) & is.null(gsn))){
-    if (length(gsn) == 1) gsn <- rep(gsn, length(gsl))
-    if (length(gsl) != length(gsu)) stop("gsl and gsu must have the same length.")
-    grid <- lapply(1:length(gsl), function(i) seq(gsl[i], gsu[i], length.out=gsn[i]))
-    gridpar <- expand.grid(grid)
-    objvals <- apply(gridpar, 1, function(x){
-      par <- obj$par
-      par[1:length(x)] <- x
-      obj$fn(par)
-    })
-    best <- which.min(objvals)
-    obj$par[1:length(gridpar[best,])] <- as.numeric(gridpar[best,])
-  }
+  obj <- drmTMBobj(dd, start, fix, rform=rform)
 
-  if (is.null(rform)){
-    opt <- nlminb(start=obj$par, objective=obj$fn, gradient=obj$gr, hessian=obj$he, lower=lower, upper=upper)
-  } else {
-    opt <- nlminb(start=obj$par, objective=obj$fn, gradient=obj$gr, lower=lower, upper=upper)
+  # bounds apply to the free coefficients only, not to the variance parameters
+  bounds <- function(b, inf){
+    if (length(b) == 1) b <- rep(b, length(start))
+    if (length(b) != length(start)) stop("lower and upper must be a single value or have the same length as start.")
+    c(b[!fix], rep(inf, length(obj$par) - sum(!fix)))
   }
+  lower <- bounds(lower, -Inf)
+  upper <- bounds(upper, Inf)
+
+  ctrl <- list(iter.max=control$iter.max, eval.max=control$eval.max)
+  if (is.null(rform)){
+    opt <- nlminb(start=obj$par, objective=obj$fn, gradient=obj$gr, hessian=obj$he, lower=lower, upper=upper, control=ctrl)
+  } else {
+    opt <- nlminb(start=obj$par, objective=obj$fn, gradient=obj$gr, lower=lower, upper=upper, control=ctrl)
+  }
+  if (opt$convergence != 0) warning("the optimiser did not converge: ", opt$message, call.=FALSE)
   res <- list()
   res$data <- data
   res$formula <- form
@@ -178,9 +70,11 @@ drmTMB <- function(form, fform=NULL, rform=NULL, data, start=NULL, fix=NULL, wei
   res$link <- link
   res$start <- start
   res$fix <- fix
-  res$Xs <- Xs
-  res$fform <- fform
+  res$Xs <- dd$Xs
+  res$fform <- dd$fform
+  res$coefnames <- coefnames(dd$Xs)
   res$rform <- rform
+  res$reterms <- dd$re$terms
   res$estimates <- opt$par
   res$opt <- opt
   res$obj <- obj

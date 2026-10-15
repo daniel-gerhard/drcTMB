@@ -22,8 +22,8 @@ The package drcTMB provides functions to fit dose-response curves using the Temp
 
 The main function in the drcTMB package is `drmTMB()`. There is some similarity to the `drm()` function from the drc package, with a simplified input of response and dose variables through a formula interface, and specifying a nonlinear model through the `model` argument. A full list of available models and their corresponding functions can be found at the end of this vignette.
 
-Each of these models has the same parameter names, b1 and b2 for the asymptotes, b3 for the steepness, b4 for the location of the inflection point on the dose scale, and b5 for an optional asymmetry parameter. The asymmetry parameter b5 is estimated on a logarithmic scale.
-The `start` argument provides starting values for the parameters. The `fix` argument (TRUE/FALSE) allows to fix parameters at these starting values.
+Each of these models has the same parameter names, b1 for the lower and b2 for the upper asymptote, b3 for the steepness, b4 for the location of the inflection point on the dose scale, and b5 for an optional asymmetry parameter. The steepness b3 is positive for an increasing and negative for a decreasing curve. The asymmetry parameter b5 is estimated on a logarithmic scale. The models michaelismenten, asymptoticregression, and exponentialdecay have no steepness parameter; here b1 is the response at dose zero and b2 the asymptote at high doses.
+The `start` argument provides starting values for the parameters. The `fix` argument (TRUE/FALSE) allows to fix parameters at these starting values. Parameters that a model does not use, such as b5 for the Weibull models, are fixed automatically.
 
 ```{r}
 library(drcTMB)
@@ -31,7 +31,7 @@ library(drcData)
 data(ryegrass)
 # Fitting a 3-parameter log-logistic model
 mod <- drmTMB(rootl ~ conc, data=ryegrass, model="loglogistic", 
-              start=c(8, 0, 1, 2, 0), fix=c(FALSE, TRUE, FALSE, FALSE, TRUE))
+              start=c(0, 8, -1, 2, 0), fix=c(TRUE, FALSE, FALSE, FALSE, TRUE))
 print(mod)
 ```
 
@@ -49,7 +49,7 @@ ggplot(ryegrass, aes(x = log(conc), y = rootl)) +
 
 ## Effective dose estimation
 
-The `ed()` function can be used to estimate effective doses (e.g., ED50, ED90) from the fitted model, given a specified response level (`respLev`).
+The `ed()` function can be used to estimate effective doses (e.g., ED50, ED90) from the fitted model, given a specified response level (`respLev`). The effective dose ED p is the dose at which the response has changed by p% of the difference between the asymptote at low doses (the control) and the asymptote at high doses.
 ```{r}
 (effdose <- ed(mod, respLev = c(25, 50, 75)))
 ```
@@ -91,13 +91,13 @@ ggplot(d48, aes(x = dose, y = no/total)) +
 
 ## Additional parameters
 
-We can include a right-hand side formula for each of the model parameters through the argument `fform`, adding covariates on the parameter level.
+We can add covariates on the parameter level through the argument `fform`, with the parameters on the left-hand side of a formula, e.g. `b3 + b4 ~ 0 + time`, or a list of such formulas. Parameters that are not listed have a single intercept.
 
 ```{r}
 # using the full daphnids dataset with groups 24h and 48h
 dmodg <- drmTMB(cbind(no, total-no) ~ dose, data=daphnids, 
                 model="loglogistic", family="binomial",
-                fform=list(X1=~1, X2=~1, X3=~0+time, X4=~0+time, X5=~1),
+                fform=b3 + b4 ~ 0 + time,
                 start=c(0, 1, 1, 1, 1000, 1000, 0), 
                 fix=c(TRUE, TRUE, FALSE, FALSE, FALSE, FALSE, FALSE))
 dmodg
@@ -148,7 +148,7 @@ data(vinclozolin)
 vmod <- drmTMB(effect ~ conc, data=vinclozolin, 
                model="loglogistic", 
                rform=b1 + b2 + b4 ~ 1 | exper,
-               start = c(1700, 100, 0.5, 0.01, 0), 
+               start = c(100, 1700, -0.5, 0.01, 0), 
                fix = c(FALSE, FALSE, FALSE, FALSE, FALSE), 
                lower = c(0, 0, -Inf, 0, 0))
 ```
@@ -191,41 +191,42 @@ We can additionally include the residual variance in the standard error estimati
 
 ### Model functions
 
+All models are of the form $f(x) = b_1 + (b_2 - b_1) F(x)$, with a function $F$ increasing from 0 to 1. For the models with steepness parameter $b_3$, $b_1$ is the lower and $b_2$ the upper asymptote, and the curve is increasing for $b_3 > 0$ and decreasing for $b_3 < 0$.
+
 #### logistic
 
-$$ f(x) = b_2 + \frac{b_1 - b_2}{\left( 1 + \exp \left( b_3 \left( x - b_4 \right) \right) \right)^{\exp(b_5)}} $$
+$$ f(x) = b_1 + \frac{b_2 - b_1}{\left( 1 + \exp \left( -b_3 \left( x - b_4 \right) \right) \right)^{\exp(b_5)}} $$
 
 #### loglogistic
 
-$$ f(x) = b_2 + \frac{b_1 - b_2}{\left( 1 + \exp \left( b_3 \left( \log(x) - b_4 \right) \right) \right)^{\exp(b_5)}} $$
+$$ f(x) = b_1 + \frac{b_2 - b_1}{\left( 1 + \exp \left( -b_3 \left( \log(x) - \log(b_4) \right) \right) \right)^{\exp(b_5)}} $$
 
 #### weibull1
 
-$$ f(x) = b_2 + \left( b_1 - b_2 \right) \exp \left( -\exp \left( b_3 \left( \log(x) - \log(b_4) \right) \right) \right) $$
+$$ f(x) = b_1 + \left( b_2 - b_1 \right) \exp \left( -\exp \left( -b_3 \left( \log(x) - \log(b_4) \right) \right) \right) $$
 
 #### weibull2
 
-$$ f(x) = b_2 + \left( b_1 - b_2 \right) \left( 1 - \exp \left( -\exp \left( b_3 \left( \log(x) - \log(b_4) \right) \right) \right) \right) $$
+$$ f(x) = b_1 + \left( b_2 - b_1 \right) \left( 1 - \exp \left( -\exp \left( b_3 \left( \log(x) - \log(b_4) \right) \right) \right) \right) $$
 
 #### lognormal
 
-$$ f(x) = b_2 + \left( b_1 - b_2 \right) \Phi \left( b_3 \left( \log(x) - \log(b_4) \right) \right) $$
+$$ f(x) = b_1 + \left( b_2 - b_1 \right) \Phi \left( b_3 \left( \log(x) - \log(b_4) \right) \right) $$
 
 where $\Phi (\cdot)$ is the cumulative distribution function of the standard normal distribution.
 
-#### michaelismenten
-
-$$ f(x) = b_2 + \frac{b_1 - b_2}{1 + \frac{b_4}{x}} $$
-
-#### asymptoticregression
-
-$$ f(x) = b_2 + \frac{b_1 - b_2}{1 - \exp \left( \frac{-x}{b_4} \right)} $$
-
-#### exponentialdecay
-
-$$ f(x) = b_2 + \frac{b_1 - b_2}{\exp \left( \frac{-x}{b_4} \right)} $$
-
 #### gompertz
 
-$$ f(x) = b_2 + \left( b_1 - b_2 \right) \exp \left( -\exp \left( b_3 \left( x - b_4 \right) \right) \right) $$
+$$ f(x) = b_1 + \left( b_2 - b_1 \right) \exp \left( -\exp \left( -b_3 \left( x - b_4 \right) \right) \right) $$
 
+#### michaelismenten
+
+For the following models without steepness parameter, $b_1$ is the response at dose zero and $b_2$ the asymptote at high doses.
+
+$$ f(x) = b_1 + \frac{b_2 - b_1}{1 + \frac{b_4}{x}} $$
+
+#### asymptoticregression and exponentialdecay
+
+Both names refer to the same model; an increasing curve is an asymptotic regression and a decreasing curve an exponential decay.
+
+$$ f(x) = b_1 + \left( b_2 - b_1 \right) \left( 1 - \exp \left( \frac{-x}{b_4} \right) \right) $$

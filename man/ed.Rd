@@ -9,7 +9,7 @@ ed(x, respLev = 50, linfct = diag(5), random = TRUE, residual = FALSE)
 \arguments{
 \item{x}{a drmTMB object}
 
-\item{respLev}{effective dose level, default is 50}
+\item{respLev}{effective dose level in percent, default is 50. The effective dose ED p is the dose at which the response has changed by p percent of the difference between the asymptote at low doses (the control) and the asymptote at high doses.}
 
 \item{linfct}{a matrix of linear functions to indentify the parameters of the dose-response curve (each row vector results in parameters b1-b5), default is the identity matrix}
 
