@@ -5,9 +5,27 @@
 \alias{confint.edTMB}
 \title{Confidence intervals for drmTMB models and effective doses}
 \usage{
-\method{confint}{drmTMB}(object, parm = NULL, level = 0.95, method = c("profile", "wald"), ...)
+\method{confint}{drmTMB}(
+  object,
+  parm = NULL,
+  level = 0.95,
+  method = c("profile", "wald", "boot"),
+  nsim = 500,
+  seed = NULL,
+  boot = NULL,
+  ...
+)
 
-\method{confint}{edTMB}(object, parm = NULL, level = 0.95, method = c("profile", "wald"), ...)
+\method{confint}{edTMB}(
+  object,
+  parm = NULL,
+  level = 0.95,
+  method = c("profile", "wald", "boot"),
+  nsim = 500,
+  seed = NULL,
+  boot = NULL,
+  ...
+)
 }
 \arguments{
 \item{object}{a drmTMB or edTMB object}
@@ -16,7 +34,17 @@
 
 \item{level}{the confidence level}
 
-\item{method}{"profile" for profile likelihood intervals, or "wald" for Wald intervals}
+\item{method}{"profile" for profile likelihood intervals, "wald" for Wald intervals, or "boot" for
+percentile intervals of a parametric bootstrap: responses are simulated from the fitted model
+(with new random effects, see \code{\link{simulate.drmTMB}}) and the model is fitted again to each,
+starting at the estimates. Fits that do not converge are left out, with a message.}
+
+\item{nsim}{number of bootstrap simulations}
+
+\item{seed}{an optional seed for the random number generator of the bootstrap}
+
+\item{boot}{a bootstrap sample of the model from \code{\link{bootstrap}}, used instead of new
+simulations; implies \code{method="boot"}}
 
 \item{...}{further arguments passed to \code{\link{profile.drmTMB}} or \code{\link{profile.edTMB}}}
 }
@@ -24,8 +52,9 @@
 a matrix with the lower and upper confidence limits
 }
 \description{
-Profile likelihood intervals (default) or Wald intervals for the coefficients and variance
-parameters of a drmTMB model, or for effective doses estimated by \code{\link{ed}}.
+Profile likelihood intervals (default), Wald intervals, or parametric bootstrap intervals for the
+coefficients and variance parameters of a drmTMB model, or for effective doses estimated by
+\code{\link{ed}}.
 }
 \details{
 Standard deviations of the random effects, the residual standard deviation and the precision are
@@ -33,9 +62,10 @@ reported on their natural scale; Wald intervals for them are computed on the log
 correlation of a term with two random effects is reported as a correlation; the parameters of
 larger correlation matrices on the unconstrained scale of \code{coef}.
 
-Profile intervals for effective doses are for the population curves. Effective doses computed
+Profile and bootstrap intervals for effective doses are for the population curves. Effective doses computed
 with \code{random=TRUE} for a model with random effects, or with \code{residual=TRUE}, include
 further variation in their standard errors; for these, Wald intervals are returned with a message.
+Bootstrap intervals need many fits of the model; with random effects this can take several minutes.
 Computing profiles can take a while for models with random effects; see \code{\link{profile.drmTMB}}
 and \code{\link{profile.edTMB}}, whose results can be reused with \code{confint}.
 }

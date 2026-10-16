@@ -268,50 +268,70 @@ profile.edTMB <- function(fitted, parm=NULL, level=0.99, maxit=100, ...){
   prof
 }
 
-# b4 of a curve with effective dose ed at level q of F, given b3 and b5 (residual zero):
-# the inverse of drced in the TMB template, which is b4 times or plus a function of q, b3 and b5
+# effective doses at level q of F (residual zero), as drced in the TMB template: b4 times a function
+# h of q, b3 and b5, or b4 plus h for logistic and gompertz
+edh <- function(mod, q, b3, b5){
+  switch(mod,
+         -log(q^(-1/exp(b5)) - 1)/b3,       # logistic: ed = b4 + h
+         (q^(-1/exp(b5)) - 1)^(-1/b3),      # loglogistic: ed = b4 h
+         (-log(q))^(-1/b3),                 # weibull1
+         (-log(1 - q))^(1/b3),              # weibull2
+         exp(qnorm(q)/b3),                  # lognormal
+         q/(1 - q),                         # michaelismenten
+         -log(1 - q),                       # asymptoticregression
+         -log(1 - q),                       # exponentialdecay
+         -log(-log(q))/b3)                  # gompertz
+}
+
+# effective dose from b3, b4 and b5
+edfun <- function(mod, q, b3, b4, b5){
+  h <- edh(mod, q, b3, b5)
+  if (mod %in% c(1, 9)) b4 + h else b4 * h
+}
+
+# b4 of a curve with effective dose ed, given b3 and b5: the inverse of edfun
 edb4 <- function(mod, q, ed, b3, b5){
-  h <- switch(mod,
-              -log(q^(-1/exp(b5)) - 1)/b3,       # logistic: ed = b4 + h
-              (q^(-1/exp(b5)) - 1)^(-1/b3),      # loglogistic: ed = b4 h
-              (-log(q))^(-1/b3),                 # weibull1
-              (-log(1 - q))^(1/b3),              # weibull2
-              exp(qnorm(q)/b3),                  # lognormal
-              q/(1 - q),                         # michaelismenten
-              -log(1 - q),                       # asymptoticregression
-              -log(1 - q),                       # exponentialdecay
-              -log(-log(q))/b3)                  # gompertz
+  h <- edh(mod, q, b3, b5)
   if (mod %in% c(1, 9)) ed - h else ed / h
 }
 
 #' Confidence intervals for drmTMB models and effective doses
 #'
-#' Profile likelihood intervals (default) or Wald intervals for the coefficients and variance
-#' parameters of a drmTMB model, or for effective doses estimated by \code{\link{ed}}.
+#' Profile likelihood intervals (default), Wald intervals, or parametric bootstrap intervals for the
+#' coefficients and variance parameters of a drmTMB model, or for effective doses estimated by
+#' \code{\link{ed}}.
 #'
 #' Standard deviations of the random effects, the residual standard deviation and the precision are
 #' reported on their natural scale; Wald intervals for them are computed on the log scale. The
 #' correlation of a term with two random effects is reported as a correlation; the parameters of
 #' larger correlation matrices on the unconstrained scale of \code{coef}.
 #'
-#' Profile intervals for effective doses are for the population curves. Effective doses computed
+#' Profile and bootstrap intervals for effective doses are for the population curves. Effective doses computed
 #' with \code{random=TRUE} for a model with random effects, or with \code{residual=TRUE}, include
 #' further variation in their standard errors; for these, Wald intervals are returned with a message.
+#' Bootstrap intervals need many fits of the model; with random effects this can take several minutes.
 #' Computing profiles can take a while for models with random effects; see \code{\link{profile.drmTMB}}
 #' and \code{\link{profile.edTMB}}, whose results can be reused with \code{confint}.
 #'
 #' @param object a drmTMB or edTMB object
 #' @param parm parameters or effective doses, names or positions in \code{coef(object)}; default all
 #' @param level the confidence level
-#' @param method "profile" for profile likelihood intervals, or "wald" for Wald intervals
+#' @param method "profile" for profile likelihood intervals, "wald" for Wald intervals, or "boot" for
+#'   percentile intervals of a parametric bootstrap: responses are simulated from the fitted model
+#'   (with new random effects, see \code{\link{simulate.drmTMB}}) and the model is fitted again to each,
+#'   starting at the estimates. Fits that do not converge are left out, with a message.
+#' @param nsim number of bootstrap simulations
+#' @param seed an optional seed for the random number generator of the bootstrap
+#' @param boot a bootstrap sample of the model from \code{\link{bootstrap}}, used instead of new
+#'   simulations; implies \code{method="boot"}
 #' @param ... further arguments passed to \code{\link{profile.drmTMB}} or \code{\link{profile.edTMB}}
 #'
 #' @return a matrix with the lower and upper confidence limits
 #' @export
 #' @name confint.drmTMB
 #' @aliases confint.drmTMB confint.edTMB
-confint.drmTMB <- function(object, parm=NULL, level=0.95, method=c("profile", "wald"), ...){
-  method <- match.arg(method)
+confint.drmTMB <- function(object, parm=NULL, level=0.95, method=c("profile", "wald", "boot"), nsim=500, seed=NULL, boot=NULL, ...){
+  method <- if (!is.null(boot)) "boot" else match.arg(method)
   est <- coef(object)
   if (is.null(parm)) parm <- seq_along(est)
   if (is.character(parm)) parm <- match(parm, names(est))
@@ -320,25 +340,26 @@ confint.drmTMB <- function(object, parm=NULL, level=0.95, method=c("profile", "w
     message("Computing profile confidence intervals ...")
     return(confint(profile(object, parm=parm, level=level, ...), level=level))
   }
+  if (method == "boot") return(confint(getboot(object, boot, nsim, seed), parm=parm, level=level))
   se <- sqrt(diag(vcov(object)))[parm]
   z <- qnorm((1 + level)/2)
   natscale(cbind(est[parm] - z*se, est[parm] + z*se), names(est)[parm], corr2names(object), level)
 }
 
 #' @rdname confint.drmTMB
-confint.edTMB <- function(object, parm=NULL, level=0.95, method=c("profile", "wald"), ...){
-  method <- match.arg(method)
+confint.edTMB <- function(object, parm=NULL, level=0.95, method=c("profile", "wald", "boot"), nsim=500, seed=NULL, boot=NULL, ...){
+  method <- if (!is.null(boot)) "boot" else match.arg(method)
   est <- coef(object)
   if (is.null(parm)) parm <- seq_along(est)
   if (is.character(parm)) parm <- match(parm, names(est))
   if (any(is.na(parm))) stop("unknown effective doses in parm.")
-  if (method == "profile"){
+  if (method %in% c("profile", "boot")){
     fit <- object$fit
     if (is.null(fit)){
-      message("Wald intervals: compute the effective doses again with ed() for profile intervals.")
+      message("Wald intervals: compute the effective doses again with ed() for ", method, " intervals.")
       method <- "wald"
     } else if ((isTRUE(object$random) && length(fit$reterms) > 0) || isTRUE(object$residual)){
-      message("Wald intervals: profile intervals are only available for population effective doses, ",
+      message("Wald intervals: ", method, " intervals are only available for population effective doses, ",
               "ed(..., random=FALSE, residual=FALSE).")
       method <- "wald"
     }
@@ -346,6 +367,24 @@ confint.edTMB <- function(object, parm=NULL, level=0.95, method=c("profile", "wa
   if (method == "profile"){
     message("Computing profile confidence intervals ...")
     return(confint(profile(object, parm=parm, level=level, ...), level=level))
+  }
+  if (method == "boot"){
+    fit <- object$fit
+    b <- getboot(fit, boot, nsim, seed)$estimates
+    mod <- modelindex(fit$model)
+    nb <- sum(!fit$fix)
+    # effective doses of each bootstrap fit
+    eds <- sapply(parm, function(i){
+      apply(b[, seq_len(nb), drop=FALSE], 1, function(bf){
+        pv <- fit$start
+        pv[!fit$fix] <- bf
+        lpv <- as.vector(object$linfct[[i]] %*% pv)
+        edfun(mod, object$q[[i]], lpv[3], lpv[4], lpv[5])
+      })
+    })
+    ci <- t(apply(matrix(eds, ncol=length(parm)), 2, quantile, probs=c((1 - level)/2, (1 + level)/2), na.rm=TRUE, names=FALSE))
+    dimnames(ci) <- list(names(est)[parm], paste(format(100*c((1 - level)/2, (1 + level)/2), trim=TRUE, scientific=FALSE, digits=3), "%"))
+    return(ci)
   }
   se <- sqrt(diag(vcov(object)))[parm]
   z <- qnorm((1 + level)/2)
