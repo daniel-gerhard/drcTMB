@@ -58,6 +58,7 @@ ed <- function(x, respLev=50, linfct=diag(5), random=TRUE, residual=FALSE){
 
   # gradient of each ED w.r.t. (parameters, u1-u5, r)
   edl <- numeric(length=length(linfct))
+  ql <- numeric(length=length(linfct))
   grad <- matrix(0, nrow=length(linfct), ncol=length(pv) + 6)
 
   for (i in seq_along(linfct)){
@@ -67,6 +68,7 @@ ed <- function(x, respLev=50, linfct=diag(5), random=TRUE, residual=FALSE){
     # increasing curve (b3 > 0) and for the models without b3, and b2 for a decreasing curve
     q <- respLev[i]/100
     if (!(mod %in% c(6, 7, 8)) && lpv[3] < 0) q <- 1 - q
+    ql[i] <- q
 
     # ED and its gradient w.r.t. (b1-b5, u1-u5, r) from the drcED TMB template
     eobj <- MakeADFun(list(model="drcED", mod=mod, lnk=lnk, q=q),
@@ -81,7 +83,9 @@ ed <- function(x, respLev=50, linfct=diag(5), random=TRUE, residual=FALSE){
   edvar <- grad %*% cvc %*% t(grad)
   names(edl) <- paste(respLev, names(linfct), sep=":")
   colnames(edvar) <- rownames(edvar) <- paste(respLev, names(linfct), sep=":")
-  res <- list(estimates=edl, variance=edvar)
+  # the fit, linear functions and levels of F are kept for profile
+  names(ql) <- names(edl)
+  res <- list(estimates=edl, variance=edvar, fit=x, linfct=linfct, q=ql)
   class(res) <- "edTMB"
   return(res)
 }
