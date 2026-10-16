@@ -8,6 +8,7 @@
 #' @param object a drmTMB object
 #' @param nsim number of simulations
 #' @param seed an optional seed for the random number generator
+#' @param progress logical, show a progress bar
 #' @param x a bootstrap.drmTMB object
 #' @param digits number of significant digits in the printed output
 #' @param parm parameters, names or positions in \code{coef}; default all
@@ -20,14 +21,16 @@
 #'   of the parameters, on the scale of \code{\link{confint.drmTMB}}.
 #' @export
 #' @aliases bootstrap print.bootstrap.drmTMB confint.bootstrap.drmTMB
-bootstrap <- function(object, nsim=500, seed=NULL){
+bootstrap <- function(object, nsim=500, seed=NULL, progress=interactive()){
   if (!inherits(object, "drmTMB")) stop("object must be a drmTMB object.")
   sims <- simulate(object, nsim=nsim, seed=seed)
   env <- object$obj$env
   rnd <- !is.null(env$random)
   pars <- env$parList(object$opt$par)
   ctrl <- list(iter.max=1000, eval.max=2000)
+  pb <- progressbar(nsim, progress)
   est <- t(sapply(sims, function(y){
+    on.exit(pb$tick())
     dat <- env$data
     dat$y <- y
     obj <- MakeADFun(dat, pars, map=env$map, random=if (rnd) "u", DLL=env$DLL, silent=TRUE)
@@ -36,6 +39,7 @@ bootstrap <- function(object, nsim=500, seed=NULL){
     if (inherits(opt, "try-error") || opt$convergence != 0 || !is.finite(opt$objective)) return(rep(NA, length(object$opt$par)))
     opt$par
   }))
+  pb$close()
   est <- matrix(est, nrow=nsim)
   colnames(est) <- names(coef(object))
   nfail <- sum(is.na(est[, 1]))
@@ -68,12 +72,24 @@ confint.bootstrap.drmTMB <- function(object, parm=NULL, level=0.95, ...){
 }
 
 # bootstrap sample for confint: the given one, checked to belong to the fit, or a new one
-getboot <- function(fit, boot, nsim, seed){
+getboot <- function(fit, boot, nsim, seed, progress=interactive(), ...){
   if (is.null(boot)){
     message("Computing bootstrap confidence intervals (", nsim, " simulations) ...")
-    return(bootstrap(fit, nsim=nsim, seed=seed))
+    return(bootstrap(fit, nsim=nsim, seed=seed, progress=progress))
   }
   if (!inherits(boot, "bootstrap.drmTMB")) stop("boot must be the result of bootstrap().")
   if (!identical(coef(boot$fit), coef(fit)) || !identical(boot$fit$call, fit$call)) stop("boot is a bootstrap sample of a different model.")
   boot
+}
+
+# text progress bar of package utils, or nothing
+progressbar <- function(n, show){
+  if (!show || n < 1) return(list(tick=function() invisible(), close=function() invisible()))
+  pb <- txtProgressBar(min=0, max=n, style=3)
+  i <- 0
+  list(tick=function(){
+         i <<- i + 1
+         setTxtProgressBar(pb, i)
+       },
+       close=function() close(pb))
 }

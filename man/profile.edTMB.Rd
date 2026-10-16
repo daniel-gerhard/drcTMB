@@ -4,7 +4,14 @@
 \alias{profile.edTMB}
 \title{Likelihood profiles of effective doses}
 \usage{
-\method{profile}{edTMB}(fitted, parm = NULL, level = 0.99, maxit = 100, ...)
+\method{profile}{edTMB}(
+  fitted,
+  parm = NULL,
+  level = 0.99,
+  maxit = 100,
+  progress = interactive(),
+  ...
+)
 }
 \arguments{
 \item{fitted}{an edTMB object}
@@ -14,6 +21,8 @@
 \item{level}{the highest confidence level the profiles are computed for}
 
 \item{maxit}{maximum number of steps in each direction}
+
+\item{progress}{logical, show a progress bar over the profiled effective doses}
 
 \item{...}{ignored}
 }

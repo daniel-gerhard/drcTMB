@@ -21,6 +21,7 @@
 #'   the deviance from the maximum exceeds the quantile of the chi-square distribution with one degree
 #'   of freedom. For confint and plot, the confidence level of the intervals and of the cutoff line.
 #' @param trace logical, print the progress of \code{\link[TMB]{tmbprofile}}
+#' @param progress logical, show a progress bar over the profiled parameters
 #' @param object,x a profile.drmTMB object
 #' @param ... further arguments passed to \code{\link[TMB]{tmbprofile}}, e.g. \code{ystep}; ignored by
 #'   the confint and plot methods
@@ -35,7 +36,7 @@
 #'
 #' @name profile.drmTMB
 #' @aliases profile.drmTMB confint.profile.drmTMB plot.profile.drmTMB
-profile.drmTMB <- function(fitted, parm=NULL, level=0.99, trace=FALSE, ...){
+profile.drmTMB <- function(fitted, parm=NULL, level=0.99, trace=FALSE, progress=interactive(), ...){
   est <- coef(fitted)
   pn <- names(est)
   nb <- sum(!fitted$fix)
@@ -53,11 +54,14 @@ profile.drmTMB <- function(fitted, parm=NULL, level=0.99, trace=FALSE, ...){
 
   nllmin <- fitted$opt$objective
   ytol <- qchisq(level, 1)/2 + 0.1
+  pb <- progressbar(length(parm), progress)
   prof <- lapply(parm, function(i){
     p <- TMB::tmbprofile(fitted$obj, name=i, ytol=ytol, parm.range=c(lower[i], upper[i]), trace=trace, ...)
     d <- data.frame(par=p[[1]], deviance=2*(p$value - nllmin))
+    pb$tick()
     d[order(d$par), ]
   })
+  pb$close()
   names(prof) <- pn[parm]
   attr(prof, "estimates") <- est[parm]
   attr(prof, "corr2") <- corr2names(fitted)
@@ -163,12 +167,13 @@ utils::globalVariables(c("par", "deviance"))
 #' @param parm effective doses to profile, names or positions in \code{coef(fitted)}; default all
 #' @param level the highest confidence level the profiles are computed for
 #' @param maxit maximum number of steps in each direction
+#' @param progress logical, show a progress bar over the profiled effective doses
 #' @param ... ignored
 #'
 #' @return a profile.edTMB object, which has the confint and plot methods of
 #'   \code{\link{profile.drmTMB}}
 #' @export
-profile.edTMB <- function(fitted, parm=NULL, level=0.99, maxit=100, ...){
+profile.edTMB <- function(fitted, parm=NULL, level=0.99, maxit=100, progress=interactive(), ...){
   fit <- fitted$fit
   if (is.null(fit)) stop("compute the effective doses again with ed() to profile them.")
   est <- coef(fitted)
@@ -193,6 +198,7 @@ profile.edTMB <- function(fitted, parm=NULL, level=0.99, maxit=100, ...){
   cutoff <- qchisq(level, 1)
   Hfull <- tryCatch(solve(fit$sdrl$cov.fixed), error=function(e) NULL)
 
+  pb <- progressbar(length(parm), progress)
   prof <- lapply(parm, function(i){
     L <- fitted$linfct[[i]]
     q <- fitted$q[[i]]
@@ -259,8 +265,10 @@ profile.edTMB <- function(fitted, parm=NULL, level=0.99, maxit=100, ...){
       out
     }
     d <- rbind(side(-1), data.frame(par=e0, deviance=0), side(1))
+    pb$tick()
     d[order(d$par), ]
   })
+  pb$close()
   names(prof) <- names(est)[parm]
   attr(prof, "estimates") <- est[parm]
   attr(prof, "logscale") <- setNames(rep(logscale, length(parm)), names(est)[parm])
@@ -324,7 +332,8 @@ edb4 <- function(mod, q, ed, b3, b5){
 #' @param seed an optional seed for the random number generator of the bootstrap
 #' @param boot a bootstrap sample of the model from \code{\link{bootstrap}}, used instead of new
 #'   simulations; implies \code{method="boot"}
-#' @param ... further arguments passed to \code{\link{profile.drmTMB}} or \code{\link{profile.edTMB}}
+#' @param ... further arguments passed to \code{\link{profile.drmTMB}}, \code{\link{profile.edTMB}} or
+#'   \code{\link{bootstrap}}, e.g. \code{progress=FALSE}
 #'
 #' @return a matrix with the lower and upper confidence limits
 #' @export
@@ -340,7 +349,7 @@ confint.drmTMB <- function(object, parm=NULL, level=0.95, method=c("profile", "w
     message("Computing profile confidence intervals ...")
     return(confint(profile(object, parm=parm, level=level, ...), level=level))
   }
-  if (method == "boot") return(confint(getboot(object, boot, nsim, seed), parm=parm, level=level))
+  if (method == "boot") return(confint(getboot(object, boot, nsim, seed, ...), parm=parm, level=level))
   se <- sqrt(diag(vcov(object)))[parm]
   z <- qnorm((1 + level)/2)
   natscale(cbind(est[parm] - z*se, est[parm] + z*se), names(est)[parm], corr2names(object), level)
@@ -370,7 +379,7 @@ confint.edTMB <- function(object, parm=NULL, level=0.95, method=c("profile", "wa
   }
   if (method == "boot"){
     fit <- object$fit
-    b <- getboot(fit, boot, nsim, seed)$estimates
+    b <- getboot(fit, boot, nsim, seed, ...)$estimates
     mod <- modelindex(fit$model)
     nb <- sum(!fit$fix)
     # effective doses of each bootstrap fit

@@ -46,7 +46,8 @@ starting at the estimates. Fits that do not converge are left out, with a messag
 \item{boot}{a bootstrap sample of the model from \code{\link{bootstrap}}, used instead of new
 simulations; implies \code{method="boot"}}
 
-\item{...}{further arguments passed to \code{\link{profile.drmTMB}} or \code{\link{profile.edTMB}}}
+\item{...}{further arguments passed to \code{\link{profile.drmTMB}}, \code{\link{profile.edTMB}} or
+\code{\link{bootstrap}}, e.g. \code{progress=FALSE}}
 }
 \value{
 a matrix with the lower and upper confidence limits

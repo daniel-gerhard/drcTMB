@@ -6,7 +6,14 @@
 \alias{plot.profile.drmTMB}
 \title{Likelihood profiles of a drmTMB model}
 \usage{
-\method{profile}{drmTMB}(fitted, parm = NULL, level = 0.99, trace = FALSE, ...)
+\method{profile}{drmTMB}(
+  fitted,
+  parm = NULL,
+  level = 0.99,
+  trace = FALSE,
+  progress = interactive(),
+  ...
+)
 
 \method{confint}{profile.drmTMB}(object, parm = NULL, level = 0.95, ...)
 
@@ -23,6 +30,8 @@ the deviance from the maximum exceeds the quantile of the chi-square distributio
 of freedom. For confint and plot, the confidence level of the intervals and of the cutoff line.}
 
 \item{trace}{logical, print the progress of \code{\link[TMB]{tmbprofile}}}
+
+\item{progress}{logical, show a progress bar over the profiled parameters}
 
 \item{...}{further arguments passed to \code{\link[TMB]{tmbprofile}}, e.g. \code{ystep}; ignored by
 the confint and plot methods}

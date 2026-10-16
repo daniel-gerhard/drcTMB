@@ -6,7 +6,7 @@
 \alias{confint.bootstrap.drmTMB}
 \title{Parametric bootstrap of a drmTMB model}
 \usage{
-bootstrap(object, nsim = 500, seed = NULL)
+bootstrap(object, nsim = 500, seed = NULL, progress = interactive())
 
 \method{print}{bootstrap.drmTMB}(x, digits = max(3L, getOption("digits") - 3L), ...)
 
@@ -18,6 +18,8 @@ bootstrap(object, nsim = 500, seed = NULL)
 \item{nsim}{number of simulations}
 
 \item{seed}{an optional seed for the random number generator}
+
+\item{progress}{logical, show a progress bar}
 
 \item{x}{a bootstrap.drmTMB object}
 
