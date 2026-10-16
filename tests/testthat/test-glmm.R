@@ -66,7 +66,7 @@ test_that("beta logistic agrees with glmmTMB, with and without random effects", 
   b <- glmmTMB::fixef(g1)$cond
   expect_equal(f1$opt$objective, -as.numeric(logLik(g1)), tolerance=1e-6)
   expect_equal(unname(bcoef(f1)), unname(c(b[2], -b[1]/b[2])), tolerance=1e-4)
-  expect_equal(unname(exp(coef(f1)["log_sigma"])), sigma(g1), tolerance=1e-4)
+  expect_equal(unname(exp(coef(f1)["log_phi"])), sigma(g1), tolerance=1e-4)
 
   f2 <- drmTMB(y ~ dose, rform=b4 ~ 1 | grp, data=d, model="logistic", family="beta",
                start=asym01$start, fix=asym01$fix)

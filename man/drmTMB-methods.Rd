@@ -3,15 +3,38 @@
 \name{drmTMB-methods}
 \alias{drmTMB-methods}
 \alias{print.drmTMB}
+\alias{summary.drmTMB}
+\alias{print.summary.drmTMB}
+\alias{logLik.drmTMB}
+\alias{nobs.drmTMB}
+\alias{fitted.drmTMB}
+\alias{residuals.drmTMB}
 \alias{predict.drmTMB}
 \alias{coef.drmTMB}
 \alias{vcov.drmTMB}
 \alias{simulate.drmTMB}
 \title{drmTMB Methods}
 \usage{
-\method{print}{drmTMB}(x, ...)
+\method{print}{drmTMB}(x, digits = max(3L, getOption("digits") - 3L), ...)
 
-\method{predict}{drmTMB}(object, newdata = NULL, random = TRUE)
+\method{summary}{drmTMB}(object, ...)
+
+\method{print}{summary.drmTMB}(x, digits = max(3L, getOption("digits") - 3L), ...)
+
+\method{logLik}{drmTMB}(object, ...)
+
+\method{nobs}{drmTMB}(object, ...)
+
+\method{fitted}{drmTMB}(object, random = TRUE, ...)
+
+\method{residuals}{drmTMB}(
+  object,
+  type = c("pearson", "response", "quantile"),
+  random = TRUE,
+  ...
+)
+
+\method{predict}{drmTMB}(object, newdata = NULL, random = TRUE, ...)
 
 \method{coef}{drmTMB}(object, ...)
 
@@ -22,11 +45,15 @@
 \arguments{
 \item{x, object}{a drmTMB object}
 
+\item{digits}{number of significant digits in the printed output}
+
 \item{...}{anything else}
 
-\item{newdata}{a data frame for prediction. If NULL, the original data is used.}
+\item{random}{logical, if TRUE, the random effects are included in the predictions, fitted values and residuals (conditional residuals). For simulate, if TRUE, new random effects are drawn for each simulation, otherwise the fitted random effects are kept.}
 
-\item{random}{logical, if TRUE, the random effects are included in the predictions. For simulate, if TRUE, new random effects are drawn for each simulation, otherwise the fitted random effects are kept.}
+\item{type}{type of residuals: "pearson" (default), the response residuals divided by the standard deviation of the fitted distribution and multiplied by the square root of the weights; "response", the observed minus the fitted values, as proportions for a binomial response; or "quantile", randomised quantile residuals (Dunn and Smyth, 1996), which are standard normal under the model. The quantile residuals do not use the weights, and are random for poisson and binomial responses; use set.seed for reproducible values.}
+
+\item{newdata}{a data frame for prediction. If NULL, the original data is used.}
 
 \item{nsim}{number of response vectors to simulate}
 
@@ -34,6 +61,14 @@
 }
 \value{
 Estimated model coefficients, variance-covariance matrix, or predictions.
+coef and vcov include the variance parameters: for each random effect term the log standard deviations
+(log_sd:b1|group) and, for correlated random effects, the parameters of the correlation matrix
+(corr_par:b2,b1|group, unconstrained elements of the lower triangle of its Cholesky factor, by row);
+and the log residual standard deviation (log_sigma, gaussian) or log precision (log_phi, beta).
+summary returns a summary.drmTMB object with the coefficient table (Estimate, Std. Error), the
+variance components, log-likelihood, AIC and BIC, sample sizes, a Pearson dispersion statistic for
+poisson and binomial models, and convergence information. logLik returns the log-likelihood at the
+estimates, with the number of free coefficients and variance parameters as degrees of freedom.
 simulate returns a data frame with nsim columns of simulated responses at the estimated
 parameters; for a binomial response given as cbind(successes, failures), the number of successes.
 }
