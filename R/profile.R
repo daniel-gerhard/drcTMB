@@ -60,10 +60,7 @@ profile.drmTMB <- function(fitted, parm=NULL, level=0.99, trace=FALSE, ...){
   })
   names(prof) <- pn[parm]
   attr(prof, "estimates") <- est[parm]
-  # correlation parameters of terms with two random effects, which determine the correlation
-  attr(prof, "corr2") <- unlist(lapply(fitted$reterms, function(tm){
-    if (length(tm$pars) == 2) paste("corr_par:b", tm$pars[2], ",b", tm$pars[1], "|", tm$group, sep="")
-  }))
+  attr(prof, "corr2") <- corr2names(fitted)
   class(prof) <- "profile.drmTMB"
   prof
 }
@@ -108,16 +105,28 @@ confint.profile.drmTMB <- function(object, parm=NULL, level=0.95, ...){
             " do not reach the confidence level; compute them with a higher level in profile.", call.=FALSE)
   }
 
-  # natural scale for standard deviations, precision, and correlations of two random effects
-  tolog <- logsd | rn %in% c("log_sigma", "log_phi")
+  natscale(ci, rn, attr(object, "corr2"), level)
+}
+
+# confidence intervals on the natural scale: standard deviations and precision from their logs,
+# correlations of terms with two random effects from their parameter; rows named accordingly
+natscale <- function(ci, rn, corr2, level){
+  ci <- matrix(ci, ncol=2)
+  tolog <- grepl("^log_sd:", rn) | rn %in% c("log_sigma", "log_phi")
   ci[tolog, ] <- exp(ci[tolog, ])
   rn[tolog] <- sub("^log_", "", rn[tolog])
-  two <- rn %in% attr(object, "corr2")
+  two <- rn %in% corr2
   ci[two, ] <- ci[two, ] / sqrt(1 + ci[two, ]^2)
   rn[two] <- sub("^corr_par:", "corr:", rn[two])
-  ci <- matrix(ci, ncol=2, dimnames=list(rn, NULL))
-  colnames(ci) <- paste(format(100*c((1 - level)/2, (1 + level)/2), trim=TRUE, scientific=FALSE, digits=3), "%")
+  dimnames(ci) <- list(rn, paste(format(100*c((1 - level)/2, (1 + level)/2), trim=TRUE, scientific=FALSE, digits=3), "%"))
   ci
+}
+
+# correlation parameters of terms with two random effects, which determine the correlation
+corr2names <- function(fit){
+  unlist(lapply(fit$reterms, function(tm){
+    if (length(tm$pars) == 2) paste("corr_par:b", tm$pars[2], ",b", tm$pars[1], "|", tm$group, sep="")
+  }))
 }
 
 #' @rdname profile.drmTMB
@@ -273,4 +282,74 @@ edb4 <- function(mod, q, ed, b3, b5){
               -log(1 - q),                       # exponentialdecay
               -log(-log(q))/b3)                  # gompertz
   if (mod %in% c(1, 9)) ed - h else ed / h
+}
+
+#' Confidence intervals for drmTMB models and effective doses
+#'
+#' Profile likelihood intervals (default) or Wald intervals for the coefficients and variance
+#' parameters of a drmTMB model, or for effective doses estimated by \code{\link{ed}}.
+#'
+#' Standard deviations of the random effects, the residual standard deviation and the precision are
+#' reported on their natural scale; Wald intervals for them are computed on the log scale. The
+#' correlation of a term with two random effects is reported as a correlation; the parameters of
+#' larger correlation matrices on the unconstrained scale of \code{coef}.
+#'
+#' Profile intervals for effective doses are for the population curves. Effective doses computed
+#' with \code{random=TRUE} for a model with random effects, or with \code{residual=TRUE}, include
+#' further variation in their standard errors; for these, Wald intervals are returned with a message.
+#' Computing profiles can take a while for models with random effects; see \code{\link{profile.drmTMB}}
+#' and \code{\link{profile.edTMB}}, whose results can be reused with \code{confint}.
+#'
+#' @param object a drmTMB or edTMB object
+#' @param parm parameters or effective doses, names or positions in \code{coef(object)}; default all
+#' @param level the confidence level
+#' @param method "profile" for profile likelihood intervals, or "wald" for Wald intervals
+#' @param ... further arguments passed to \code{\link{profile.drmTMB}} or \code{\link{profile.edTMB}}
+#'
+#' @return a matrix with the lower and upper confidence limits
+#' @export
+#' @name confint.drmTMB
+#' @aliases confint.drmTMB confint.edTMB
+confint.drmTMB <- function(object, parm=NULL, level=0.95, method=c("profile", "wald"), ...){
+  method <- match.arg(method)
+  est <- coef(object)
+  if (is.null(parm)) parm <- seq_along(est)
+  if (is.character(parm)) parm <- match(parm, names(est))
+  if (any(is.na(parm))) stop("unknown parameters in parm.")
+  if (method == "profile"){
+    message("Computing profile confidence intervals ...")
+    return(confint(profile(object, parm=parm, level=level, ...), level=level))
+  }
+  se <- sqrt(diag(vcov(object)))[parm]
+  z <- qnorm((1 + level)/2)
+  natscale(cbind(est[parm] - z*se, est[parm] + z*se), names(est)[parm], corr2names(object), level)
+}
+
+#' @rdname confint.drmTMB
+confint.edTMB <- function(object, parm=NULL, level=0.95, method=c("profile", "wald"), ...){
+  method <- match.arg(method)
+  est <- coef(object)
+  if (is.null(parm)) parm <- seq_along(est)
+  if (is.character(parm)) parm <- match(parm, names(est))
+  if (any(is.na(parm))) stop("unknown effective doses in parm.")
+  if (method == "profile"){
+    fit <- object$fit
+    if (is.null(fit)){
+      message("Wald intervals: compute the effective doses again with ed() for profile intervals.")
+      method <- "wald"
+    } else if ((isTRUE(object$random) && length(fit$reterms) > 0) || isTRUE(object$residual)){
+      message("Wald intervals: profile intervals are only available for population effective doses, ",
+              "ed(..., random=FALSE, residual=FALSE).")
+      method <- "wald"
+    }
+  }
+  if (method == "profile"){
+    message("Computing profile confidence intervals ...")
+    return(confint(profile(object, parm=parm, level=level, ...), level=level))
+  }
+  se <- sqrt(diag(vcov(object)))[parm]
+  z <- qnorm((1 + level)/2)
+  ci <- cbind(est[parm] - z*se, est[parm] + z*se)
+  dimnames(ci) <- list(names(est)[parm], paste(format(100*c((1 - level)/2, (1 + level)/2), trim=TRUE, scientific=FALSE, digits=3), "%"))
+  ci
 }

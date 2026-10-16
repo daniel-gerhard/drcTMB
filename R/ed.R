@@ -85,7 +85,7 @@ ed <- function(x, respLev=50, linfct=diag(5), random=TRUE, residual=FALSE){
   colnames(edvar) <- rownames(edvar) <- paste(respLev, names(linfct), sep=":")
   # the fit, linear functions and levels of F are kept for profile
   names(ql) <- names(edl)
-  res <- list(estimates=edl, variance=edvar, fit=x, linfct=linfct, q=ql)
+  res <- list(estimates=edl, variance=edvar, fit=x, linfct=linfct, q=ql, random=random, residual=residual)
   class(res) <- "edTMB"
   return(res)
 }
