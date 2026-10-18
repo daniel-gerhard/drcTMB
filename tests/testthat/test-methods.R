@@ -230,3 +230,12 @@ test_that("unknown families and links, and linfct of the wrong size, give clear 
   expect_error(ed(f, linfct=list(diag(6)[-3, ], diag(5))), "5 rows")
   expect_length(coef(ed(f, linfct=diag(6)[-3, ])), 1)
 })
+
+test_that("print returns the effective doses invisibly", {
+  f <- fit4(y ~ dose, data=simgauss("loglogistic"), model="loglogistic")
+  e <- ed(f)
+  out <- capture.output(res <- withVisible(print(e)))
+  expect_false(res$visible)
+  expect_identical(res$value, e)
+  expect_true(any(grepl("^Effective dose estimates", out)))
+})

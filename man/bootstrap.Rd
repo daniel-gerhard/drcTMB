@@ -39,7 +39,7 @@ of the parameters, on the scale of \code{\link{confint.drmTMB}}.
 }
 \description{
 Simulates responses from the fitted model, with new random effects (see
-\code{\link{simulate.drmTMB}}), and fits the model again to each simulated response, starting at the
+\code{\link{simulate.drmTMB}}), and fits the model again to each simulated response, with the iteration limits of the fit (\code{control} in \code{\link{drmTMB}}), starting at the
 estimates. The bootstrap sample can be used for confidence intervals of the model parameters and of
 effective doses, see \code{\link{confint.drmTMB}}, without fitting the models again.
 }

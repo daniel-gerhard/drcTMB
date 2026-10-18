@@ -70,3 +70,10 @@ test_that("a stored bootstrap sample is reused by confint", {
   expect_error(confint(f2, boot=b), "different model")
   expect_error(confint(ed(f2), boot=b), "different model")
 })
+
+test_that("bootstrap uses the iteration limits of the fit", {
+  d <- simgauss("loglogistic")
+  expect_warning(f <- fit4(y ~ dose, data=d, model="loglogistic", control=list(iter.max=1)), "did not converge")
+  expect_message(bs <- suppressWarnings(bootstrap(f, nsim=2, seed=1, progress=FALSE)), "2 of 2 bootstrap fits did not converge")
+  expect_true(all(is.na(bs$estimates)))
+})

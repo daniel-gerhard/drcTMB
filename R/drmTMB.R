@@ -85,6 +85,7 @@ drmTMB <- function(form, fform=NULL, rform=NULL, data, start=NULL, fix=NULL, wei
   res$lower <- lower
   res$upper <- upper
   res$opt <- opt
+  res$control <- control
   res$obj <- obj
   res$sdrl <- sdreport(obj, par.fixed=opt$par)
   res$ssdrl <- summary(res$sdrl)

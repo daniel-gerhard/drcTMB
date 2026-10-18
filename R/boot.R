@@ -1,7 +1,7 @@
 #' Parametric bootstrap of a drmTMB model
 #'
 #' Simulates responses from the fitted model, with new random effects (see
-#' \code{\link{simulate.drmTMB}}), and fits the model again to each simulated response, starting at the
+#' \code{\link{simulate.drmTMB}}), and fits the model again to each simulated response, with the iteration limits of the fit (\code{control} in \code{\link{drmTMB}}), starting at the
 #' estimates. The bootstrap sample can be used for confidence intervals of the model parameters and of
 #' effective doses, see \code{\link{confint.drmTMB}}, without fitting the models again.
 #'
@@ -27,7 +27,9 @@ bootstrap <- function(object, nsim=500, seed=NULL, progress=interactive()){
   env <- object$obj$env
   rnd <- !is.null(env$random)
   pars <- env$parList(object$opt$par)
-  ctrl <- list(iter.max=1000, eval.max=2000)
+  # iteration limits of the fit
+  control <- if (is.null(object$control)) drmTMBcontrol() else object$control
+  ctrl <- list(iter.max=control$iter.max, eval.max=control$eval.max)
   pb <- progressbar(nsim, progress)
   est <- t(sapply(sims, function(y){
     on.exit(pb$tick())
