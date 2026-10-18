@@ -70,6 +70,7 @@ profile.drmTMB <- function(fitted, parm=NULL, level=0.99, trace=FALSE, progress=
 }
 
 #' @rdname profile.drmTMB
+#' @export
 confint.profile.drmTMB <- function(object, parm=NULL, level=0.95, ...){
   if (is.null(parm)) parm <- names(object)
   if (is.numeric(parm)) parm <- names(object)[parm]
@@ -134,6 +135,7 @@ corr2names <- function(fit){
 }
 
 #' @rdname profile.drmTMB
+#' @export
 plot.profile.drmTMB <- function(x, level=0.95, ...){
   if (!requireNamespace("ggplot2", quietly=TRUE)) stop("the plot method needs the package ggplot2.")
   nm <- names(x)
@@ -356,6 +358,7 @@ confint.drmTMB <- function(object, parm=NULL, level=0.95, method=c("profile", "w
 }
 
 #' @rdname confint.drmTMB
+#' @export
 confint.edTMB <- function(object, parm=NULL, level=0.95, method=c("profile", "wald", "boot"), nsim=500, seed=NULL, boot=NULL, ...){
   method <- if (!is.null(boot)) "boot" else match.arg(method)
   est <- coef(object)

@@ -52,6 +52,7 @@ bootstrap <- function(object, nsim=500, seed=NULL, progress=interactive()){
 }
 
 #' @rdname bootstrap
+#' @export
 print.bootstrap.drmTMB <- function(x, digits=max(3L, getOption("digits") - 3L), ...){
   est <- x$estimates
   ok <- !is.na(est[, 1])
@@ -64,6 +65,7 @@ print.bootstrap.drmTMB <- function(x, digits=max(3L, getOption("digits") - 3L), 
 }
 
 #' @rdname bootstrap
+#' @export
 confint.bootstrap.drmTMB <- function(object, parm=NULL, level=0.95, ...){
   est <- coef(object$fit)
   if (is.null(parm)) parm <- seq_along(est)

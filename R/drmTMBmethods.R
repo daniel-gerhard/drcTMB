@@ -44,6 +44,7 @@ print.drmTMB <- function(x, digits=max(3L, getOption("digits") - 3L), ...){
 }
 
 #' @rdname drmTMB-methods
+#' @export
 summary.drmTMB <- function(object, ...){
   dat <- object$obj$env$data
   mod <- modelindex(object$model)
@@ -111,6 +112,7 @@ summary.drmTMB <- function(object, ...){
 }
 
 #' @rdname drmTMB-methods
+#' @export
 print.summary.drmTMB <- function(x, digits=max(3L, getOption("digits") - 3L), ...){
   if (!is.null(x$call)){
     cat("Call:\n")
@@ -147,22 +149,26 @@ print.summary.drmTMB <- function(x, digits=max(3L, getOption("digits") - 3L), ..
 }
 
 #' @rdname drmTMB-methods
+#' @export
 logLik.drmTMB <- function(object, ...){
   # degrees of freedom: free coefficients and variance parameters
   structure(-object$opt$objective, df=length(object$opt$par), nobs=nobs(object), class="logLik")
 }
 
 #' @rdname drmTMB-methods
+#' @export
 nobs.drmTMB <- function(object, ...){
   length(object$obj$env$data$y)
 }
 
 #' @rdname drmTMB-methods
+#' @export
 fitted.drmTMB <- function(object, random=TRUE, ...){
   predict(object, random=random)
 }
 
 #' @rdname drmTMB-methods
+#' @export
 residuals.drmTMB <- function(object, type=c("pearson", "response", "quantile"), random=TRUE, ...){
   type <- match.arg(type)
   dat <- object$obj$env$data
@@ -199,6 +205,7 @@ residuals.drmTMB <- function(object, type=c("pearson", "response", "quantile"), 
 }
 
 #' @rdname drmTMB-methods
+#' @export
 predict.drmTMB <- function(object, newdata=NULL, random=TRUE, ...){
   if (is.null(newdata)) newdata <- object$data
   form <- object$formula
@@ -242,6 +249,7 @@ predict.drmTMB <- function(object, newdata=NULL, random=TRUE, ...){
 }
 
 #' @rdname drmTMB-methods
+#' @export
 coef.drmTMB <- function(object, ...){
     est <- object$estimates
     names(est) <- parnames(object)
@@ -249,6 +257,7 @@ coef.drmTMB <- function(object, ...){
 }
 
 #' @rdname drmTMB-methods
+#' @export
 vcov.drmTMB <- function(object, ...){
     vc <- object$sdrl$cov.fixed
     rownames(vc) <- colnames(vc) <- names(coef(object))
@@ -256,6 +265,7 @@ vcov.drmTMB <- function(object, ...){
 }
 
 #' @rdname drmTMB-methods
+#' @export
 simulate.drmTMB <- function(object, nsim=1, seed=NULL, random=TRUE, ...){
   if (!is.null(seed)) set.seed(seed)
   obj <- object$obj

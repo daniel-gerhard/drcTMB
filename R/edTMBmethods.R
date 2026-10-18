@@ -21,11 +21,13 @@ print.edTMB <- function(x, ...){
 }
 
 #' @rdname edTMB-methods
+#' @export
 coef.edTMB <- function(object, ...){
     return(object$estimates)
 }
 
 #' @rdname edTMB-methods
+#' @export
 vcov.edTMB <- function(object, ...){
     return(object$variance)
 }
