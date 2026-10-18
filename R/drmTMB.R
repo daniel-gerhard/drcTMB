@@ -26,7 +26,7 @@
 #' of the logistic and loglogistic models is on the log scale. See the vignette for the model functions.
 #'
 #' @return A drmTMB object
-#' @useDynLib drmTMB
+#' @export
 
 drmTMB <- function(form, fform=NULL, rform=NULL, data, start=NULL, fix=NULL, weights=NULL, lower=-Inf, upper=Inf, family="gaussian", model="logistic", link="identity", gsl=NULL, gsu=NULL, gsn=NULL, control=list()){
   # control list
