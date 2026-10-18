@@ -15,7 +15,7 @@ ed(x, respLev = 50, linfct = diag(5), random = TRUE, residual = FALSE)
 
 \item{random}{logical, if TRUE, the variance-covariance matrix of the random effects is included in the standard error estimation}
 
-\item{residual}{logical, if TRUE, the residual variance is included in the standard error estimation}
+\item{residual}{logical, if TRUE, the residual variance is included in the standard error estimation (gaussian family only)}
 }
 \value{
 a edTMB object

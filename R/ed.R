@@ -4,7 +4,7 @@
 #' @param respLev effective dose level in percent, default is 50. The effective dose ED p is the dose at which the response has changed by p percent of the difference between the asymptote at low doses (the control) and the asymptote at high doses.
 #' @param linfct a matrix of linear functions to indentify the parameters of the dose-response curve (each row vector results in parameters b1-b5), default is the identity matrix
 #' @param random logical, if TRUE, the variance-covariance matrix of the random effects is included in the standard error estimation
-#' @param residual logical, if TRUE, the residual variance is included in the standard error estimation
+#' @param residual logical, if TRUE, the residual variance is included in the standard error estimation (gaussian family only)
 #'
 #' @return a edTMB object
 #' @export
@@ -47,6 +47,9 @@ ed <- function(x, respLev=50, linfct=diag(5), random=TRUE, residual=FALSE){
     }
   }
 
+  if (residual == TRUE && x$family != "gaussian"){
+    stop("residual=TRUE is only available for the gaussian family.")
+  }
   if (residual == TRUE){
       rvar <- exp(x$sdrl$par.fixed["log_sigma"])^2
   } else {
