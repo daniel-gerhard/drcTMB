@@ -5,12 +5,13 @@
 #' @param random logical, if TRUE, the random effects are included in the predictions, fitted values and residuals (conditional residuals). For simulate, if TRUE, new random effects are drawn for each simulation, otherwise the fitted random effects are kept.
 #'   For prediction intervals, random=TRUE gives the interval of a new observation in the group of each row of newdata, and random=FALSE the interval of a new observation in a new group, including the variance of the random effects. Rows of newdata with a level that is not in the fitted data are treated as new groups for that random effect term.
 #' @param se.fit logical, if TRUE, predict returns the standard errors of the predicted means, by the delta method; with random=TRUE they include the uncertainty of the predicted random effects.
-#' @param interval type of interval of predict: "none", "confidence" for confidence intervals of the mean, computed on the log scale for poisson and on the logit scale for binomial and beta responses, or "prediction" for prediction intervals of a new observation with weight 1 (gaussian family only). The prediction intervals use the normal distribution; the variance of the random effects of new groups is added by the delta method.
+#' @param interval type of interval of predict: "none", "confidence" for confidence intervals of the mean, computed on the log scale for poisson and on the logit scale for binomial and beta responses, or "prediction" for prediction intervals of a new observation with weight 1. For the gaussian family without boot, the prediction intervals use the normal distribution, and the variance of the random effects of new groups is added by the delta method. Otherwise they are quantiles of new observations simulated at nsim draws from the normal approximation of the fixed and random effects (or at the bootstrap fits), with new random effects for new groups; the variance parameters are kept at their estimates; for a binomial response as proportions, with the number of trials from the response in newdata (one for a binary response).
 #' @param level confidence level of the intervals of predict
 #' @param digits number of significant digits in the printed output
 #' @param type type of residuals: "pearson" (default), the response residuals divided by the standard deviation of the fitted distribution and multiplied by the square root of the weights; "response", the observed minus the fitted values, as proportions for a binomial response; or "quantile", randomised quantile residuals (Dunn and Smyth, 1996), which are standard normal under the model. The quantile residuals do not use the weights, and are random for poisson and binomial responses; use set.seed for reproducible values.
-#' @param nsim number of response vectors to simulate
+#' @param nsim number of response vectors to simulate; for predict, the number of parameter draws for simulated prediction intervals
 #' @param seed an optional seed for the random number generator
+#' @param boot a bootstrap sample of the model from \code{\link{bootstrap}}. predict then gives the standard deviation of the bootstrap predictions as se.fit, percentile confidence intervals, and prediction intervals simulated at the bootstrap fits. Only for population predictions (random=FALSE) of models with random effects.
 #' @param ... anything else
 #'
 #' @return Estimated model coefficients, variance-covariance matrix, or predictions.
@@ -212,26 +213,51 @@ residuals.drmTMB <- function(object, type=c("pearson", "response", "quantile"), 
 
 #' @rdname drmTMB-methods
 #' @export
-predict.drmTMB <- function(object, newdata=NULL, random=TRUE, se.fit=FALSE, interval=c("none", "confidence", "prediction"), level=0.95, ...){
+predict.drmTMB <- function(object, newdata=NULL, random=TRUE, se.fit=FALSE, interval=c("none", "confidence", "prediction"), level=0.95, boot=NULL, nsim=1000, seed=NULL, ...){
   interval <- match.arg(interval)
   if (is.null(newdata)) newdata <- object$data
   pd <- preddata(object, newdata, random)
   fit <- predmean(pd, pd$eta)
   if (!se.fit && interval == "none") return(fit)
-  if (interval == "prediction" && object$family != "gaussian"){
-    stop("prediction intervals are only available for the gaussian family.")
+  if (!is.null(boot)){
+    boot <- getboot(object, boot, nsim, seed)
+    if (random && length(object$reterms) > 0){
+      message("Bootstrap intervals are only available for population predictions, random=FALSE; ",
+              "using the delta method and simulation from the estimates.")
+      boot <- NULL
+    }
   }
 
-  se <- predictse(object, pd)
+  # standard errors and confidence intervals: delta method, or the curves of the bootstrap fits
+  probs <- c((1 - level)/2, (1 + level)/2)
+  if (is.null(boot)){
+    se <- predictse(object, pd)
+  } else {
+    bc <- bootcurves(object, pd, boot)
+    se <- apply(bc, 1, sd, na.rm=TRUE)
+  }
   res <- data.frame(fit=fit, se.fit=se)
   z <- qnorm((1 + level)/2)
-  if (interval == "confidence") res[c("lwr", "upr")] <- predci(fit, se, object$family, z)
+  if (interval == "confidence"){
+    res[c("lwr", "upr")] <- if (is.null(boot)) predci(fit, se, object$family, z)
+                            else t(apply(bc, 1, quantile, probs=probs, na.rm=TRUE, names=FALSE))
+  }
+
   if (interval == "prediction"){
-    # new observation: uncertainty of the mean, residual variance, and the variance of the random
-    # effects of the terms without a fitted level (new groups, or all terms for random=FALSE)
-    sdp <- sqrt(se^2 + residpar(object)^2 + newgroupvar(object, pd))
-    res$lwr <- fit - z*sdp
-    res$upr <- fit + z*sdp
+    if (object$family == "gaussian" && is.null(boot)){
+      # new observation: uncertainty of the mean, residual variance, and the variance of the random
+      # effects of the terms without a fitted level (new groups, or all terms for random=FALSE)
+      sdp <- sqrt(se^2 + residpar(object)^2 + newgroupvar(object, pd))
+      res$lwr <- fit - z*sdp
+      res$upr <- fit + z*sdp
+    } else {
+      # simulated new observations at parameter draws: from the bootstrap fits, or from the normal
+      # approximation of the fixed and random effects
+      trials <- predtrials(object, newdata)
+      if (!is.null(seed)) set.seed(seed)
+      draws <- if (is.null(boot)) jointdraws(object, nsim) else bootdraws(object, boot)
+      res[c("lwr", "upr")] <- predsim(object, pd, draws, trials, probs)
+    }
   }
   res
 }
@@ -278,7 +304,7 @@ preddata <- function(object, newdata, random){
     Zl[[t]] <- Zt
   }
   Zp <- if (length(Zl) > 0) do.call(cbind, Zl) else Matrix::sparseMatrix(i=integer(0), j=integer(0), x=numeric(0), dims=c(n, 0))
-  list(x=x, Xs=Xs, eta=eta, Zp=Zp, newgroup=newgroup,
+  list(x=x, Xs=Xs, eta=eta, Zp=Zp, Zl=Zl, newgroup=newgroup,
        mod=modelindex(object$model), lnk=which(object$link == c("identity", "log", "logit")))
 }
 
@@ -306,6 +332,118 @@ predictse <- function(object, pd){
   sdr <- sdreport(obj, par.fixed=object$opt$par, hessian.fixed=H, getReportCovariance=FALSE)
   s <- summary(sdr, "report")
   unname(s[rownames(s) == "mu", 2])
+}
+
+# population curves of the bootstrap fits, one column per converged fit
+bootcurves <- function(object, pd, boot){
+  est <- boot$estimates[!is.na(boot$estimates[, 1]), , drop=FALSE]
+  npi <- rep(1:5, sapply(pd$Xs, ncol))
+  apply(est, 1, function(b){
+    cest <- object$start
+    cest[!object$fix] <- b[seq_len(sum(!object$fix))]
+    eta <- matrix(sapply(1:5, function(i) as.vector(pd$Xs[[i]] %*% cest[npi == i])), ncol=5)
+    predmean(pd, eta)
+  })
+}
+
+# parameter vectors (as obj$env$par, one per column) of the converged bootstrap fits; the random
+# effects are not used for population predictions
+bootdraws <- function(object, boot){
+  est <- boot$estimates[!is.na(boot$estimates[, 1]), , drop=FALSE]
+  env <- object$obj$env
+  r <- env$random
+  apply(est, 1, function(b){
+    par <- numeric(length(env$par))
+    if (is.null(r)) par[] <- b else par[-r] <- b
+    par
+  })
+}
+
+# draws from the normal approximation of all parameters: the covariance of the fixed parameters,
+# or with random effects the joint precision of the fixed and random effects from sdreport
+jointdraws <- function(object, nsim){
+  env <- object$obj$env
+  r <- env$random
+  if (is.null(r)){
+    m <- object$opt$par
+    R <- tryCatch(chol(object$sdrl$cov.fixed), error=function(e) NULL)
+    if (is.null(R)) stop("the covariance matrix of the estimates is not positive definite.")
+    return(m + t(R) %*% matrix(rnorm(length(m)*nsim), nrow=length(m)))
+  }
+  sdr <- sdreport(object$obj, par.fixed=object$opt$par, getJointPrecision=TRUE)
+  m <- numeric(length(env$par))
+  m[-r] <- sdr$par.fixed
+  m[r] <- sdr$par.random
+  R <- tryCatch(chol(as.matrix(sdr$jointPrecision)), error=function(e) NULL)
+  if (is.null(R)) stop("the joint precision matrix of the parameters is not positive definite.")
+  m + backsolve(R, matrix(rnorm(length(m)*nsim), nrow=length(m)))
+}
+
+# correlation matrix of a random effect term from its unconstrained parameters, as UNSTRUCTURED_CORR
+# in TMB: lower triangle of L filled by row, correlation of L L'
+corrmatrix <- function(cpar, np){
+  L <- diag(np)
+  L[upper.tri(L)] <- cpar
+  L <- t(L)
+  S <- L %*% t(L)
+  S / sqrt(diag(S) %o% diag(S))
+}
+
+# number of trials of the new observations of a binomial model: from the response in newdata, or
+# one for a binary response
+predtrials <- function(object, newdata){
+  if (object$family != "binomial") return(NULL)
+  y <- tryCatch(model.response(model.frame(object$formula, data=newdata, na.action=na.pass)), error=function(e) NULL)
+  if (is.matrix(y) && ncol(y) == 2) return(rowSums(y))
+  if (all(object$obj$env$data$bn == 1)) return(rep(1, nrow(newdata)))
+  stop("prediction intervals of a binomial model need the number of trials: give the response, e.g. cbind(successes, failures), in newdata.")
+}
+
+# quantiles of new observations simulated at each parameter draw (columns of draws): conditional on
+# the drawn random effects of the fitted levels for random=TRUE, with new random effects for the
+# rows without a fitted level; binomial observations as proportions. The variance parameters are kept
+# at their estimates: their normal approximation is poor, e.g. for standard deviations close to zero
+predsim <- function(object, pd, draws, trials, probs){
+  env <- object$obj$env
+  n <- length(pd$x)
+  pest <- env$parList(object$opt$par)
+  sims <- apply(draws, 2, function(par){
+    pl <- env$parList(par=par)
+    eta <- matrix(sapply(1:5, function(i) as.vector(pd$Xs[[i]] %*% pl[[paste("b", i, sep="")]])), ncol=5)
+    uoff <- 0
+    toff <- 0
+    for (t in seq_along(object$reterms)){
+      tm <- object$reterms[[t]]
+      nl <- length(tm$levels)
+      np <- length(tm$pars)
+      U <- matrix(pl$u[uoff + seq_len(nl*np)], nrow=nl)
+      sdt <- exp(pest$theta[toff + seq_len(np)])
+      Ct <- corrmatrix(pest$theta[toff + np + seq_len(np*(np - 1)/2)], np)
+      uoff <- uoff + nl*np
+      toff <- toff + np + np*(np - 1)/2
+      eta[, tm$pars] <- eta[, tm$pars] + as.matrix(pd$Zl[[t]] %*% U)
+      new <- which(pd$newgroup[, t])
+      if (length(new) > 0){
+        E <- matrix(rnorm(length(new)*np), ncol=np) %*% chol(Ct) %*% diag(sdt, nrow=np)
+        eta[new, tm$pars] <- eta[new, tm$pars] + E
+      }
+    }
+    mu <- predmean(pd, eta)
+    phi <- exp(pest$log_sigma)
+    # draws outside the valid range of the parameters give NA
+    suppressWarnings(switch(object$family,
+                            gaussian=rnorm(n, mu, phi),
+                            poisson=rpois(n, mu),
+                            binomial=rbinom(n, trials, mu)/trials,
+                            beta=rbeta(n, mu*phi, (1 - mu)*phi)))
+  })
+  sims <- matrix(sims, nrow=n)
+  bad <- mean(!is.finite(sims))
+  if (bad > 0) warning(format(100*bad, digits=2), "% of the simulated observations are not finite and are left out; ",
+                       "parameter draws may fall outside the valid parameter range (e.g., b4 <= 0).", call.=FALSE)
+  # discrete responses: quantiles of the simulated values
+  type <- if (object$family %in% c("poisson", "binomial")) 1 else 7
+  t(apply(sims, 1, quantile, probs=probs, na.rm=TRUE, names=FALSE, type=type))
 }
 
 # confidence intervals of the means, computed on the log scale for poisson and the logit scale for

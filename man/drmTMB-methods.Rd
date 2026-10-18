@@ -41,6 +41,9 @@
   se.fit = FALSE,
   interval = c("none", "confidence", "prediction"),
   level = 0.95,
+  boot = NULL,
+  nsim = 1000,
+  seed = NULL,
   ...
 )
 
@@ -66,11 +69,13 @@ For prediction intervals, random=TRUE gives the interval of a new observation in
 
 \item{se.fit}{logical, if TRUE, predict returns the standard errors of the predicted means, by the delta method; with random=TRUE they include the uncertainty of the predicted random effects.}
 
-\item{interval}{type of interval of predict: "none", "confidence" for confidence intervals of the mean, computed on the log scale for poisson and on the logit scale for binomial and beta responses, or "prediction" for prediction intervals of a new observation with weight 1 (gaussian family only). The prediction intervals use the normal distribution; the variance of the random effects of new groups is added by the delta method.}
+\item{interval}{type of interval of predict: "none", "confidence" for confidence intervals of the mean, computed on the log scale for poisson and on the logit scale for binomial and beta responses, or "prediction" for prediction intervals of a new observation with weight 1. For the gaussian family without boot, the prediction intervals use the normal distribution, and the variance of the random effects of new groups is added by the delta method. Otherwise they are quantiles of new observations simulated at nsim draws from the normal approximation of the fixed and random effects (or at the bootstrap fits), with new random effects for new groups; the variance parameters are kept at their estimates; for a binomial response as proportions, with the number of trials from the response in newdata (one for a binary response).}
 
 \item{level}{confidence level of the intervals of predict}
 
-\item{nsim}{number of response vectors to simulate}
+\item{boot}{a bootstrap sample of the model from \code{\link{bootstrap}}. predict then gives the standard deviation of the bootstrap predictions as se.fit, percentile confidence intervals, and prediction intervals simulated at the bootstrap fits. Only for population predictions (random=FALSE) of models with random effects.}
+
+\item{nsim}{number of response vectors to simulate; for predict, the number of parameter draws for simulated prediction intervals}
 
 \item{seed}{an optional seed for the random number generator}
 }
