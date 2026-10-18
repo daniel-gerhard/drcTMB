@@ -11,7 +11,7 @@ ed(x, respLev = 50, linfct = diag(5), random = TRUE, residual = FALSE)
 
 \item{respLev}{effective dose level in percent, default is 50. The effective dose ED p is the dose at which the response has changed by p percent of the difference between the asymptote at low doses (the control) and the asymptote at high doses.}
 
-\item{linfct}{a matrix of linear functions to indentify the parameters of the dose-response curve (each row vector results in parameters b1-b5), default is the identity matrix}
+\item{linfct}{a matrix of linear functions to identify the parameters of the dose-response curve, with 5 rows (b1-b5) and one column for each model coefficient, or a list of such matrices; default is the identity matrix, for models without covariates in fform}
 
 \item{random}{logical, if TRUE, the variance-covariance matrix of the random effects is included in the standard error estimation}
 

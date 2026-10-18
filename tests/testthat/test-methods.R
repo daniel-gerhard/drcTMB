@@ -218,3 +218,15 @@ test_that("ed includes the residual variance only for the gaussian family", {
   fp <- drmTMB(y ~ dose, data=dp, model="exponentialdecay", family="poisson", link="log")
   expect_error(ed(fp, residual=TRUE), "gaussian")
 })
+
+test_that("unknown families and links, and linfct of the wrong size, give clear errors", {
+  d <- simgauss("loglogistic")
+  expect_error(drmTMB(y ~ dose, data=d, family="gausian"), "Unknown family")
+  expect_error(drmTMB(y ~ dose, data=d, link="logg"), "Unknown link")
+  expect_error(drmTMBstart(y ~ dose, data=d, family="gausian"), "Unknown family")
+  d$trt <- factor(rep(c("a", "b"), length.out=nrow(d)))
+  f <- fit4(y ~ dose, fform=b2 ~ trt, data=d, model="loglogistic")
+  expect_error(ed(f), "6 model coefficients")
+  expect_error(ed(f, linfct=list(diag(6)[-3, ], diag(5))), "5 rows")
+  expect_length(coef(ed(f, linfct=diag(6)[-3, ])), 1)
+})

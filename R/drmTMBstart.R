@@ -77,6 +77,8 @@ drmTMBdata <- function(form, fform=NULL, rform=NULL, data, weights=NULL, family=
   lnk <- which(link == c("identity", "log", "logit"))
   fam <- which(family == c("gaussian", "poisson", "binomial", "beta"))
   if (length(mod) != 1) stop("Unknown model: ", model)
+  if (length(fam) != 1) stop("Unknown family: ", family, "; one of gaussian, poisson, binomial, beta.")
+  if (length(lnk) != 1) stop("Unknown link: ", link, "; one of identity, log, logit.")
 
   # response
   y <- mr <- model.response(mf, "any")
