@@ -323,7 +323,9 @@ drmTMBobj <- function(dd, start, fix, rform=NULL){
   dlist <- list(model="drcTMB", y=dd$y, x=dd$x, w=dd$w, bn=dd$bn, fam=dd$fam, mod=dd$mod, lnk=dd$lnk,
                 tnp=tnp, tnl=tnl, tpar=as.integer(unlist(lapply(re$terms, function(tm) tm$pars)) - 1),
                 simre=1L, Z=re$Z)
-  datalist <- c(dlist, dd$Xs)
+  # no predictions: see predictse
+  Xp <- setNames(lapply(dd$Xs, function(X) X[0, , drop=FALSE]), paste("Xp", 1:5, sep=""))
+  datalist <- c(dlist, dd$Xs, list(xp=numeric(0)), Xp, list(Zp=re$Z[0, , drop=FALSE]))
 
   # log_sigma: residual sd (gaussian) or precision (beta); fixed for poisson and binomial
   if (dd$family == "gaussian") slsigma <- if (is.null(rform)) 1 else 0

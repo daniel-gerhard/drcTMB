@@ -13,5 +13,6 @@
 #' @importFrom Matrix t bdiag
 #' @importFrom reformulas subbars mkReTrms findbars
 #' @importFrom TMB MakeADFun sdreport
+#' @importFrom methods as
 ## usethis namespace: end
 NULL
