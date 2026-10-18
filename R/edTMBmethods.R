@@ -17,6 +17,7 @@ print.edTMB <- function(x, ...){
     rdat <- data.frame(Estimate=ests, Std.Error=std)
     cat("Effective dose estimates:\n\n")
     print(rdat, digits=3)
+    invisible(x)
 }
 
 #' @rdname edTMB-methods

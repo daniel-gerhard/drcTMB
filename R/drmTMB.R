@@ -3,10 +3,10 @@
 #' @param form formula with name of response and dose scale
 #' @param fform fixed effects for the model parameters: a formula of the form b2 + b4 ~ Stress, or a list of such formulas, e.g. list(b2 ~ Stress, b4 ~ Stress + Time). Parameters not listed have a single intercept (~ 1). A list of five right-hand side formulas, one for each of b1-b5 (X1 = ~ 1, ..., X5 = ~ 1), is also accepted.
 #' @param rform random intercepts: a formula of the form b1 + b2 + b4 ~ 1 | cluster, or a list of such formulas, e.g. list(b1 + b4 ~ 1 | exper, b1 ~ 1 | plate). Random intercepts within a formula are correlated across the listed parameters; different formulas, and the levels of nested factors (1 | exper/plate), are independent terms.
-#' @param data a data.frame object
+#' @param data a data.frame object. Observations with missing values in the variables of the model or in the weights are left out.
 #' @param start a vector with starting values for each model coefficient. NA entries are replaced by the starting values of \code{\link{drmTMBstart}}. Alternatively, a vector named by parameter, e.g. c(b1=0, b5=0), gives the same starting value to all coefficients of each named parameter.
 #' @param fix a logical vector with one entry for each model coefficient. If TRUE, a model coefficient is fixed to its value in start. Alternatively, a vector named by parameter, e.g. c(b1=TRUE, b5=TRUE), fixes all coefficients of the named parameters; their values must then be given in start, e.g. start=c(b1=0, b5=0). Parameters not used by the model (b5 except for logistic and loglogistic, b3 for michaelismenten, asymptoticregression and exponentialdecay) are always fixed, at 0 unless given in start.
-#' @param weights a vector of weights for each observation.
+#' @param weights a vector of weights, one for each row of data.
 #' @param lower lower bounds for the model coefficients b1-b5, a single value or a vector with the same length as start. Bounds of fixed coefficients are ignored; variance parameters are unbounded.
 #' @param upper upper bounds for the model coefficients b1-b5, a single value or a vector with the same length as start.
 #' @param family Specify the distributional assumptions. One of "gaussian", "binomial", "beta", and "poisson".
@@ -68,7 +68,7 @@ drmTMB <- function(form, fform=NULL, rform=NULL, data, start=NULL, fix=NULL, wei
   }
   res <- list()
   res$call <- match.call()
-  res$data <- data
+  res$data <- dd$data
   res$formula <- form
   res$family <- family
   res$model <- model
@@ -77,6 +77,7 @@ drmTMB <- function(form, fform=NULL, rform=NULL, data, start=NULL, fix=NULL, wei
   res$fix <- fix
   res$Xs <- dd$Xs
   res$fform <- dd$fform
+  res$fterms <- dd$fterms
   res$coefnames <- coefnames(dd$Xs)
   res$rform <- rform
   res$reterms <- dd$re$terms
@@ -84,6 +85,7 @@ drmTMB <- function(form, fform=NULL, rform=NULL, data, start=NULL, fix=NULL, wei
   res$lower <- lower
   res$upper <- upper
   res$opt <- opt
+  res$control <- control
   res$obj <- obj
   res$sdrl <- sdreport(obj, par.fixed=opt$par)
   res$ssdrl <- summary(res$sdrl)

@@ -22,10 +22,10 @@
 #'
 #' @param form formula with name of response and dose scale
 #' @param fform fixed effects for the model parameters: a formula of the form b2 + b4 ~ Stress, or a list of such formulas, e.g. list(b2 ~ Stress, b4 ~ Stress + Time). Parameters not listed have a single intercept (~ 1). A list of five right-hand side formulas, one for each of b1-b5 (X1 = ~ 1, ..., X5 = ~ 1), is also accepted.
-#' @param data a data.frame object
+#' @param data a data.frame object. Observations with missing values in the variables of the model or in the weights are left out.
 #' @param start a vector with starting values for each model parameter. Only NA entries are replaced.
 #' @param fix a binary vector with same length as start. If TRUE, a model coefficient is fixed to the starting value. Parameters not used by the model (b5 except for logistic and loglogistic, b3 for michaelismenten, asymptoticregression and exponentialdecay) are always fixed, at 0 unless given in start.
-#' @param weights a vector of weights for each observation.
+#' @param weights a vector of weights, one for each row of data.
 #' @param family Specify the distributional assumptions. One of "gaussian", "binomial", "beta", and "poisson".
 #' @param model Specify the nonlinear model. One of "logistic", "loglogistic", "weibull1", "weibull2", "lognormal", "michaelismenten", "asymptoticregression", "exponentialdecay", "gompertz".
 #' @param link Specify the link function for estimating asymptote parameters. One of "identity", "log", "logit".
@@ -50,19 +50,35 @@ drmTMBstart <- function(form, fform=NULL, data, start=NULL, fix=NULL, weights=NU
 
 # model data shared by drmTMB and drmTMBstart
 drmTMBdata <- function(form, fform=NULL, rform=NULL, data, weights=NULL, family="gaussian", model="logistic", link="identity"){
+  fform <- fforms(fform)
+  if (is.null(weights)) weights <- rep(1, nrow(data))
+  if (length(weights) != nrow(data)) stop("weights must have one entry for each row of data.")
+
+  # observations with missing values in the variables of the model or in the weights are left out
+  rfl <- if (inherits(rform, "formula")) list(rform) else rform
+  vars <- c(all.vars(form), unlist(lapply(fform, all.vars)), unlist(lapply(rfl, function(f) all.vars(f[[3]]))))
+  keep <- complete.cases(data[, intersect(vars, names(data)), drop=FALSE]) & !is.na(weights)
+  data <- data[keep, , drop=FALSE]
+  weights <- weights[keep]
+
   # response
   mf <- model.frame(form, data=data)
-  # fixed effects
-  fform <- fforms(fform)
-  Xs <- lapply(fform, function(x) model.matrix(x, data=data))
+  # fixed effects; terms, factor levels and contrasts are kept for the design matrices of new data
+  fterms <- lapply(fform, function(f){
+    fmf <- model.frame(f, data=data)
+    tt <- terms(fmf)
+    list(terms=tt, xlev=.getXlevels(tt, fmf), contrasts=attr(model.matrix(tt, fmf), "contrasts"))
+  })
+  Xs <- lapply(fterms, function(ft) designmatrix(ft, data))
   npars <- sapply(Xs, ncol)
-  if (is.null(weights)) weights <- rep(1, nrow(data))
 
   # model
   mod <- which(model == c("logistic", "loglogistic", "weibull1", "weibull2", "lognormal", "michaelismenten", "asymptoticregression", "exponentialdecay", "gompertz"))
   lnk <- which(link == c("identity", "log", "logit"))
   fam <- which(family == c("gaussian", "poisson", "binomial", "beta"))
   if (length(mod) != 1) stop("Unknown model: ", model)
+  if (length(fam) != 1) stop("Unknown family: ", family, "; one of gaussian, poisson, binomial, beta.")
+  if (length(lnk) != 1) stop("Unknown link: ", link, "; one of identity, log, logit.")
 
   # response
   y <- mr <- model.response(mf, "any")
@@ -83,8 +99,16 @@ drmTMBdata <- function(form, fform=NULL, rform=NULL, data, weights=NULL, family=
   if (length(unused) > 0) stop("The ", model, " model does not use ", paste("b", unused, sep="", collapse=", "), "; remove it from rform.")
 
   list(y=y, x=mf[,2], w=weights, bn=bn, fam=fam, mod=mod, lnk=lnk, re=re,
-       Xs=Xs, fform=fform, npars=npars, npi=rep(1:5, npars),
-       family=family, model=model, link=link)
+       Xs=Xs, fform=fform, fterms=fterms, npars=npars, npi=rep(1:5, npars),
+       family=family, model=model, link=link, data=data)
+}
+
+# design matrix of a parameter for data, with the terms, factor levels and contrasts of the fit
+designmatrix <- function(ft, data){
+  # xlev drops contrasts set on a factor of data, with a warning; contrasts.arg restores them
+  mf <- withCallingHandlers(model.frame(ft$terms, data=data, xlev=ft$xlev, na.action=na.pass),
+                            warning=function(w) if (grepl("^contrasts dropped", conditionMessage(w))) invokeRestart("muffleWarning"))
+  model.matrix(ft$terms, mf, contrasts.arg=ft$contrasts)
 }
 
 

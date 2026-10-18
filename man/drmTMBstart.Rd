@@ -25,13 +25,13 @@ drmTMBstart(
 
 \item{fform}{fixed effects for the model parameters: a formula of the form b2 + b4 ~ Stress, or a list of such formulas, e.g. list(b2 ~ Stress, b4 ~ Stress + Time). Parameters not listed have a single intercept (~ 1). A list of five right-hand side formulas, one for each of b1-b5 (X1 = ~ 1, ..., X5 = ~ 1), is also accepted.}
 
-\item{data}{a data.frame object}
+\item{data}{a data.frame object. Observations with missing values in the variables of the model or in the weights are left out.}
 
 \item{start}{a vector with starting values for each model parameter. Only NA entries are replaced.}
 
 \item{fix}{a binary vector with same length as start. If TRUE, a model coefficient is fixed to the starting value. Parameters not used by the model (b5 except for logistic and loglogistic, b3 for michaelismenten, asymptoticregression and exponentialdecay) are always fixed, at 0 unless given in start.}
 
-\item{weights}{a vector of weights for each observation.}
+\item{weights}{a vector of weights, one for each row of data.}
 
 \item{family}{Specify the distributional assumptions. One of "gaussian", "binomial", "beta", and "poisson".}
 

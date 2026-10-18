@@ -205,7 +205,7 @@ predict.drmTMB <- function(object, newdata=NULL, random=TRUE, ...){
   form[2] <- NULL
   mf <- model.frame(form, data=newdata)
   x <- mf[,1]
-  Xs <- lapply(object$fform, function(x) model.matrix(x, data=newdata))
+  Xs <- lapply(object$fterms, function(ft) designmatrix(ft, newdata))
   npars <- sapply(Xs, ncol)
   npi <- rep(1:length(npars), npars)
   ests <- object$ssdrl
