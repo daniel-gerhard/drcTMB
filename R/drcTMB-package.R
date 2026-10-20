@@ -2,6 +2,7 @@
 "_PACKAGE"
 
 ## usethis namespace: start
+#' @useDynLib drcTMB, .registration = TRUE
 #' @useDynLib drcTMB_TMBExports
 #' @importFrom stats AIC BIC approx coef coefficients confint fitted lm lm.fit logLik
 #' @importFrom stats model.frame model.matrix model.response nlminb nobs pbeta pbinom
