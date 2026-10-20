@@ -27,8 +27,9 @@ parameter. The steepness b3 is positive for an increasing and negative
 for a decreasing curve. The asymmetry parameter b5 is estimated on a
 logarithmic scale. The models michaelismenten, asymptoticregression, and
 exponentialdecay have no steepness parameter; here b1 is the response at
-dose zero and b2 the asymptote at high doses. The `start` argument
-provides starting values for the parameters. The `fix` argument
+dose zero and b2 the asymptote at high doses. Starting values are found
+automatically from the data. The `start` argument can provide starting
+values for some or all of the parameters, and the `fix` argument
 (TRUE/FALSE) allows to fix parameters at these starting values.
 Parameters that a model does not use, such as b5 for the Weibull models,
 are fixed automatically.
@@ -37,13 +38,14 @@ are fixed automatically.
 library(drcTMB)
 library(drcData)
 data(ryegrass)
-# Fitting a 3-parameter log-logistic model
-mod <- drmTMB(rootl ~ conc, data = ryegrass, model = "loglogistic", 
-              start=c(0, 8, -1, 2, 0), fix=c(TRUE, FALSE, FALSE, FALSE, TRUE))
+# Fitting a 3-parameter log-logistic model, with the lower asymptote b1 fixed at 0
+# and without asymmetry (b5 fixed at 0)
+mod <- drmTMB(rootl ~ conc, data = ryegrass, model = "loglogistic",
+              start = c(b1 = 0, b5 = 0), fix = c(b1 = TRUE, b5 = TRUE))
 print(mod)
 #> Call:
-#> drmTMB(form = rootl ~ conc, data = ryegrass, start = c(0, 8, 
-#>     -1, 2, 0), fix = c(TRUE, FALSE, FALSE, FALSE, TRUE), model = "loglogistic")
+#> drmTMB(form = rootl ~ conc, data = ryegrass, start = c(b1 = 0, 
+#>     b5 = 0), fix = c(b1 = TRUE, b5 = TRUE), model = "loglogistic")
 #> 
 #> Model:  loglogistic
 #> Family: gaussian, identity link for the asymptotes
@@ -109,6 +111,18 @@ has changed by p% of the difference between the asymptote at low doses
 #> 75:lf3     5.09     0.394
 ```
 
+Profile likelihood confidence intervals of the effective doses are
+computed by `confint()`; `method = "wald"` gives Wald intervals and
+`method = "boot"` parametric bootstrap intervals.
+
+``` r
+confint(effdose)
+#>           2.5 %   97.5 %
+#> 25:lf1 1.748566 2.462471
+#> 50:lf2 2.909019 3.664987
+#> 75:lf3 4.386816 6.015573
+```
+
 Simultaneous confidence intervals can be constructed through the package
 multcomp.
 
@@ -123,13 +137,13 @@ confint(effdose_glht)
 #> 
 #> Fit: NULL
 #> 
-#> Quantile = 2.3181
+#> Quantile = 2.3187
 #> 95% family-wise confidence level
 #>  
 #> 
 #> Linear Hypotheses:
 #>           Estimate lwr    upr   
-#> ED25 == 0 2.0918   1.6870 2.4966
-#> ED50 == 0 3.2634   2.8375 3.6892
-#> ED75 == 0 5.0910   4.1776 6.0045
+#> ED25 == 0 2.0918   1.6869 2.4967
+#> ED50 == 0 3.2634   2.8374 3.6893
+#> ED75 == 0 5.0910   4.1774 6.0047
 ```
