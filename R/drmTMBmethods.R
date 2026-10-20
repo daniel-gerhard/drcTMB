@@ -3,13 +3,20 @@
 #' @param x,object a drmTMB object
 #' @param newdata a data frame for prediction. If NULL, the original data is used.
 #' @param random logical, if TRUE, the random effects are included in the predictions, fitted values and residuals (conditional residuals). For simulate, if TRUE, new random effects are drawn for each simulation, otherwise the fitted random effects are kept.
+#'   For prediction intervals, random=TRUE gives the interval of a new observation in the group of each row of newdata, and random=FALSE the interval of a new observation in a new group, including the variance of the random effects. Rows of newdata with a level that is not in the fitted data are treated as new groups for that random effect term.
+#' @param se.fit logical, if TRUE, predict returns the standard errors of the predicted means, by the delta method; with random=TRUE they include the uncertainty of the predicted random effects.
+#' @param interval type of interval of predict: "none", "confidence" for confidence intervals of the mean, computed on the log scale for poisson and on the logit scale for binomial and beta responses, or "prediction" for prediction intervals of a new observation with weight 1. For the gaussian family without boot, the prediction intervals use the normal distribution, and the variance of the random effects of new groups is added by the delta method. Otherwise they are quantiles of new observations simulated at nsim draws from the normal approximation of the fixed and random effects, with the variance parameters kept at their estimates, or at the bootstrap fits (see boot); with new random effects for new groups; for a binomial response as proportions, with the number of trials from the response in newdata (one for a binary response).
+#' @param level confidence level of the intervals of predict
 #' @param digits number of significant digits in the printed output
 #' @param type type of residuals: "pearson" (default), the response residuals divided by the standard deviation of the fitted distribution and multiplied by the square root of the weights; "response", the observed minus the fitted values, as proportions for a binomial response; or "quantile", randomised quantile residuals (Dunn and Smyth, 1996), which are standard normal under the model. The quantile residuals do not use the weights, and are random for poisson and binomial responses; use set.seed for reproducible values.
-#' @param nsim number of response vectors to simulate
+#' @param nsim number of response vectors to simulate; for predict, the number of parameter draws for simulated prediction intervals
 #' @param seed an optional seed for the random number generator
+#' @param boot a bootstrap sample of the model from \code{\link{bootstrap}}. predict then gives the standard deviation of the bootstrap predictions as se.fit, percentile confidence intervals, and prediction intervals simulated at the bootstrap fits, including their variance parameters. The bootstrap responses have new random effects, so for random=TRUE the random effects of the fitted groups are drawn, for each bootstrap fit, from the Laplace approximation of their conditional distribution given the original data at the parameters of that fit.
 #' @param ... anything else
 #'
 #' @return Estimated model coefficients, variance-covariance matrix, or predictions.
+#' predict returns a vector of predicted means, or, with se.fit=TRUE or an interval, a data frame with
+#' the predicted means (fit), their standard errors (se.fit), and the limits of the intervals (lwr, upr).
 #' coef and vcov include the variance parameters: for each random effect term the log standard deviations
 #' (log_sd:b1|group) and, for correlated random effects, the parameters of the correlation matrix
 #' (corr_par:b2,b1|group, unconstrained elements of the lower triangle of its Cholesky factor, by row);
@@ -206,46 +213,302 @@ residuals.drmTMB <- function(object, type=c("pearson", "response", "quantile"), 
 
 #' @rdname drmTMB-methods
 #' @export
-predict.drmTMB <- function(object, newdata=NULL, random=TRUE, ...){
+predict.drmTMB <- function(object, newdata=NULL, random=TRUE, se.fit=FALSE, interval=c("none", "confidence", "prediction"), level=0.95, boot=NULL, nsim=1000, seed=NULL, ...){
+  interval <- match.arg(interval)
   if (is.null(newdata)) newdata <- object$data
-  form <- object$formula
-  form[2] <- NULL
-  mf <- model.frame(form, data=newdata)
-  x <- mf[,1]
-  Xs <- lapply(object$fterms, function(ft) designmatrix(ft, newdata))
-  npars <- sapply(Xs, ncol)
-  npi <- rep(1:length(npars), npars)
-  ests <- object$ssdrl
-  rn <- rownames(ests)
-  coefs <- ests[rn %in% paste("b", 1:5, sep=""),,drop=FALSE]
-  cest <- object$start
-  cest[!object$fix] <- coefs[,1]
-  pxl <- lapply(1:5, function(i) Xs[[i]] %*% cest[npi == i])
-  
-  if (random && !is.null(object$rform)){
-    # random effects of the fitted levels; levels not in the fitted data get zero
-    re <- ests[rn %in% "u", 1]
-    uoff <- 0
-    for (tm in object$reterms){
-      nl <- length(tm$levels)
-      np <- length(tm$pars)
-      U <- matrix(re[uoff + seq_len(nl*np)], nrow=nl)
-      uoff <- uoff + nl*np
-      rt <- mkReTrms(findbars(tm$formula), model.frame(subbars(tm$formula), data=newdata))
-      Zt <- rt$Ztlist[[tm$name]]
-      lid <- match(rownames(Zt), tm$levels)
-      Znew <- t(Zt[!is.na(lid), , drop=FALSE])
-      for (k in seq_len(np)){
-        pxl[[tm$pars[k]]] <- pxl[[tm$pars[k]]] + as.vector(Znew %*% U[lid[!is.na(lid)], k])
-      }
-    }
+  pd <- preddata(object, newdata, random)
+  fit <- predmean(pd, pd$eta)
+  if (!se.fit && interval == "none") return(fit)
+  if (!is.null(seed)) set.seed(seed)
+
+  # standard errors and confidence intervals: delta method, or the curves at the bootstrap draws
+  probs <- c((1 - level)/2, (1 + level)/2)
+  if (is.null(boot)){
+    se <- predictse(object, pd)
+  } else {
+    draws <- bootdraws(object, getboot(object, boot, nsim, seed), random)
+    bc <- drawcurves(object, pd, draws)
+    se <- apply(bc, 1, sd, na.rm=TRUE)
+  }
+  res <- data.frame(fit=fit, se.fit=se)
+  z <- qnorm((1 + level)/2)
+  if (interval == "confidence"){
+    res[c("lwr", "upr")] <- if (is.null(boot)) predci(fit, se, object$family, z)
+                            else t(apply(bc, 1, quantile, probs=probs, na.rm=TRUE, names=FALSE))
   }
 
-  mod <- which(object$model == c("logistic", "loglogistic", "weibull1", "weibull2", "lognormal", "michaelismenten", "asymptoticregression", "exponentialdecay", "gompertz"))
-  lnk <- which(object$link == c("identity", "log", "logit"))
-  fx <- drcmeanR(mod, x, linkfun(lnk, pxl[[1]], inverse=TRUE), linkfun(lnk, pxl[[2]], inverse=TRUE),
-                 pxl[[3]], pxl[[4]], pxl[[5]])
-  return(as.vector(fx))
+  if (interval == "prediction"){
+    if (object$family == "gaussian" && is.null(boot)){
+      # new observation: uncertainty of the mean, residual variance, and the variance of the random
+      # effects of the terms without a fitted level (new groups, or all terms for random=FALSE)
+      sdp <- sqrt(se^2 + residpar(object)^2 + newgroupvar(object, pd))
+      res$lwr <- fit - z*sdp
+      res$upr <- fit + z*sdp
+    } else {
+      # simulated new observations at parameter draws: from the bootstrap fits, or from the normal
+      # approximation of the fixed and random effects
+      trials <- predtrials(object, newdata)
+      if (is.null(boot)) draws <- jointdraws(object, nsim)
+      res[c("lwr", "upr")] <- predsim(object, pd, draws, trials, probs, vardraws=!is.null(boot))
+    }
+  }
+  res
+}
+
+# design of the predictions for newdata: doses, design matrices, linear predictors of b1-b5 (with the
+# random effects of the fitted levels if random=TRUE), the random effects design Zp for the TMB
+# template, and for each term the rows without a fitted level (newgroup)
+preddata <- function(object, newdata, random){
+  form <- object$formula
+  form[2] <- NULL
+  x <- model.frame(form, data=newdata, na.action=na.pass)[, 1]
+  n <- length(x)
+  Xs <- lapply(object$fterms, function(ft) designmatrix(ft, newdata))
+  npi <- rep(1:5, sapply(Xs, ncol))
+  ests <- object$ssdrl
+  rn <- rownames(ests)
+  cest <- object$start
+  cest[!object$fix] <- ests[rn %in% paste("b", 1:5, sep=""), 1]
+  eta <- sapply(1:5, function(i) as.vector(Xs[[i]] %*% cest[npi == i]))
+  eta <- matrix(eta, nrow=n)
+
+  re <- ests[rn %in% "u", 1]
+  uoff <- 0
+  Zl <- list()
+  newgroup <- matrix(TRUE, n, length(object$reterms))
+  for (t in seq_along(object$reterms)){
+    tm <- object$reterms[[t]]
+    nl <- length(tm$levels)
+    np <- length(tm$pars)
+    U <- matrix(re[uoff + seq_len(nl*np)], nrow=nl)
+    uoff <- uoff + nl*np
+    Zt <- Matrix::sparseMatrix(i=integer(0), j=integer(0), x=numeric(0), dims=c(n, nl))
+    if (random){
+      # random effects of the fitted levels; levels not in the fitted data get zero
+      rt <- mkReTrms(findbars(tm$formula), model.frame(subbars(tm$formula), data=newdata))
+      Zn <- rt$Ztlist[[tm$name]]
+      lid <- match(rownames(Zn), tm$levels)
+      ok <- which(!is.na(lid))
+      P <- Matrix::sparseMatrix(i=ok, j=lid[ok], x=1, dims=c(nrow(Zn), nl))
+      Zt <- t(Zn) %*% P
+      newgroup[, t] <- Matrix::rowSums(Zt) == 0
+      for (k in seq_len(np)) eta[, tm$pars[k]] <- eta[, tm$pars[k]] + as.vector(Zt %*% U[, k])
+    }
+    Zl[[t]] <- Zt
+  }
+  Zp <- if (length(Zl) > 0) do.call(cbind, Zl) else Matrix::sparseMatrix(i=integer(0), j=integer(0), x=numeric(0), dims=c(n, 0))
+  list(x=x, Xs=Xs, eta=eta, Zp=Zp, Zl=Zl, newgroup=newgroup,
+       mod=modelindex(object$model), lnk=which(object$link == c("identity", "log", "logit")))
+}
+
+# mean function at the linear predictors eta of b1-b5
+predmean <- function(pd, eta){
+  as.vector(drcmeanR(pd$mod, pd$x, linkfun(pd$lnk, eta[, 1], inverse=TRUE), linkfun(pd$lnk, eta[, 2], inverse=TRUE),
+                     eta[, 3], eta[, 4], eta[, 5]))
+}
+
+# standard errors of the predicted means by the delta method of TMB: the mean at the new doses is
+# reported by the template, at the estimates; with random effects, sdreport includes the uncertainty
+# of the predicted random effects
+predictse <- function(object, pd){
+  env <- object$obj$env
+  dat <- env$data
+  dat$xp <- pd$x
+  for (i in 1:5) dat[[paste("Xp", i, sep="")]] <- pd$Xs[[i]]
+  # TMB reads sparse matrices in triplet form
+  dat$Zp <- as(as(pd$Zp, "TsparseMatrix"), "generalMatrix")
+  rnd <- !is.null(env$random)
+  obj <- MakeADFun(dat, env$parList(object$opt$par), map=env$map, random=if (rnd) "u",
+                   DLL="drcTMB_TMBExports", silent=TRUE)
+  # the likelihood is unchanged: the Hessian of the fit is reused
+  H <- if (isTRUE(object$sdrl$pdHess)) solve(object$sdrl$cov.fixed)
+  sdr <- sdreport(obj, par.fixed=object$opt$par, hessian.fixed=H, getReportCovariance=FALSE)
+  s <- summary(sdr, "report")
+  unname(s[rownames(s) == "mu", 2])
+}
+
+# linear predictors of b1-b5 at a parameter vector par (as obj$env$par), with the random effects of
+# the fitted levels in pd (none for random=FALSE)
+draweta <- function(object, pd, par){
+  pl <- object$obj$env$parList(par=par)
+  eta <- matrix(sapply(1:5, function(i) as.vector(pd$Xs[[i]] %*% pl[[paste("b", i, sep="")]])), ncol=5)
+  uoff <- 0
+  for (t in seq_along(object$reterms)){
+    tm <- object$reterms[[t]]
+    nl <- length(tm$levels)
+    np <- length(tm$pars)
+    U <- matrix(pl$u[uoff + seq_len(nl*np)], nrow=nl)
+    uoff <- uoff + nl*np
+    eta[, tm$pars] <- eta[, tm$pars] + as.matrix(pd$Zl[[t]] %*% U)
+  }
+  eta
+}
+
+# predicted means at the parameter draws, one column per draw
+drawcurves <- function(object, pd, draws){
+  bc <- apply(draws, 2, function(par) predmean(pd, draweta(object, pd, par)))
+  # apply drops to a vector for a single prediction
+  matrix(bc, nrow=length(pd$x))
+}
+
+# parameter vectors (as obj$env$par, one per column) of the converged bootstrap fits. With random
+# effects and random=TRUE, the random effects of the fitted levels are drawn from their conditional
+# distribution given the original data at the parameters of each bootstrap fit: the bootstrap
+# responses have new random effects, so the random effects of the bootstrap fits are not those of
+# the fitted groups. Otherwise the random effects are not used.
+bootdraws <- function(object, boot, random){
+  est <- bootconverged(boot)
+  env <- object$obj$env
+  r <- env$random
+  if (is.null(r)) return(matrix(t(est), ncol=nrow(est)))
+  draws <- matrix(0, length(env$par), nrow(est))
+  draws[-r, ] <- t(est)
+  if (random){
+    obj <- MakeADFun(env$data, env$parList(object$opt$par), map=env$map, random="u", DLL=env$DLL, silent=TRUE)
+    for (k in seq_len(nrow(est))) draws[r, k] <- conddraw(obj, est[k, ])
+    ok <- !is.na(draws[r[1], ])
+    if (sum(ok) < nrow(est)) message(nrow(est) - sum(ok), " of ", nrow(est), " conditional distributions of the random effects at the bootstrap fits failed; these fits are left out.")
+    if (sum(ok) < 2) stop("fewer than 2 bootstrap fits are left for bootstrap intervals.")
+    draws <- draws[, ok, drop=FALSE]
+  }
+  draws
+}
+
+# one draw of the random effects of obj from the Laplace approximation of their conditional
+# distribution given the data, at the fixed parameters par: normal with the conditional mode as the
+# mean and the Hessian of the negative log-likelihood in the random effects as the precision; NA if
+# the inner optimisation fails
+conddraw <- function(obj, par){
+  r <- obj$env$random
+  u <- tryCatch({
+    if (!is.finite(suppressWarnings(obj$fn(par)))) stop("not finite")
+    lp <- obj$env$last.par
+    R <- chol(as.matrix(obj$env$spHess(lp, random=TRUE)))
+    lp[r] + backsolve(R, rnorm(length(r)))
+  }, error=function(e) NULL)
+  if (is.null(u) || any(!is.finite(u))) rep(NA, length(r)) else u
+}
+
+# draws from the normal approximation of all parameters: the covariance of the fixed parameters,
+# or with random effects the joint precision of the fixed and random effects from sdreport
+jointdraws <- function(object, nsim){
+  env <- object$obj$env
+  r <- env$random
+  if (is.null(r)){
+    m <- object$opt$par
+    R <- tryCatch(chol(object$sdrl$cov.fixed), error=function(e) NULL)
+    if (is.null(R)) stop("the covariance matrix of the estimates is not positive definite.")
+    return(m + t(R) %*% matrix(rnorm(length(m)*nsim), nrow=length(m)))
+  }
+  sdr <- sdreport(object$obj, par.fixed=object$opt$par, getJointPrecision=TRUE)
+  m <- numeric(length(env$par))
+  m[-r] <- sdr$par.fixed
+  m[r] <- sdr$par.random
+  R <- tryCatch(chol(as.matrix(sdr$jointPrecision)), error=function(e) NULL)
+  if (is.null(R)) stop("the joint precision matrix of the parameters is not positive definite.")
+  m + backsolve(R, matrix(rnorm(length(m)*nsim), nrow=length(m)))
+}
+
+# correlation matrix of a random effect term from its unconstrained parameters, as UNSTRUCTURED_CORR
+# in TMB: lower triangle of L filled by row, correlation of L L'
+corrmatrix <- function(cpar, np){
+  L <- diag(np)
+  L[upper.tri(L)] <- cpar
+  L <- t(L)
+  S <- L %*% t(L)
+  S / sqrt(diag(S) %o% diag(S))
+}
+
+# number of trials of the new observations of a binomial model: from the response in newdata, or
+# one for a binary response
+predtrials <- function(object, newdata){
+  if (object$family != "binomial") return(NULL)
+  y <- tryCatch(model.response(model.frame(object$formula, data=newdata, na.action=na.pass)), error=function(e) NULL)
+  if (is.matrix(y) && ncol(y) == 2) return(rowSums(y))
+  if (all(object$obj$env$data$bn == 1)) return(rep(1, nrow(newdata)))
+  stop("prediction intervals of a binomial model need the number of trials: give the response, e.g. cbind(successes, failures), in newdata.")
+}
+
+# quantiles of new observations simulated at each parameter draw (columns of draws): conditional on
+# the drawn random effects of the fitted levels for random=TRUE, with new random effects for the
+# rows without a fitted level; binomial observations as proportions. The variance parameters are taken
+# from the draws for vardraws=TRUE (bootstrap fits), and otherwise kept at their estimates: their
+# normal approximation is poor, e.g. for standard deviations close to zero
+predsim <- function(object, pd, draws, trials, probs, vardraws=FALSE){
+  env <- object$obj$env
+  n <- length(pd$x)
+  pest <- env$parList(object$opt$par)
+  sims <- apply(draws, 2, function(par){
+    eta <- draweta(object, pd, par)
+    if (vardraws) pest <- env$parList(par=par)
+    toff <- 0
+    for (t in seq_along(object$reterms)){
+      tm <- object$reterms[[t]]
+      np <- length(tm$pars)
+      sdt <- exp(pest$theta[toff + seq_len(np)])
+      Ct <- corrmatrix(pest$theta[toff + np + seq_len(np*(np - 1)/2)], np)
+      toff <- toff + np + np*(np - 1)/2
+      new <- which(pd$newgroup[, t])
+      if (length(new) > 0){
+        E <- matrix(rnorm(length(new)*np), ncol=np) %*% chol(Ct) %*% diag(sdt, nrow=np)
+        eta[new, tm$pars] <- eta[new, tm$pars] + E
+      }
+    }
+    mu <- predmean(pd, eta)
+    phi <- exp(pest$log_sigma)
+    # draws outside the valid range of the parameters give NA
+    suppressWarnings(switch(object$family,
+                            gaussian=rnorm(n, mu, phi),
+                            poisson=rpois(n, mu),
+                            binomial=rbinom(n, trials, mu)/trials,
+                            beta=rbeta(n, mu*phi, (1 - mu)*phi)))
+  })
+  sims <- matrix(sims, nrow=n)
+  bad <- mean(!is.finite(sims))
+  if (bad > 0) warning(format(100*bad, digits=2), "% of the simulated observations are not finite and are left out; ",
+                       "parameter draws may fall outside the valid parameter range (e.g., b4 <= 0).", call.=FALSE)
+  # discrete responses: quantiles of the simulated values
+  type <- if (object$family %in% c("poisson", "binomial")) 1 else 7
+  t(apply(sims, 1, quantile, probs=probs, na.rm=TRUE, names=FALSE, type=type))
+}
+
+# confidence intervals of the means, computed on the log scale for poisson and the logit scale for
+# binomial and beta, so that they stay inside the range of the mean
+predci <- function(fit, se, family, z){
+  tr <- switch(family,
+               gaussian=list(f=identity, d=function(m) 1, i=identity),
+               poisson=list(f=log, d=function(m) 1/m, i=exp),
+               list(f=qlogis, d=function(m) 1/(m*(1 - m)), i=plogis))
+  eta <- tr$f(fit)
+  se.eta <- se*tr$d(fit)
+  ci <- cbind(lwr=tr$i(eta - z*se.eta), upr=tr$i(eta + z*se.eta))
+  # means at the boundary, e.g. an asymptote fixed at 0, without uncertainty
+  pt <- se == 0 & !is.na(se)
+  ci[pt, ] <- fit[pt]
+  ci
+}
+
+# variance of the mean from the random effects of the terms without a fitted level in each row, by
+# the delta method with numerical derivatives of the mean w.r.t. the linear predictors of b1-b5
+newgroupvar <- function(object, pd){
+  n <- length(pd$x)
+  v <- numeric(n)
+  if (length(object$reterms) == 0 || !any(pd$newgroup)) return(v)
+  g <- sapply(1:5, function(k){
+    h <- 1e-5*pmax(1, abs(pd$eta[, k]))
+    e1 <- e2 <- pd$eta
+    e1[, k] <- e1[, k] + h
+    e2[, k] <- e2[, k] - h
+    (predmean(pd, e1) - predmean(pd, e2)) / (2*h)
+  })
+  g <- matrix(g, nrow=n)
+  vcs <- recov(object)
+  for (t in seq_along(vcs)){
+    gt <- g[, vcs[[t]]$pars, drop=FALSE]
+    vt <- rowSums((gt %*% vcs[[t]]$cov) * gt)
+    v <- v + ifelse(pd$newgroup[, t], vt, 0)
+  }
+  v
 }
 
 #' @rdname drmTMB-methods

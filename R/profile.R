@@ -382,7 +382,7 @@ confint.edTMB <- function(object, parm=NULL, level=0.95, method=c("profile", "wa
   }
   if (method == "boot"){
     fit <- object$fit
-    b <- getboot(fit, boot, nsim, seed, ...)$estimates
+    b <- bootconverged(getboot(fit, boot, nsim, seed, ...))
     mod <- modelindex(fit$model)
     nb <- sum(!fit$fix)
     # effective doses of each bootstrap fit

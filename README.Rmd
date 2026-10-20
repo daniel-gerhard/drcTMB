@@ -41,17 +41,25 @@ mod <- drmTMB(rootl ~ conc, data = ryegrass, model = "loglogistic",
 print(mod)
 ```
 
-With the `predict()` method, we can visualize the fitted curve.
+With the `predict()` method, we can visualize the fitted curve, together with 95% confidence intervals for the mean response (`interval = "confidence"`) and prediction intervals for a new observation (`interval = "prediction"`).
 ```{r}
 newdata <- data.frame(conc = exp(seq(-0.5, log(30), length.out = 100)))
-newdata$pred <- predict(mod, newdata = newdata)
+ci <- predict(mod, newdata = newdata, interval = "confidence")
+pi <- predict(mod, newdata = newdata, interval = "prediction")
+head(cbind(newdata, ci))
+newdata[c("pred", "clwr", "cupr")] <- ci[c("fit", "lwr", "upr")]
+newdata[c("plwr", "pupr")] <- pi[c("lwr", "upr")]
 library(ggplot2)
 ggplot(ryegrass, aes(x = log(conc), y = rootl)) +
+  geom_ribbon(data = newdata, aes(x = log(conc), y = pred, ymin = plwr, ymax = pupr), fill = "blue", alpha = 0.1) +
+  geom_ribbon(data = newdata, aes(x = log(conc), y = pred, ymin = clwr, ymax = cupr), fill = "blue", alpha = 0.25) +
   geom_point() +
   geom_line(data = newdata, aes(x = log(conc), y = pred), color = "blue") +
   labs(x = "Log Concentration", y = "Root Length") +
   theme_bw()
 ```
+
+Bootstrap intervals are available by passing a parametric bootstrap sample of the model from `bootstrap()` through the `boot` argument of `predict()`.
 
 ## Effective dose estimation
 

@@ -22,6 +22,13 @@ Type drcTMB(objective_function<Type>* obj) {
   DATA_MATRIX(X4);
   DATA_MATRIX(X5);
   DATA_SPARSE_MATRIX(Z);   // design matrices of all terms, side by side; zero columns without random effects
+  DATA_VECTOR(xp);         // predictions (predict with se.fit): doses, length zero otherwise
+  DATA_MATRIX(Xp1);
+  DATA_MATRIX(Xp2);
+  DATA_MATRIX(Xp3);
+  DATA_MATRIX(Xp4);
+  DATA_MATRIX(Xp5);
+  DATA_SPARSE_MATRIX(Zp);  // random effects of the fitted levels; zero rows for population predictions
   PARAMETER_VECTOR(b1);
   PARAMETER_VECTOR(b2);
   PARAMETER_VECTOR(b3);
@@ -124,6 +131,41 @@ Type drcTMB(objective_function<Type>* obj) {
   }
   SIMULATE {
     REPORT(y);
+  }
+
+  // mean at the doses xp, for standard errors of the predictions by the delta method
+  int npred = xp.size();
+  if (npred > 0){
+    matrix<Type> Zup(npred, 5);
+    Zup.setZero();
+    int uoff = 0, poff = 0, zoff = 0;
+    for (int t = 0; t < nt; t++){
+      int np = tnp(t);
+      int nl = tnl(t);
+      for (int k = 0; k < np; k++){
+        vector<Type> uk = u.segment(uoff + k*nl, nl);
+        vector<Type> Zuk = Zp.middleCols(zoff, nl) * uk.matrix();
+        Zup.col(tpar(poff + k)) += Zuk.matrix();
+      }
+      uoff += nl*np;
+      poff += np;
+      zoff += nl;
+    }
+    vector<Type> Xpb1 = Xp1 * b1;
+    vector<Type> Xpb2 = Xp2 * b2;
+    vector<Type> Xpb3 = Xp3 * b3;
+    vector<Type> Xpb4 = Xp4 * b4;
+    vector<Type> Xpb5 = Xp5 * b5;
+    vector<Type> mu(npred);
+    for (int i = 0; i < npred; i++){
+      mu(i) = drcmean(mod, xp(i),
+                      linkinv(lnk, Type(Xpb1(i) + Zup(i, 0))),
+                      linkinv(lnk, Type(Xpb2(i) + Zup(i, 1))),
+                      Type(Xpb3(i) + Zup(i, 2)),
+                      Type(Xpb4(i) + Zup(i, 3)),
+                      Type(Xpb5(i) + Zup(i, 4)));
+    }
+    ADREPORT(mu);
   }
   return nll;
 }

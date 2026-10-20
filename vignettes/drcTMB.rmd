@@ -47,6 +47,37 @@ ggplot(ryegrass, aes(x = log(conc), y = rootl)) +
   theme_bw()
 ```
 
+### Confidence and prediction intervals
+
+With `interval = "confidence"`, `predict()` adds standard errors and confidence intervals for the mean response, computed by the delta method. With `interval = "prediction"`, the intervals are for a new observation, adding the residual variation. The result is a data frame with the columns `fit`, `se.fit`, `lwr` and `upr`.
+```{r}
+# the controls (conc = 0) are drawn at a small concentration on the log axis
+ryegrass$cplot <- ifelse(ryegrass$conc == 0, 0.25, ryegrass$conc)
+ndata <- data.frame(conc = exp(seq(log(0.25), log(30), length.out = 100)))
+
+ci <- predict(mod, newdata = ndata, interval = "confidence")
+pri <- predict(mod, newdata = ndata, interval = "prediction")
+head(ci, 3)
+
+bands <- rbind(cbind(ndata, ci, interval = "95% confidence interval"),
+               cbind(ndata, pri, interval = "95% prediction interval"))
+ggplot(bands, aes(x = conc)) +
+  geom_ribbon(aes(ymin = lwr, ymax = upr, fill = interval), alpha = 0.3) +
+  geom_line(data = cbind(ndata, ci), aes(y = fit), colour = "blue") +
+  geom_point(data = ryegrass, aes(x = cplot, y = rootl)) +
+  scale_x_log10(breaks = c(0.25, 1, 3, 10, 30), labels = c("0", "1", "3", "10", "30")) +
+  scale_fill_manual(values = c("steelblue", "grey60")) +
+  labs(x = "Concentration (log scale)", y = "Root length", fill = NULL) +
+  theme_bw() +
+  theme(legend.position = "bottom")
+```
+
+Alternatively, the intervals can be based on a parametric bootstrap of the model: `bootstrap()` simulates new responses from the fitted model and fits the model again to each of them. The bootstrap sample can be reused for the intervals of `predict()` and `confint()`.
+```{r}
+bs <- bootstrap(mod, nsim = 200, seed = 1)
+head(predict(mod, newdata = ndata, interval = "confidence", boot = bs), 3)
+```
+
 ## Effective dose estimation
 
 The `ed()` function can be used to estimate effective doses (e.g., ED50, ED90) from the fitted model, given a specified response level (`respLev`). The effective dose ED p is the dose at which the response has changed by p% of the difference between the asymptote at low doses (the control) and the asymptote at high doses.
@@ -67,26 +98,35 @@ confint(effdose_glht)
 
 The `family` argument allows to specify the distribution of the response as "gaussian", "poisson", "binomial", or "beta".
 To improve optimisation, the `link` argument allows us to estimate the asymptote parameters b1 and b2 on a transformed scale. Furthermore, we can add constraints on the parameters through the `lower` and `upper` arguments with vectors for the lower and upper bounds of the parameters, respectively.
+
+For the proportion of immobile daphnids after 48 hours, we fit a 2-parameter log-logistic model, with the asymptotes fixed at 0 and 1 and without asymmetry (b5 = 0). With only eight doses, the asymmetry parameter b5 cannot be estimated reliably: in a model with b5, the parameters b3, b4 and b5 are almost perfectly correlated, with very large standard errors.
 ```{r}
 data(daphnids)
 d48 <- subset(daphnids, time == "48h")
 
 dmod <- drmTMB(cbind(no, total-no) ~ dose, data=d48, model="loglogistic", family="binomial", 
-               start=c(0, 1, 1, 1000, 0), fix=c(TRUE, TRUE, FALSE, FALSE, FALSE))
+               start=c(0, 1, 1, 1000, 0), fix=c(TRUE, TRUE, FALSE, FALSE, TRUE))
 dmod
 ```
 
+The confidence intervals for the mean proportion are computed on the logit scale, so that they stay between 0 and 1. For the binomial, poisson and beta families, prediction intervals are quantiles of new observations, simulated at draws from the approximate normal distribution of the estimates (`nsim` draws). The number of trials of the new observations is taken from the response variables in `newdata`, here a new beaker with 20 daphnids at each dose; the value of `no` is not used.
 ```{r}
-ndata <- data.frame(dose = exp(seq(3, log(22000), length.out = 100)))
-ndata$pred <- predict(dmod, newdata = ndata)
+ndata <- data.frame(dose = exp(seq(3, log(22000), length.out = 100)), no = 0, total = 20)
+cib <- predict(dmod, newdata = ndata, interval = "confidence")
+pib <- predict(dmod, newdata = ndata, interval = "prediction", nsim = 2000, seed = 1)
 
-ggplot(d48, aes(x = dose, y = no/total)) +
-  geom_point() +
-  geom_line(data = ndata, aes(x = dose, y = pred), color = "blue") +
-  labs(x = "Dose", y = "Proportion of Immobile Daphnids") +
-  theme_bw() +
-  scale_x_continuous(breaks = c(100, 500, 2500, 10000), trans="log")
+ggplot(cbind(ndata, pib), aes(x = dose)) +
+  geom_ribbon(aes(ymin = lwr, ymax = upr), fill = "grey60", alpha = 0.3) +
+  geom_ribbon(data = cbind(ndata, cib), aes(ymin = lwr, ymax = upr), fill = "steelblue", alpha = 0.4) +
+  geom_line(aes(y = fit), colour = "blue") +
+  geom_point(data = d48, aes(y = no/total)) +
+  scale_x_log10(breaks = c(100, 500, 2500, 10000)) +
+  labs(x = "Dose (log scale)", y = "Proportion of immobile daphnids",
+       subtitle = "Blue: 95% confidence interval; grey: 95% prediction interval for 20 daphnids") +
+  theme_bw()
 ```
+
+The simulated prediction intervals rely on the normal approximation of the estimates; for models with poorly identified parameters, a bootstrap sample (`boot = bootstrap(dmod)`) is the safer choice.
 
 
 ## Additional parameters
@@ -99,7 +139,7 @@ dmodg <- drmTMB(cbind(no, total-no) ~ dose, data=daphnids,
                 model="loglogistic", family="binomial",
                 fform=b3 + b4 ~ 0 + time,
                 start=c(0, 1, 1, 1, 1000, 1000, 0), 
-                fix=c(TRUE, TRUE, FALSE, FALSE, FALSE, FALSE, FALSE))
+                fix=c(TRUE, TRUE, FALSE, FALSE, FALSE, FALSE, TRUE))
 dmodg
 ```
 
@@ -140,17 +180,16 @@ confint(edose_glht)
 
 ## Random effects
 
-Fitting a 5-parameter log-logistic model to the vinclozolin dataset, which contains luminescence measurements of a dose-response experiment with 6 replications. The model includes random effects for the lower and upper asymptote b1 and b2, and the location of the inflection point b4, with a random intercept for each replication.
-Given that there is not much information about the upper asymptote available in the sample, there is some dependency on the starting values. But the model can still be useful as an example for fitting a nonlinear mixed-effect model with the drmTMB function. The `lower` argument is used to constrain the fixed effect parameters to be positive, to improve optimisation.
+Fitting a 4-parameter log-logistic model to the vinclozolin dataset, which contains luminescence measurements of a dose-response experiment with 6 replications. The model includes correlated random effects for the lower and upper asymptote b1 and b2, with a random intercept for each replication. With only six replications, a model with an additional random effect for the location b4 cannot be estimated reliably. The `lower` argument is used to constrain the asymptotes and b4 to be positive, to improve optimisation.
 
 ```{r, message=FALSE, warning=FALSE}
 data(vinclozolin)
 vmod <- drmTMB(effect ~ conc, data=vinclozolin, 
                model="loglogistic", 
-               rform=b1 + b2 + b4 ~ 1 | exper,
-               start = c(100, 1700, -0.5, 0.01, 0), 
-               fix = c(FALSE, FALSE, FALSE, FALSE, FALSE), 
-               lower = c(0, 0, -Inf, 0, 0))
+               rform=b1 + b2 ~ 1 | exper,
+               start = c(b5 = 0), fix = c(b5 = TRUE), 
+               lower = c(0, 0, -Inf, 0, -Inf))
+summary(vmod)
 ```
 
 We can visualise the predictions conditional on the random effects.
@@ -174,10 +213,38 @@ ggplot(vinclozolin, aes(x = log(conc), y = effect, colour=exper)) +
 
 ```
 
+### Prediction intervals in a mixed-effect model
+
+With random effects, the argument `random` decides which new observation a prediction interval is for. With `random = TRUE`, it is a new observation in the replication of each row of `newdata`, using its predicted random effects; the standard errors include the uncertainty of the predicted random effects. With `random = FALSE`, it is a new observation in a new replication, and the variance of the random effects is added. Rows of `newdata` with a replication that is not in the data are treated as new replications.
+```{r, message=FALSE, warning=FALSE}
+vinclozolin$cplot <- ifelse(vinclozolin$conc == 0, 0.01, vinclozolin$conc)
+ndatav <- expand.grid(conc = exp(seq(log(0.01), log(6), length.out = 200)),
+                      exper = levels(vinclozolin$exper))
+
+# a new observation in each of the six replications
+pic <- cbind(ndatav, predict(vmod, newdata = ndatav, interval = "prediction"))
+# a new observation in a new replication
+ndatap <- data.frame(conc = unique(ndatav$conc))
+pin <- cbind(ndatap, predict(vmod, newdata = ndatap, random = FALSE, interval = "prediction"))
+
+ggplot(pic, aes(x = conc)) +
+  geom_ribbon(data = pin, aes(ymin = lwr, ymax = upr), fill = "grey60", alpha = 0.25) +
+  geom_ribbon(aes(ymin = lwr, ymax = upr, fill = exper), alpha = 0.2) +
+  geom_line(aes(y = fit, colour = exper)) +
+  geom_line(data = pin, aes(y = fit), linewidth = 1) +
+  geom_point(data = vinclozolin, aes(x = cplot, y = effect, colour = exper)) +
+  facet_wrap(~ exper) +
+  scale_x_log10(breaks = c(0.01, 0.1, 1, 5), labels = c("0", "0.1", "1", "5")) +
+  labs(x = "Concentration (log scale)", y = "Fluorescence",
+       subtitle = "Coloured: prediction interval in the replication; grey: in a new replication") +
+  theme_bw() +
+  theme(legend.position = "none")
+```
+
 
 ### Estimating effective doses in a mixed-effect model
 
-The `ed()` function is using the delta method to estimates effective doses and their corresponding standard errors. The standard error estimation includes by default the estimated variance components of the random effects.
+The `ed()` function is using the delta method to estimates effective doses and their corresponding standard errors. The standard error estimation includes by default the estimated variance components of the random effects. Here, the random effects are on the asymptotes only. The effective doses are defined relative to the asymptotes, so they do not depend on these random effects, and the standard error is the same as for the population curve.
 
 ```{r, message=FALSE, warning=FALSE}
 (edv <- ed(vmod, respLev=50, random=TRUE))

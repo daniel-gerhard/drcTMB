@@ -34,7 +34,18 @@
   ...
 )
 
-\method{predict}{drmTMB}(object, newdata = NULL, random = TRUE, ...)
+\method{predict}{drmTMB}(
+  object,
+  newdata = NULL,
+  random = TRUE,
+  se.fit = FALSE,
+  interval = c("none", "confidence", "prediction"),
+  level = 0.95,
+  boot = NULL,
+  nsim = 1000,
+  seed = NULL,
+  ...
+)
 
 \method{coef}{drmTMB}(object, ...)
 
@@ -49,18 +60,29 @@
 
 \item{...}{anything else}
 
-\item{random}{logical, if TRUE, the random effects are included in the predictions, fitted values and residuals (conditional residuals). For simulate, if TRUE, new random effects are drawn for each simulation, otherwise the fitted random effects are kept.}
+\item{random}{logical, if TRUE, the random effects are included in the predictions, fitted values and residuals (conditional residuals). For simulate, if TRUE, new random effects are drawn for each simulation, otherwise the fitted random effects are kept.
+For prediction intervals, random=TRUE gives the interval of a new observation in the group of each row of newdata, and random=FALSE the interval of a new observation in a new group, including the variance of the random effects. Rows of newdata with a level that is not in the fitted data are treated as new groups for that random effect term.}
 
 \item{type}{type of residuals: "pearson" (default), the response residuals divided by the standard deviation of the fitted distribution and multiplied by the square root of the weights; "response", the observed minus the fitted values, as proportions for a binomial response; or "quantile", randomised quantile residuals (Dunn and Smyth, 1996), which are standard normal under the model. The quantile residuals do not use the weights, and are random for poisson and binomial responses; use set.seed for reproducible values.}
 
 \item{newdata}{a data frame for prediction. If NULL, the original data is used.}
 
-\item{nsim}{number of response vectors to simulate}
+\item{se.fit}{logical, if TRUE, predict returns the standard errors of the predicted means, by the delta method; with random=TRUE they include the uncertainty of the predicted random effects.}
+
+\item{interval}{type of interval of predict: "none", "confidence" for confidence intervals of the mean, computed on the log scale for poisson and on the logit scale for binomial and beta responses, or "prediction" for prediction intervals of a new observation with weight 1. For the gaussian family without boot, the prediction intervals use the normal distribution, and the variance of the random effects of new groups is added by the delta method. Otherwise they are quantiles of new observations simulated at nsim draws from the normal approximation of the fixed and random effects, with the variance parameters kept at their estimates, or at the bootstrap fits (see boot); with new random effects for new groups; for a binomial response as proportions, with the number of trials from the response in newdata (one for a binary response).}
+
+\item{level}{confidence level of the intervals of predict}
+
+\item{boot}{a bootstrap sample of the model from \code{\link{bootstrap}}. predict then gives the standard deviation of the bootstrap predictions as se.fit, percentile confidence intervals, and prediction intervals simulated at the bootstrap fits, including their variance parameters. The bootstrap responses have new random effects, so for random=TRUE the random effects of the fitted groups are drawn, for each bootstrap fit, from the Laplace approximation of their conditional distribution given the original data at the parameters of that fit.}
+
+\item{nsim}{number of response vectors to simulate; for predict, the number of parameter draws for simulated prediction intervals}
 
 \item{seed}{an optional seed for the random number generator}
 }
 \value{
 Estimated model coefficients, variance-covariance matrix, or predictions.
+predict returns a vector of predicted means, or, with se.fit=TRUE or an interval, a data frame with
+the predicted means (fit), their standard errors (se.fit), and the limits of the intervals (lwr, upr).
 coef and vcov include the variance parameters: for each random effect term the log standard deviations
 (log_sd:b1|group) and, for correlated random effects, the parameters of the correlation matrix
 (corr_par:b2,b1|group, unconstrained elements of the lower triangle of its Cholesky factor, by row);
