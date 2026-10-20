@@ -71,7 +71,7 @@ confint.bootstrap.drmTMB <- function(object, parm=NULL, level=0.95, ...){
   if (is.null(parm)) parm <- seq_along(est)
   if (is.character(parm)) parm <- match(parm, names(est))
   if (any(is.na(parm))) stop("unknown parameters in parm.")
-  ci <- t(apply(object$estimates[, parm, drop=FALSE], 2, quantile, probs=c((1 - level)/2, (1 + level)/2), na.rm=TRUE, names=FALSE))
+  ci <- t(apply(bootconverged(object)[, parm, drop=FALSE], 2, quantile, probs=c((1 - level)/2, (1 + level)/2), na.rm=TRUE, names=FALSE))
   natscale(ci, names(est)[parm], corr2names(object$fit), level)
 }
 
@@ -84,6 +84,13 @@ getboot <- function(fit, boot, nsim, seed, progress=interactive(), ...){
   if (!inherits(boot, "bootstrap.drmTMB")) stop("boot must be the result of bootstrap().")
   if (!identical(coef(boot$fit), coef(fit)) || !identical(boot$fit$call, fit$call)) stop("boot is a bootstrap sample of a different model.")
   boot
+}
+
+# estimates of the converged bootstrap fits, at least two for standard errors and intervals
+bootconverged <- function(boot){
+  est <- boot$estimates[!is.na(boot$estimates[, 1]), , drop=FALSE]
+  if (nrow(est) < 2) stop("only ", nrow(est), " of ", boot$nsim, " bootstrap fits converged; at least 2 are needed for bootstrap intervals.")
+  est
 }
 
 # text progress bar of package utils, or nothing

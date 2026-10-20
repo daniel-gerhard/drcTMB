@@ -88,6 +88,15 @@ test_that("bootstrap intervals agree with the delta method and the analytic pred
   pb <- predict(f, nd, interval="prediction", boot=bs, seed=1)
   expect_equal(pb$upr - pb$lwr, pa$upr - pa$lwr, tolerance=0.1)
   expect_identical(pb, predict(f, nd, interval="prediction", boot=bs, seed=1))
+  # a single prediction
+  expect_equal(predict(f, nd[2, , drop=FALSE], interval="confidence", boot=bs), cb[2, ], ignore_attr=TRUE)
+  expect_equal(nrow(predict(f, nd[2, , drop=FALSE], interval="prediction", boot=bs, seed=1)), 1)
+  # too few converged fits
+  b1 <- bs
+  b1$estimates[-1, ] <- NA
+  expect_error(predict(f, nd, interval="confidence", boot=b1), "only 1 of 300 bootstrap fits converged")
+  b1$estimates[] <- NA
+  expect_error(predict(f, nd, interval="prediction", boot=b1), "only 0 of 300")
 
   # with random effects only for population predictions
   d <- simgroups(ng=8, seed=7)

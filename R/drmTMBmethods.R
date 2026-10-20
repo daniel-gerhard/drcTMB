@@ -336,27 +336,30 @@ predictse <- function(object, pd){
 
 # population curves of the bootstrap fits, one column per converged fit
 bootcurves <- function(object, pd, boot){
-  est <- boot$estimates[!is.na(boot$estimates[, 1]), , drop=FALSE]
+  est <- bootconverged(boot)
   npi <- rep(1:5, sapply(pd$Xs, ncol))
-  apply(est, 1, function(b){
+  bc <- apply(est, 1, function(b){
     cest <- object$start
     cest[!object$fix] <- b[seq_len(sum(!object$fix))]
     eta <- matrix(sapply(1:5, function(i) as.vector(pd$Xs[[i]] %*% cest[npi == i])), ncol=5)
     predmean(pd, eta)
   })
+  # apply drops to a vector for a single prediction
+  matrix(bc, nrow=length(pd$x))
 }
 
 # parameter vectors (as obj$env$par, one per column) of the converged bootstrap fits; the random
 # effects are not used for population predictions
 bootdraws <- function(object, boot){
-  est <- boot$estimates[!is.na(boot$estimates[, 1]), , drop=FALSE]
+  est <- bootconverged(boot)
   env <- object$obj$env
   r <- env$random
-  apply(est, 1, function(b){
+  draws <- apply(est, 1, function(b){
     par <- numeric(length(env$par))
     if (is.null(r)) par[] <- b else par[-r] <- b
     par
   })
+  matrix(draws, nrow=length(env$par))
 }
 
 # draws from the normal approximation of all parameters: the covariance of the fixed parameters,

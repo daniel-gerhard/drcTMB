@@ -76,4 +76,8 @@ test_that("bootstrap uses the iteration limits of the fit", {
   expect_warning(f <- fit4(y ~ dose, data=d, model="loglogistic", control=list(iter.max=1)), "did not converge")
   expect_message(bs <- suppressWarnings(bootstrap(f, nsim=2, seed=1, progress=FALSE)), "2 of 2 bootstrap fits did not converge")
   expect_true(all(is.na(bs$estimates)))
+  # no intervals without converged fits
+  expect_error(confint(bs), "only 0 of 2 bootstrap fits converged")
+  expect_error(confint(f, boot=bs), "only 0 of 2")
+  expect_error(confint(ed(f), boot=bs), "only 0 of 2")
 })
