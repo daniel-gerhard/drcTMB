@@ -103,9 +103,41 @@ test_that("bootstrap intervals agree with the delta method and the analytic pred
   d$y <- drcmean("loglogistic", d$dose, c(1, 8, -1.5, 3, 0)) + rnorm(8, 0, 0.5)[d$grp] + rnorm(nrow(d), 0, 0.3)
   g <- fit4(y ~ dose, rform=b2 ~ 1 | grp, data=d, model="loglogistic")
   bg <- bootstrap(g, nsim=5, seed=1, progress=FALSE)
-  expect_message(cg <- predict(g, interval="confidence", boot=bg), "random=FALSE")
-  expect_equal(cg, predict(g, interval="confidence"))
   expect_silent(predict(g, random=FALSE, interval="confidence", boot=bg))
+})
+
+test_that("bootstrap intervals with the random effects of the fitted groups", {
+  d <- simgroups(ng=20, seed=8)
+  d$y <- drcmean("loglogistic", d$dose, c(1, 8, -1.5, 3, 0)) + rnorm(20, 0, 0.8)[d$grp] + rnorm(nrow(d), 0, 0.3)
+  g <- fit4(y ~ dose, rform=b2 ~ 1 | grp, data=d, model="loglogistic")
+  r <- g$obj$env$random
+
+  # at the estimates, the drawn random effects follow their conditional distribution: mean at the
+  # predicted random effects, covariance the inverse Hessian (without the uncertainty of the fixed
+  # parameters, unlike sdreport)
+  b0 <- list(estimates=matrix(coef(g), 4000, length(coef(g)), byrow=TRUE), nsim=4000)
+  set.seed(1)
+  u <- bootdraws(g, b0, random=TRUE)[r, ]
+  sdr <- sdreport(g$obj, par.fixed=g$opt$par)
+  expect_equal(rowMeans(u), unname(sdr$par.random), tolerance=0.02)
+  g$obj$fn(g$opt$par)
+  H <- as.matrix(g$obj$env$spHess(g$obj$env$last.par, random=TRUE))
+  expect_equal(apply(u, 1, sd), sqrt(diag(solve(H))), tolerance=0.05)
+  expect_true(all(sqrt(diag(solve(H))) < sqrt(sdr$diag.cov.random)))
+  expect_true(all(bootdraws(g, b0, random=FALSE)[r, ] == 0))
+
+  # intervals for fitted groups close to the delta method, and a new group gets the population curve
+  bg <- bootstrap(g, nsim=200, seed=1, progress=FALSE)
+  nd <- data.frame(dose=c(0, 2, 16, 2), grp=factor(c("1", "1", "1", "new")))
+  cd <- predict(g, nd, interval="confidence")
+  cb <- predict(g, nd, interval="confidence", boot=bg, seed=1)
+  expect_identical(cb, predict(g, nd, interval="confidence", boot=bg, seed=1))
+  expect_equal(cb$fit, cd$fit)
+  expect_equal(cb$se.fit[1:3], cd$se.fit[1:3], tolerance=0.2)
+  expect_equal(cb[4, ], predict(g, nd[4, ], random=FALSE, interval="confidence", boot=bg, seed=1), ignore_attr=TRUE)
+  pb <- predict(g, nd, interval="prediction", boot=bg, seed=1)
+  pa <- predict(g, nd, interval="prediction")
+  expect_equal(pb$upr - pb$lwr, pa$upr - pa$lwr, tolerance=0.15)
 })
 
 test_that("the correlation matrix of a random effect term follows TMB", {

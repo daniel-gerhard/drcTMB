@@ -5,13 +5,13 @@
 #' @param random logical, if TRUE, the random effects are included in the predictions, fitted values and residuals (conditional residuals). For simulate, if TRUE, new random effects are drawn for each simulation, otherwise the fitted random effects are kept.
 #'   For prediction intervals, random=TRUE gives the interval of a new observation in the group of each row of newdata, and random=FALSE the interval of a new observation in a new group, including the variance of the random effects. Rows of newdata with a level that is not in the fitted data are treated as new groups for that random effect term.
 #' @param se.fit logical, if TRUE, predict returns the standard errors of the predicted means, by the delta method; with random=TRUE they include the uncertainty of the predicted random effects.
-#' @param interval type of interval of predict: "none", "confidence" for confidence intervals of the mean, computed on the log scale for poisson and on the logit scale for binomial and beta responses, or "prediction" for prediction intervals of a new observation with weight 1. For the gaussian family without boot, the prediction intervals use the normal distribution, and the variance of the random effects of new groups is added by the delta method. Otherwise they are quantiles of new observations simulated at nsim draws from the normal approximation of the fixed and random effects (or at the bootstrap fits), with new random effects for new groups; the variance parameters are kept at their estimates; for a binomial response as proportions, with the number of trials from the response in newdata (one for a binary response).
+#' @param interval type of interval of predict: "none", "confidence" for confidence intervals of the mean, computed on the log scale for poisson and on the logit scale for binomial and beta responses, or "prediction" for prediction intervals of a new observation with weight 1. For the gaussian family without boot, the prediction intervals use the normal distribution, and the variance of the random effects of new groups is added by the delta method. Otherwise they are quantiles of new observations simulated at nsim draws from the normal approximation of the fixed and random effects, with the variance parameters kept at their estimates, or at the bootstrap fits (see boot); with new random effects for new groups; for a binomial response as proportions, with the number of trials from the response in newdata (one for a binary response).
 #' @param level confidence level of the intervals of predict
 #' @param digits number of significant digits in the printed output
 #' @param type type of residuals: "pearson" (default), the response residuals divided by the standard deviation of the fitted distribution and multiplied by the square root of the weights; "response", the observed minus the fitted values, as proportions for a binomial response; or "quantile", randomised quantile residuals (Dunn and Smyth, 1996), which are standard normal under the model. The quantile residuals do not use the weights, and are random for poisson and binomial responses; use set.seed for reproducible values.
 #' @param nsim number of response vectors to simulate; for predict, the number of parameter draws for simulated prediction intervals
 #' @param seed an optional seed for the random number generator
-#' @param boot a bootstrap sample of the model from \code{\link{bootstrap}}. predict then gives the standard deviation of the bootstrap predictions as se.fit, percentile confidence intervals, and prediction intervals simulated at the bootstrap fits. Only for population predictions (random=FALSE) of models with random effects.
+#' @param boot a bootstrap sample of the model from \code{\link{bootstrap}}. predict then gives the standard deviation of the bootstrap predictions as se.fit, percentile confidence intervals, and prediction intervals simulated at the bootstrap fits, including their variance parameters. The bootstrap responses have new random effects, so for random=TRUE the random effects of the fitted groups are drawn, for each bootstrap fit, from the Laplace approximation of their conditional distribution given the original data at the parameters of that fit.
 #' @param ... anything else
 #'
 #' @return Estimated model coefficients, variance-covariance matrix, or predictions.
@@ -219,21 +219,15 @@ predict.drmTMB <- function(object, newdata=NULL, random=TRUE, se.fit=FALSE, inte
   pd <- preddata(object, newdata, random)
   fit <- predmean(pd, pd$eta)
   if (!se.fit && interval == "none") return(fit)
-  if (!is.null(boot)){
-    boot <- getboot(object, boot, nsim, seed)
-    if (random && length(object$reterms) > 0){
-      message("Bootstrap intervals are only available for population predictions, random=FALSE; ",
-              "using the delta method and simulation from the estimates.")
-      boot <- NULL
-    }
-  }
+  if (!is.null(seed)) set.seed(seed)
 
-  # standard errors and confidence intervals: delta method, or the curves of the bootstrap fits
+  # standard errors and confidence intervals: delta method, or the curves at the bootstrap draws
   probs <- c((1 - level)/2, (1 + level)/2)
   if (is.null(boot)){
     se <- predictse(object, pd)
   } else {
-    bc <- bootcurves(object, pd, boot)
+    draws <- bootdraws(object, getboot(object, boot, nsim, seed), random)
+    bc <- drawcurves(object, pd, draws)
     se <- apply(bc, 1, sd, na.rm=TRUE)
   }
   res <- data.frame(fit=fit, se.fit=se)
@@ -254,9 +248,8 @@ predict.drmTMB <- function(object, newdata=NULL, random=TRUE, se.fit=FALSE, inte
       # simulated new observations at parameter draws: from the bootstrap fits, or from the normal
       # approximation of the fixed and random effects
       trials <- predtrials(object, newdata)
-      if (!is.null(seed)) set.seed(seed)
-      draws <- if (is.null(boot)) jointdraws(object, nsim) else bootdraws(object, boot)
-      res[c("lwr", "upr")] <- predsim(object, pd, draws, trials, probs)
+      if (is.null(boot)) draws <- jointdraws(object, nsim)
+      res[c("lwr", "upr")] <- predsim(object, pd, draws, trials, probs, vardraws=!is.null(boot))
     }
   }
   res
@@ -334,32 +327,66 @@ predictse <- function(object, pd){
   unname(s[rownames(s) == "mu", 2])
 }
 
-# population curves of the bootstrap fits, one column per converged fit
-bootcurves <- function(object, pd, boot){
-  est <- bootconverged(boot)
-  npi <- rep(1:5, sapply(pd$Xs, ncol))
-  bc <- apply(est, 1, function(b){
-    cest <- object$start
-    cest[!object$fix] <- b[seq_len(sum(!object$fix))]
-    eta <- matrix(sapply(1:5, function(i) as.vector(pd$Xs[[i]] %*% cest[npi == i])), ncol=5)
-    predmean(pd, eta)
-  })
+# linear predictors of b1-b5 at a parameter vector par (as obj$env$par), with the random effects of
+# the fitted levels in pd (none for random=FALSE)
+draweta <- function(object, pd, par){
+  pl <- object$obj$env$parList(par=par)
+  eta <- matrix(sapply(1:5, function(i) as.vector(pd$Xs[[i]] %*% pl[[paste("b", i, sep="")]])), ncol=5)
+  uoff <- 0
+  for (t in seq_along(object$reterms)){
+    tm <- object$reterms[[t]]
+    nl <- length(tm$levels)
+    np <- length(tm$pars)
+    U <- matrix(pl$u[uoff + seq_len(nl*np)], nrow=nl)
+    uoff <- uoff + nl*np
+    eta[, tm$pars] <- eta[, tm$pars] + as.matrix(pd$Zl[[t]] %*% U)
+  }
+  eta
+}
+
+# predicted means at the parameter draws, one column per draw
+drawcurves <- function(object, pd, draws){
+  bc <- apply(draws, 2, function(par) predmean(pd, draweta(object, pd, par)))
   # apply drops to a vector for a single prediction
   matrix(bc, nrow=length(pd$x))
 }
 
-# parameter vectors (as obj$env$par, one per column) of the converged bootstrap fits; the random
-# effects are not used for population predictions
-bootdraws <- function(object, boot){
+# parameter vectors (as obj$env$par, one per column) of the converged bootstrap fits. With random
+# effects and random=TRUE, the random effects of the fitted levels are drawn from their conditional
+# distribution given the original data at the parameters of each bootstrap fit: the bootstrap
+# responses have new random effects, so the random effects of the bootstrap fits are not those of
+# the fitted groups. Otherwise the random effects are not used.
+bootdraws <- function(object, boot, random){
   est <- bootconverged(boot)
   env <- object$obj$env
   r <- env$random
-  draws <- apply(est, 1, function(b){
-    par <- numeric(length(env$par))
-    if (is.null(r)) par[] <- b else par[-r] <- b
-    par
-  })
-  matrix(draws, nrow=length(env$par))
+  if (is.null(r)) return(matrix(t(est), ncol=nrow(est)))
+  draws <- matrix(0, length(env$par), nrow(est))
+  draws[-r, ] <- t(est)
+  if (random){
+    obj <- MakeADFun(env$data, env$parList(object$opt$par), map=env$map, random="u", DLL=env$DLL, silent=TRUE)
+    for (k in seq_len(nrow(est))) draws[r, k] <- conddraw(obj, est[k, ])
+    ok <- !is.na(draws[r[1], ])
+    if (sum(ok) < nrow(est)) message(nrow(est) - sum(ok), " of ", nrow(est), " conditional distributions of the random effects at the bootstrap fits failed; these fits are left out.")
+    if (sum(ok) < 2) stop("fewer than 2 bootstrap fits are left for bootstrap intervals.")
+    draws <- draws[, ok, drop=FALSE]
+  }
+  draws
+}
+
+# one draw of the random effects of obj from the Laplace approximation of their conditional
+# distribution given the data, at the fixed parameters par: normal with the conditional mode as the
+# mean and the Hessian of the negative log-likelihood in the random effects as the precision; NA if
+# the inner optimisation fails
+conddraw <- function(obj, par){
+  r <- obj$env$random
+  u <- tryCatch({
+    if (!is.finite(suppressWarnings(obj$fn(par)))) stop("not finite")
+    lp <- obj$env$last.par
+    R <- chol(as.matrix(obj$env$spHess(lp, random=TRUE)))
+    lp[r] + backsolve(R, rnorm(length(r)))
+  }, error=function(e) NULL)
+  if (is.null(u) || any(!is.finite(u))) rep(NA, length(r)) else u
 }
 
 # draws from the normal approximation of all parameters: the covariance of the fixed parameters,
@@ -404,27 +431,23 @@ predtrials <- function(object, newdata){
 
 # quantiles of new observations simulated at each parameter draw (columns of draws): conditional on
 # the drawn random effects of the fitted levels for random=TRUE, with new random effects for the
-# rows without a fitted level; binomial observations as proportions. The variance parameters are kept
-# at their estimates: their normal approximation is poor, e.g. for standard deviations close to zero
-predsim <- function(object, pd, draws, trials, probs){
+# rows without a fitted level; binomial observations as proportions. The variance parameters are taken
+# from the draws for vardraws=TRUE (bootstrap fits), and otherwise kept at their estimates: their
+# normal approximation is poor, e.g. for standard deviations close to zero
+predsim <- function(object, pd, draws, trials, probs, vardraws=FALSE){
   env <- object$obj$env
   n <- length(pd$x)
   pest <- env$parList(object$opt$par)
   sims <- apply(draws, 2, function(par){
-    pl <- env$parList(par=par)
-    eta <- matrix(sapply(1:5, function(i) as.vector(pd$Xs[[i]] %*% pl[[paste("b", i, sep="")]])), ncol=5)
-    uoff <- 0
+    eta <- draweta(object, pd, par)
+    if (vardraws) pest <- env$parList(par=par)
     toff <- 0
     for (t in seq_along(object$reterms)){
       tm <- object$reterms[[t]]
-      nl <- length(tm$levels)
       np <- length(tm$pars)
-      U <- matrix(pl$u[uoff + seq_len(nl*np)], nrow=nl)
       sdt <- exp(pest$theta[toff + seq_len(np)])
       Ct <- corrmatrix(pest$theta[toff + np + seq_len(np*(np - 1)/2)], np)
-      uoff <- uoff + nl*np
       toff <- toff + np + np*(np - 1)/2
-      eta[, tm$pars] <- eta[, tm$pars] + as.matrix(pd$Zl[[t]] %*% U)
       new <- which(pd$newgroup[, t])
       if (length(new) > 0){
         E <- matrix(rnorm(length(new)*np), ncol=np) %*% chol(Ct) %*% diag(sdt, nrow=np)
