@@ -41,20 +41,44 @@ data(ryegrass)
 mod <- drmTMB(rootl ~ conc, data = ryegrass, model = "loglogistic", 
               start=c(0, 8, -1, 2, 0), fix=c(TRUE, FALSE, FALSE, FALSE, TRUE))
 print(mod)
+#> Call:
+#> drmTMB(form = rootl ~ conc, data = ryegrass, start = c(0, 8, 
+#>     -1, 2, 0), fix = c(TRUE, FALSE, FALSE, FALSE, TRUE), model = "loglogistic")
+#> 
+#> Model:  loglogistic
+#> Family: gaussian, identity link for the asymptotes
+#> 
 #> Coefficients:
-#>                 Estimate Std. Error
-#> b2:(Intercept)  7.855428  0.1911812
-#> b3:(Intercept) -2.470324  0.3196156
-#> b4:(Intercept)  3.263356  0.1837212
+#> b2:(Intercept)  b3:(Intercept)  b4:(Intercept)  
+#>          7.855          -2.470           3.263  
+#> Fixed: b1:(Intercept) = 0, b5:(Intercept) = 0
+#> 
+#> Residual standard deviation: 0.5253
 ```
 
-With the `predict()` method, we can visualize the fitted curve.
+With the `predict()` method, we can visualize the fitted curve, together
+with 95% confidence intervals for the mean response
+(`interval = "confidence"`) and prediction intervals for a new
+observation (`interval = "prediction"`).
 
 ``` r
 newdata <- data.frame(conc = exp(seq(-0.5, log(30), length.out = 100)))
-newdata$pred <- predict(mod, newdata = newdata)
+ci <- predict(mod, newdata = newdata, interval = "confidence")
+pi <- predict(mod, newdata = newdata, interval = "prediction")
+head(cbind(newdata, ci))
+#>        conc      fit    se.fit      lwr      upr
+#> 1 0.6065307 7.734345 0.1675733 7.405907 8.062783
+#> 2 0.6309088 7.722175 0.1665990 7.395647 8.048703
+#> 3 0.6562668 7.708806 0.1657090 7.384022 8.033589
+#> 4 0.6826439 7.694123 0.1649320 7.370862 8.017384
+#> 5 0.7100813 7.678003 0.1643010 7.355979 8.000027
+#> 6 0.7386214 7.660314 0.1638521 7.339169 7.981458
+newdata[c("pred", "clwr", "cupr")] <- ci[c("fit", "lwr", "upr")]
+newdata[c("plwr", "pupr")] <- pi[c("lwr", "upr")]
 library(ggplot2)
 ggplot(ryegrass, aes(x = log(conc), y = rootl)) +
+  geom_ribbon(data = newdata, aes(x = log(conc), y = pred, ymin = plwr, ymax = pupr), fill = "blue", alpha = 0.1) +
+  geom_ribbon(data = newdata, aes(x = log(conc), y = pred, ymin = clwr, ymax = cupr), fill = "blue", alpha = 0.25) +
   geom_point() +
   geom_line(data = newdata, aes(x = log(conc), y = pred), color = "blue") +
   labs(x = "Log Concentration", y = "Root Length") +
@@ -62,6 +86,10 @@ ggplot(ryegrass, aes(x = log(conc), y = rootl)) +
 ```
 
 ![](README-unnamed-chunk-4-1.png)<!-- -->
+
+Bootstrap intervals are available by passing a parametric bootstrap
+sample of the model from `bootstrap()` through the `boot` argument of
+`predict()`.
 
 ## Effective dose estimation
 
@@ -95,7 +123,7 @@ confint(effdose_glht)
 #> 
 #> Fit: NULL
 #> 
-#> Quantile = 2.3179
+#> Quantile = 2.3181
 #> 95% family-wise confidence level
 #>  
 #> 
@@ -103,5 +131,5 @@ confint(effdose_glht)
 #>           Estimate lwr    upr   
 #> ED25 == 0 2.0918   1.6870 2.4966
 #> ED50 == 0 3.2634   2.8375 3.6892
-#> ED75 == 0 5.0910   4.1777 6.0044
+#> ED75 == 0 5.0910   4.1776 6.0045
 ```
