@@ -81,7 +81,7 @@ ed <- function(x, respLev=50, linfct=diag(5), random=TRUE, residual=FALSE){
     ql[i] <- q
 
     # ED and its gradient w.r.t. (b1-b5, u1-u5, r) from the drcED TMB template
-    eobj <- MakeADFun(list(model="drcED", mod=mod, lnk=lnk, q=q),
+    eobj <- MakeADFun(list(model="drcED", mod=mod, lnk=lnk, lnk4=b4linkindex(x), q=q),
                       list(b=lpv, u=rep(0, 5), r=0),
                       ADreport=TRUE, DLL="drcTMB_TMBExports", silent=TRUE)
     edl[i] <- eobj$fn()

@@ -192,6 +192,7 @@ profile.edTMB <- function(fitted, parm=NULL, level=0.99, maxit=100, progress=int
   obj$env$tracemgc <- FALSE
 
   mod <- modelindex(fit$model)
+  lnk4 <- b4linkindex(fit)
   logscale <- !(mod %in% c(1, 9))
   free <- which(!fit$fix)
   nf <- length(free)
@@ -217,7 +218,8 @@ profile.edTMB <- function(fitted, parm=NULL, level=0.99, maxit=100, progress=int
       pv[free] <- par[seq_len(nf)]
       pv
     }
-    b4fun <- function(ed, b3, b5) edb4(mod, q, ed, b3, b5)
+    # b4 on the scale of its coefficients
+    b4fun <- function(ed, b3, b5) linkfun(lnk4, edb4(mod, q, ed, b3, b5))
     expand <- function(x, ed){
       par <- append(x, 0, after=kp - 1)
       pv <- pvfull(par)
@@ -391,7 +393,7 @@ confint.edTMB <- function(object, parm=NULL, level=0.95, method=c("profile", "wa
         pv <- fit$start
         pv[!fit$fix] <- bf
         lpv <- as.vector(object$linfct[[i]] %*% pv)
-        edfun(mod, object$q[[i]], lpv[3], lpv[4], lpv[5])
+        edfun(mod, object$q[[i]], lpv[3], linkfun(b4linkindex(fit), lpv[4], inverse=TRUE), lpv[5])
       })
     })
     ci <- t(apply(matrix(eds, ncol=length(parm)), 2, quantile, probs=c((1 - level)/2, (1 + level)/2), na.rm=TRUE, names=FALSE))

@@ -4,7 +4,7 @@
 #ifndef DRCFUNCTIONS_H
 #define DRCFUNCTIONS_H
 
-// inverse link for the asymptote parameters b1 and b2
+// inverse link for the asymptote parameters b1 and b2, and for b4
 // lnk: 1 = identity, 2 = log, 3 = logit
 template<class Type>
 Type linkinv(int lnk, Type eta){

@@ -97,7 +97,7 @@ confint(effdose_glht)
 ## Non-normal response distributions
 
 The `family` argument allows to specify the distribution of the response as "gaussian", "poisson", "binomial", or "beta".
-To improve optimisation, the `link` argument allows us to estimate the asymptote parameters b1 and b2 on a transformed scale. Furthermore, we can add constraints on the parameters through the `lower` and `upper` arguments with vectors for the lower and upper bounds of the parameters, respectively.
+To improve optimisation, the `link` argument allows us to estimate the asymptote parameters b1 and b2 on a transformed scale. Similarly, `b4link="log"` estimates b4 on the log scale for the models with a positive b4; random effects on b4 then vary the ED50 by a factor between groups, as in a logistic model of the log dose. Furthermore, we can add constraints on the parameters through the `lower` and `upper` arguments with vectors for the lower and upper bounds of the parameters, respectively.
 
 For the proportion of immobile daphnids after 48 hours, we fit a 2-parameter log-logistic model, with the asymptotes fixed at 0 and 1 and without asymmetry (b5 = 0). With only eight doses, the asymmetry parameter b5 cannot be estimated reliably: in a model with b5, the parameters b3, b4 and b5 are almost perfectly correlated, with very large standard errors.
 ```{r}

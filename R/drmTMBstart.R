@@ -15,7 +15,8 @@
 #' not included in the grid start at the values of method "lm".
 #' Without bounds in \code{gsl} and \code{gsu}, default ranges are used for b3 (the sign
 #' of the "lm" starting value, with 1/4 to 4 times its steepness, log-spaced), b4 (the dose
-#' range extended at both ends; log-spaced for models on the log-dose scale), and b5
+#' range extended at both ends; log-spaced for models on the log-dose scale, and on the log scale
+#' with \code{b4link="log"}), and b5
 #' (-2 to 2, logistic and loglogistic only). Default ranges are only used for parameters
 #' with a single coefficient in \code{fform}; the asymptotes b1 and b2 are only included
 #' in the grid with user-specified bounds.
@@ -29,16 +30,17 @@
 #' @param family Specify the distributional assumptions. One of "gaussian", "binomial", "beta", and "poisson".
 #' @param model Specify the nonlinear model. One of "logistic", "loglogistic", "weibull1", "weibull2", "lognormal", "michaelismenten", "asymptoticregression", "exponentialdecay", "gompertz".
 #' @param link Specify the link function for estimating asymptote parameters. One of "identity", "log", "logit".
+#' @param b4link link function for b4, "identity" or "log". With "log", the coefficients of b4 are on the log scale (models with a positive b4 only, not logistic and gompertz), see \code{\link{drmTMB}}.
 #' @param method one of "lm" or "grid".
-#' @param gsl a vector of lower bounds for the grid search, same length as start; NA (or NULL) for the default range.
+#' @param gsl a vector of lower bounds for the grid search, same length as start, on the scale of the coefficients (log scale for b4 with \code{b4link="log"}); NA (or NULL) for the default range.
 #' @param gsu a vector of upper bounds for the grid search, same length as start; NA (or NULL) for the default range.
 #' @param gsn number of grid points for each parameter, a single number or a vector with the same length as start (default 10). A parameter with gsn = 1 stays at its "lm" starting value.
 #'
 #' @return a named vector of starting values
 #' @export
 #'
-drmTMBstart <- function(form, fform=NULL, data, start=NULL, fix=NULL, weights=NULL, family="gaussian", model="logistic", link="identity", method="lm", gsl=NULL, gsu=NULL, gsn=NULL){
-  dd <- drmTMBdata(form, fform=fform, data=data, weights=weights, family=family, model=model, link=link)
+drmTMBstart <- function(form, fform=NULL, data, start=NULL, fix=NULL, weights=NULL, family="gaussian", model="logistic", link="identity", b4link="identity", method="lm", gsl=NULL, gsu=NULL, gsn=NULL){
+  dd <- drmTMBdata(form, fform=fform, data=data, weights=weights, family=family, model=model, link=link, b4link=b4link)
   if (is.null(start)) start <- rep(NA, sum(dd$npars))
   if (is.null(fix)) fix <- rep(FALSE, sum(dd$npars))
   fix[dd$npi %in% unusedpars(dd$mod)] <- TRUE
@@ -49,7 +51,7 @@ drmTMBstart <- function(form, fform=NULL, data, start=NULL, fix=NULL, weights=NU
 
 
 # model data shared by drmTMB and drmTMBstart
-drmTMBdata <- function(form, fform=NULL, rform=NULL, data, weights=NULL, family="gaussian", model="logistic", link="identity"){
+drmTMBdata <- function(form, fform=NULL, rform=NULL, data, weights=NULL, family="gaussian", model="logistic", link="identity", b4link="identity"){
   fform <- fforms(fform)
   if (is.null(weights)) weights <- rep(1, nrow(data))
   if (length(weights) != nrow(data)) stop("weights must have one entry for each row of data.")
@@ -79,6 +81,9 @@ drmTMBdata <- function(form, fform=NULL, rform=NULL, data, weights=NULL, family=
   if (length(mod) != 1) stop("Unknown model: ", model)
   if (length(fam) != 1) stop("Unknown family: ", family, "; one of gaussian, poisson, binomial, beta.")
   if (length(lnk) != 1) stop("Unknown link: ", link, "; one of identity, log, logit.")
+  lnk4 <- which(b4link == c("identity", "log"))
+  if (length(lnk4) != 1) stop("Unknown b4link: ", b4link, "; one of identity, log.")
+  if (lnk4 == 2 && mod %in% c(1, 9)) stop("b4link=\"log\" needs a positive b4; b4 of the ", model, " model is a location on the dose scale.")
 
   # response
   y <- mr <- model.response(mf, "any")
@@ -98,9 +103,9 @@ drmTMBdata <- function(form, fform=NULL, rform=NULL, data, weights=NULL, family=
   unused <- intersect(unusedpars(mod), rpars)
   if (length(unused) > 0) stop("The ", model, " model does not use ", paste("b", unused, sep="", collapse=", "), "; remove it from rform.")
 
-  list(y=y, x=mf[,2], w=weights, bn=bn, fam=fam, mod=mod, lnk=lnk, re=re,
+  list(y=y, x=mf[,2], w=weights, bn=bn, fam=fam, mod=mod, lnk=lnk, lnk4=lnk4, re=re,
        Xs=Xs, fform=fform, fterms=fterms, npars=npars, npi=rep(1:5, npars),
-       family=family, model=model, link=link, data=data)
+       family=family, model=model, link=link, b4link=b4link, data=data)
 }
 
 # design matrix of a parameter for data, with the terms, factor levels and contrasts of the fit
@@ -218,7 +223,7 @@ lmstart <- function(dd, start, fix){
     f2 <- linkrange(dd$lnk, fa[2], dd$family)
   }
 
-  pooled <- c(linkfun(dd$lnk, f1), linkfun(dd$lnk, f2), b3, b4, 0)
+  pooled <- c(linkfun(dd$lnk, f1), linkfun(dd$lnk, f2), b3, linkfun(dd$lnk4, b4), 0)
 
   # project the pooled value onto each design matrix
   for (i in 1:5){
@@ -297,6 +302,8 @@ gridrange <- function(dd, start){
     if (mod %in% c(1, 9)){
       ext <- 0.25*diff(range(x))
       rng[[i4]] <- list(lower=min(x) - ext, upper=max(x) + ext, log=FALSE)
+    } else if (length(xp) > 0 & dd$lnk4 == 2){
+      rng[[i4]] <- list(lower=log(min(xp)/2), upper=log(max(xp)*2), log=FALSE)
     } else if (length(xp) > 0){
       rng[[i4]] <- list(lower=min(xp)/2, upper=max(xp)*2, log=TRUE)
     }
@@ -320,7 +327,7 @@ drmTMBobj <- function(dd, start, fix, rform=NULL){
   # log standard deviations and transformed correlations for each term; random effects at zero
   stheta <- unlist(lapply(tnp, function(np) c(rep(0.001, np), rep(0, np*(np-1)/2))))
   up <- rep(0, sum(tnp*tnl))
-  dlist <- list(model="drcTMB", y=dd$y, x=dd$x, w=dd$w, bn=dd$bn, fam=dd$fam, mod=dd$mod, lnk=dd$lnk,
+  dlist <- list(model="drcTMB", y=dd$y, x=dd$x, w=dd$w, bn=dd$bn, fam=dd$fam, mod=dd$mod, lnk=dd$lnk, lnk4=dd$lnk4,
                 tnp=tnp, tnl=tnl, tpar=as.integer(unlist(lapply(re$terms, function(tm) tm$pars)) - 1),
                 simre=1L, Z=re$Z)
   # no predictions: see predictse
@@ -452,7 +459,7 @@ unusedpars <- function(mod){
   c(if (mod %in% c(6, 7, 8)) 3, if (!(mod %in% c(1, 2))) 5)
 }
 
-# link function (inverse=FALSE) or inverse link for the asymptote parameters
+# link function (inverse=FALSE) or inverse link for the asymptote parameters and b4
 linkfun <- function(lnk, x, inverse=FALSE){
   if (inverse){
     switch(lnk, x, exp(x), plogis(x))
