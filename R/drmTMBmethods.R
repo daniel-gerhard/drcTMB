@@ -40,7 +40,7 @@ print.drmTMB <- function(x, digits=max(3L, getOption("digits") - 3L), ...){
     cat("\n")
   }
   cat("Model:  ", x$model, "\n", sep="")
-  cat("Family: ", x$family, ", ", x$link, " link for the asymptotes\n", sep="")
+  cat("Family: ", x$family, ", ", x$link, " link for the asymptotes", if (b4linkindex(x) == 2) ", log link for b4", "\n", sep="")
 
   cat("\nCoefficients:\n")
   print.default(format(coef(x)[seq_len(sum(!x$fix))], digits=digits), print.gap=2L, quote=FALSE)
@@ -106,7 +106,7 @@ summary.drmTMB <- function(object, ...){
   ngroups <- ngroups[!duplicated(names(ngroups))]
 
   gr <- object$obj$gr(object$opt$par)
-  res <- list(call=object$call, model=object$model, family=object$family, link=object$link,
+  res <- list(call=object$call, model=object$model, family=object$family, link=object$link, b4log=b4linkindex(object) == 2,
               direction=direction, b5=any(!object$fix[npi == 5]),
               nobs=nobs(object), ntrials=if (object$family == "binomial") sum(dat$bn), ngroups=ngroups,
               logLik=ll, AIC=AIC(object), BIC=BIC(object),
@@ -127,7 +127,7 @@ print.summary.drmTMB <- function(x, digits=max(3L, getOption("digits") - 3L), ..
     cat("\n")
   }
   cat("Model:  ", x$model, if (!is.null(x$direction)) paste(",", x$direction, "curve"), "\n", sep="")
-  cat("Family: ", x$family, ", ", x$link, " link for the asymptotes\n", sep="")
+  cat("Family: ", x$family, ", ", x$link, " link for the asymptotes", if (isTRUE(x$b4log)) ", log link for b4", "\n", sep="")
 
   cat("\nNumber of observations: ", x$nobs, sep="")
   if (!is.null(x$ntrials)) cat(", number of trials: ", x$ntrials, sep="")
@@ -138,6 +138,7 @@ print.summary.drmTMB <- function(x, digits=max(3L, getOption("digits") - 3L), ..
 
   cat("\nCoefficients:\n")
   printCoefmat(x$coefficients, digits=digits)
+  if (isTRUE(x$b4log)) cat("The coefficients of b4 are on the log scale.\n")
   if (x$b5) cat("The asymmetry parameter b5 is on the log scale.\n")
   printfixed(x$fixed, digits)
   printre(x$varcor, digits)
@@ -298,13 +299,13 @@ preddata <- function(object, newdata, random){
   }
   Zp <- if (length(Zl) > 0) do.call(cbind, Zl) else Matrix::sparseMatrix(i=integer(0), j=integer(0), x=numeric(0), dims=c(n, 0))
   list(x=x, Xs=Xs, eta=eta, Zp=Zp, Zl=Zl, newgroup=newgroup,
-       mod=modelindex(object$model), lnk=which(object$link == c("identity", "log", "logit")))
+       mod=modelindex(object$model), lnk=which(object$link == c("identity", "log", "logit")), lnk4=b4linkindex(object))
 }
 
 # mean function at the linear predictors eta of b1-b5
 predmean <- function(pd, eta){
   as.vector(drcmeanR(pd$mod, pd$x, linkfun(pd$lnk, eta[, 1], inverse=TRUE), linkfun(pd$lnk, eta[, 2], inverse=TRUE),
-                     eta[, 3], eta[, 4], eta[, 5]))
+                     eta[, 3], linkfun(pd$lnk4, eta[, 4], inverse=TRUE), eta[, 5]))
 }
 
 # standard errors of the predicted means by the delta method of TMB: the mean at the new doses is
@@ -570,6 +571,12 @@ recov <- function(object){
 # index of the model, as in the TMB template
 modelindex <- function(model){
   which(model == c("logistic", "loglogistic", "weibull1", "weibull2", "lognormal", "michaelismenten", "asymptoticregression", "exponentialdecay", "gompertz"))
+}
+
+# index of the link for b4, as in the TMB template: 1 = identity, 2 = log; identity for fits
+# without b4link
+b4linkindex <- function(object){
+  if (is.null(object$b4link)) 1 else match(object$b4link, c("identity", "log"))
 }
 
 # coefficients fixed by the user, named; the parameters the model does not use are always fixed

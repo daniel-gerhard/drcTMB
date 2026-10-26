@@ -9,13 +9,14 @@ template<class Type>
 Type drcED(objective_function<Type>* obj) {
   DATA_INTEGER(mod);
   DATA_INTEGER(lnk);
+  DATA_INTEGER(lnk4);   // link for b4: 1 = identity, 2 = log
   DATA_SCALAR(q);       // level of F in drcmean at the effective dose
   PARAMETER_VECTOR(b);  // b1-b5
   PARAMETER_VECTOR(u);  // random effects u1-u5, evaluated at zero
   PARAMETER(r);         // residual, evaluated at zero
 
   vector<Type> f = b + u;
-  Type ed = drced(mod, q, linkinv(lnk, f(0)), linkinv(lnk, f(1)), f(2), f(3), f(4), r);
+  Type ed = drced(mod, q, linkinv(lnk, f(0)), linkinv(lnk, f(1)), f(2), linkinv(lnk4, f(3)), f(4), r);
   ADREPORT(ed);
   return 0;
 }

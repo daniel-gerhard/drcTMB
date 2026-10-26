@@ -17,6 +17,7 @@ drmTMB(
   family = "gaussian",
   model = "logistic",
   link = "identity",
+  b4link = "identity",
   gsl = NULL,
   gsu = NULL,
   gsn = NULL,
@@ -48,6 +49,8 @@ drmTMB(
 
 \item{link}{Specify the link function for estimating asymptote parameters. One of "identity", "log", "logit".}
 
+\item{b4link}{link function for b4, "identity" (default) or "log", see Details. Only for the models with a positive b4, not for logistic and gompertz.}
+
 \item{gsl}{a vector of lower bounds for a grid search, same length as start; NA for the default range. If gsl, gsu and gsn are all NULL, no grid search is performed. See \code{\link{drmTMBstart}}.}
 
 \item{gsu}{a vector of upper bounds for a grid search, same length as start; NA for the default range.}
@@ -70,4 +73,12 @@ the upper asymptote, and b3 is positive for an increasing and negative for a dec
 For michaelismenten, asymptoticregression and exponentialdecay (b3 and b5 are not used),
 b1 is the response at dose zero and b2 the asymptote at high doses. The asymmetry parameter b5
 of the logistic and loglogistic models is on the log scale. See the vignette for the model functions.
+
+With \code{b4link="log"}, the linear predictor of b4, including its random effects, is log(b4):
+the coefficients of b4 in \code{coef}, \code{start}, \code{fix}, \code{lower}, \code{upper} and
+\code{linfct} of \code{\link{ed}} are on the log scale. Random effects on b4 then vary b4 by a
+factor between groups, and the estimate of b4 is the median over the groups. For the models on the
+log-dose scale, this is the same model as the logistic (or gompertz) model of log(dose) for
+loglogistic (weibull1), with b4 the log ED50, but it keeps observations at dose zero and reports
+effective doses on the dose scale. Without random effects on b4, both links give the same fit.
 }

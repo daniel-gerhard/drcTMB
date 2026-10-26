@@ -12,6 +12,7 @@
 #' @param family Specify the distributional assumptions. One of "gaussian", "binomial", "beta", and "poisson".
 #' @param model Specify the nonlinear model. One of "logistic", "loglogistic", "weibull1", "weibull2", "lognormal", "michaelismenten", "asymptoticregression", "exponentialdecay", "gompertz".
 #' @param link Specify the link function for estimating asymptote parameters. One of "identity", "log", "logit". 
+#' @param b4link link function for b4, "identity" (default) or "log", see Details. Only for the models with a positive b4, not for logistic and gompertz.
 #' @param gsl a vector of lower bounds for a grid search, same length as start; NA for the default range. If gsl, gsu and gsn are all NULL, no grid search is performed. See \code{\link{drmTMBstart}}.
 #' @param gsu a vector of upper bounds for a grid search, same length as start; NA for the default range.
 #' @param gsn number of grid points for each parameter, a single number or a vector with the same length as start. \code{gsn=10} alone runs a grid search over the default ranges.
@@ -25,13 +26,21 @@
 #' b1 is the response at dose zero and b2 the asymptote at high doses. The asymmetry parameter b5
 #' of the logistic and loglogistic models is on the log scale. See the vignette for the model functions.
 #'
+#' With \code{b4link="log"}, the linear predictor of b4, including its random effects, is log(b4):
+#' the coefficients of b4 in \code{coef}, \code{start}, \code{fix}, \code{lower}, \code{upper} and
+#' \code{linfct} of \code{\link{ed}} are on the log scale. Random effects on b4 then vary b4 by a
+#' factor between groups, and the estimate of b4 is the median over the groups. For the models on the
+#' log-dose scale, this is the same model as the logistic (or gompertz) model of log(dose) for
+#' loglogistic (weibull1), with b4 the log ED50, but it keeps observations at dose zero and reports
+#' effective doses on the dose scale. Without random effects on b4, both links give the same fit.
+#'
 #' @return A drmTMB object
 #' @export
 
-drmTMB <- function(form, fform=NULL, rform=NULL, data, start=NULL, fix=NULL, weights=NULL, lower=-Inf, upper=Inf, family="gaussian", model="logistic", link="identity", gsl=NULL, gsu=NULL, gsn=NULL, control=list()){
+drmTMB <- function(form, fform=NULL, rform=NULL, data, start=NULL, fix=NULL, weights=NULL, lower=-Inf, upper=Inf, family="gaussian", model="logistic", link="identity", b4link="identity", gsl=NULL, gsu=NULL, gsn=NULL, control=list()){
   # control list
   control <- do.call(drmTMBcontrol, control)
-  dd <- drmTMBdata(form, fform=fform, rform=rform, data=data, weights=weights, family=family, model=model, link=link)
+  dd <- drmTMBdata(form, fform=fform, rform=rform, data=data, weights=weights, family=family, model=model, link=link, b4link=b4link)
   fixnamed <- !is.null(names(fix))
   start <- parvector(start, dd$npi, NA, "start")
   fix <- parvector(fix, dd$npi, FALSE, "fix")
@@ -73,6 +82,7 @@ drmTMB <- function(form, fform=NULL, rform=NULL, data, start=NULL, fix=NULL, wei
   res$family <- family
   res$model <- model
   res$link <- link
+  res$b4link <- b4link
   res$start <- start
   res$fix <- fix
   res$Xs <- dd$Xs
