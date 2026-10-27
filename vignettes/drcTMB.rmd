@@ -157,7 +157,19 @@ ggplot(daphnids, aes(x = dose, y = no/total, colour=time)) +
 ```
 
 
-### Estimating effective doses for a linear function of parameters
+### Estimating effective doses for covariate values
+The `newdata` argument of `ed()` specifies the dose-response curves by the values of the covariates in `fform`, one curve for each row; the effective doses are computed for each level of `respLev` and each curve.
+```{r, message=FALSE, warning=FALSE}
+(ed75 <- ed(dmodg, respLev = 75, newdata = data.frame(time = c("24h", "48h"))))
+
+lfdiff <- rbind("24h"=c(1, 0),
+                "48h"=c(0, 1),
+                "48h-24h"=c(-1, 1))
+edose_glht <- glht(ed75, linfct = lfdiff)
+confint(edose_glht)
+```
+
+More generally, the `linfct` argument identifies the parameters b1 to b5 of each curve by linear functions of the model coefficients, with one matrix for each curve. The matrices for the two curves above are
 ```{r, message=FALSE, warning=FALSE}
 linfct <- list("24h"=rbind(c(1, 0, 0, 0, 0, 0, 0),
                            c(0, 1, 0, 0, 0, 0, 0),
@@ -169,13 +181,7 @@ linfct <- list("24h"=rbind(c(1, 0, 0, 0, 0, 0, 0),
                            c(0, 0, 0, 1, 0, 0, 0),
                            c(0, 0, 0, 0, 0, 1, 0),
                            c(0, 0, 0, 0, 0, 0, 1)))
-(ed75 <- ed(dmodg, respLev = 75, linfct = linfct))
-
-lfdiff <- rbind("24h"=c(1, 0),
-                "48h"=c(0, 1),
-                "48h-24h"=c(-1, 1))
-edose_glht <- glht(ed75, linfct = lfdiff)
-confint(edose_glht)
+ed(dmodg, respLev = 75, linfct = linfct)
 ```
 
 ## Random effects
