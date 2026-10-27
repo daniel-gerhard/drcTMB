@@ -107,7 +107,9 @@ test_that("gaussian quantile residuals use the weights as precision weights", {
   d$w <- rep(c(1, 4), length.out=nrow(d))
   d$y <- drcmean("loglogistic", d$dose, truepars$loglogistic$b) + rnorm(nrow(d), 0, 0.4/sqrt(d$w))
   f <- fit4(y ~ dose, data=d, model="loglogistic", weights=d$w)
-  sig <- exp(coef(f)[["log_sigma"]])
+  # unbiased residual standard deviation, as lm with weights
+  sig <- sqrt(sum(d$w*(d$y - fitted(f))^2)/(nrow(d) - 4))
+  expect_equal(residpar(f), sig)
   r <- residuals(f, type="quantile")
   expect_equal(r, (d$y - fitted(f))*sqrt(d$w)/sig)
   expect_equal(r, residuals(f, type="pearson"))
@@ -319,4 +321,35 @@ test_that("methods for the beta-binomial family", {
   # binary responses
   d$bin <- as.integer(d$y > 12)
   expect_error(fit4(bin ~ dose, data=d, model="loglogistic", family="betabinomial"), "not identifiable for binary")
+})
+
+test_that("small-sample inference of gaussian models without random effects", {
+  d <- simgauss("loglogistic")
+  n <- nrow(d)
+  f <- fit4(y ~ dose, data=d, model="loglogistic")
+  fml <- fit4(y ~ dose, data=d, model="loglogistic", control=list(smallsample=FALSE))
+  expect_equal(df.residual(f), n - 4)
+  expect_null(df.residual(fml))
+  # the same fit; the covariance of b1-b4 and the residual variance scaled by n/(n - p)
+  expect_equal(logLik(f), logLik(fml))
+  expect_equal(coef(f), coef(fml))
+  expect_equal(vcov(f)[1:4, 1:4], vcov(fml)[1:4, 1:4]*n/(n - 4))
+  expect_equal(vcov(f)[5, 5], vcov(fml)[5, 5])
+  expect_equal(residpar(f)^2, sum(residuals(f, type="response")^2)/(n - 4))
+  expect_equal(summary(f)$coefficients[, 2], sqrt(diag(vcov(f)))[1:4])
+  expect_output(print(summary(f)), paste("on", n - 4, "degrees of freedom"))
+  expect_equal(ed(f)$variance, ed(fml)$variance*n/(n - 4))
+  ci <- confint(f, parm=1:5, method="wald")
+  se <- sqrt(diag(vcov(f)))
+  expect_equal(unname(ci[1:4, 2]), unname(coef(f)[1:4] + qt(0.975, n - 4)*se[1:4]))
+  # the residual standard deviation keeps the normal quantile
+  expect_equal(unname(ci[5, 2]), unname(exp(coef(f)[5] + qnorm(0.975)*se[5])))
+
+  # maximum likelihood for the other families and with random effects
+  set.seed(2)
+  d$cnt <- rpois(nrow(d), d$dose + 1)
+  expect_null(df.residual(drmTMB(cnt ~ dose, data=d, model="exponentialdecay", family="poisson", link="log")))
+  dg <- simgroups(ng=6, seed=3)
+  dg$y <- drcmean("loglogistic", dg$dose, c(1, 8, -1.5, 3, 0)) + rnorm(6, 0, 0.5)[dg$grp] + rnorm(nrow(dg), 0, 0.3)
+  expect_null(df.residual(fit4(y ~ dose, rform=b2 ~ 1 | grp, data=dg, model="loglogistic")))
 })

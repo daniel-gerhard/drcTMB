@@ -7,6 +7,7 @@
 \alias{print.summary.drmTMB}
 \alias{logLik.drmTMB}
 \alias{nobs.drmTMB}
+\alias{df.residual.drmTMB}
 \alias{fitted.drmTMB}
 \alias{residuals.drmTMB}
 \alias{predict.drmTMB}
@@ -24,6 +25,8 @@
 \method{logLik}{drmTMB}(object, ...)
 
 \method{nobs}{drmTMB}(object, ...)
+
+\method{df.residual}{drmTMB}(object, ...)
 
 \method{fitted}{drmTMB}(object, random = TRUE, ...)
 
@@ -69,7 +72,7 @@ For prediction intervals, random=TRUE gives the interval of a new observation in
 
 \item{se.fit}{logical, if TRUE, predict returns the standard errors of the predicted means, by the delta method; with random=TRUE they include the uncertainty of the predicted random effects.}
 
-\item{interval}{type of interval of predict: "none", "confidence" for confidence intervals of the mean, computed on the log scale for poisson and on the logit scale for binomial and beta responses, or "prediction" for prediction intervals of a new observation with weight 1. For the gaussian family without boot, the prediction intervals use the normal distribution, and the variance of the random effects of new groups is added by the delta method. Otherwise they are quantiles of new observations simulated at nsim draws from the normal approximation of the fixed and random effects, with the variance parameters kept at their estimates, or at the bootstrap fits (see boot); with new random effects for new groups; for a binomial response as proportions, with the number of trials from the response in newdata (one for a binary response).}
+\item{interval}{type of interval of predict: "none", "confidence" for confidence intervals of the mean, computed on the log scale for poisson and on the logit scale for binomial and beta responses, or "prediction" for prediction intervals of a new observation with weight 1. Gaussian models without random effects use t quantiles with n - p degrees of freedom and the unbiased residual variance, see \code{\link{drmTMB}}. For the gaussian family without boot, the prediction intervals use the normal (or t) distribution, and the variance of the random effects of new groups is added by the delta method. Otherwise they are quantiles of new observations simulated at nsim draws from the normal approximation of the fixed and random effects, with the variance parameters kept at their estimates, or at the bootstrap fits (see boot); with new random effects for new groups; for a binomial response as proportions, with the number of trials from the response in newdata (one for a binary response).}
 
 \item{level}{confidence level of the intervals of predict}
 
@@ -92,6 +95,10 @@ summary returns a summary.drmTMB object with the coefficient table (Estimate, St
 variance components, log-likelihood, AIC and BIC, sample sizes, a Pearson dispersion statistic for
 poisson and binomial models, and convergence information. logLik returns the log-likelihood at the
 estimates, with the number of free coefficients and variance parameters as degrees of freedom.
+df.residual returns the residual degrees of freedom n - p of gaussian models without random
+effects (small-sample inference, see \code{\link{drmTMB}}), and NULL otherwise; as the \code{df}
+argument of \code{multcomp::glht} for effective doses, it gives multivariate t instead of normal
+quantiles.
 simulate returns a data frame with nsim columns of simulated responses at the estimated
 parameters; for a binomial response given as cbind(successes, failures), the number of successes.
 }

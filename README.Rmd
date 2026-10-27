@@ -74,12 +74,12 @@ Profile likelihood confidence intervals of the effective doses are computed by `
 confint(effdose)
 ```
 
-Simultaneous confidence intervals can be constructed through the package multcomp.
+Simultaneous confidence intervals can be constructed through the package multcomp. For gaussian models without random effects, the residual degrees of freedom of the model give multivariate t quantiles (`df.residual()` is `NULL` otherwise, and multcomp then uses the normal distribution).
 ```{r, message=FALSE, warning=FALSE}
 library(multcomp)
 linfct <- diag(3)
 rownames(linfct) <- c("ED25", "ED50", "ED75")
-effdose_glht <- glht(effdose, linfct = linfct)
+effdose_glht <- glht(effdose, linfct = linfct, df = df.residual(mod))
 confint(effdose_glht)
 ```
 

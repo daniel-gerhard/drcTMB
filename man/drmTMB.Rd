@@ -87,4 +87,15 @@ factor between groups, and the estimate of b4 is the median over the groups. For
 log-dose scale, this is the same model as the logistic (or gompertz) model of log(dose) for
 loglogistic (weibull1), with b4 the log ED50, but it keeps observations at dose zero and reports
 effective doses on the dose scale. Without random effects on b4, both links give the same fit.
+
+Gaussian models without random effects are estimated by maximum likelihood, but by default
+(\code{smallsample=TRUE} in \code{\link{drmTMBcontrol}}) their inference follows lm, nls and drc:
+the residual standard deviation is the square root of the unbiased residual variance, the weighted
+residual sum of squares divided by n - p residual degrees of freedom, for n observations with
+positive weights and p free coefficients b1-b5; the covariance of the coefficients
+(\code{vcov}, \code{summary}, \code{\link{ed}}, \code{predict}) is scaled accordingly, the Wald
+and prediction intervals use t quantiles with n - p degrees of freedom, and the profile intervals of
+the coefficients and effective doses an F-based cutoff. The log-likelihood, the estimate log_sigma in
+\code{coef}, AIC, \code{anova}, \code{simulate} and \code{\link{bootstrap}} remain maximum likelihood.
+The other families and models with random effects use maximum likelihood and normal quantiles.
 }

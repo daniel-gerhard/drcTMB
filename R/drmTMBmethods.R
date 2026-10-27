@@ -5,7 +5,7 @@
 #' @param random logical, if TRUE, the random effects are included in the predictions, fitted values and residuals (conditional residuals). For simulate, if TRUE, new random effects are drawn for each simulation, otherwise the fitted random effects are kept.
 #'   For prediction intervals, random=TRUE gives the interval of a new observation in the group of each row of newdata, and random=FALSE the interval of a new observation in a new group, including the variance of the random effects. Rows of newdata with a level that is not in the fitted data are treated as new groups for that random effect term.
 #' @param se.fit logical, if TRUE, predict returns the standard errors of the predicted means, by the delta method; with random=TRUE they include the uncertainty of the predicted random effects.
-#' @param interval type of interval of predict: "none", "confidence" for confidence intervals of the mean, computed on the log scale for poisson and on the logit scale for binomial and beta responses, or "prediction" for prediction intervals of a new observation with weight 1. For the gaussian family without boot, the prediction intervals use the normal distribution, and the variance of the random effects of new groups is added by the delta method. Otherwise they are quantiles of new observations simulated at nsim draws from the normal approximation of the fixed and random effects, with the variance parameters kept at their estimates, or at the bootstrap fits (see boot); with new random effects for new groups; for a binomial response as proportions, with the number of trials from the response in newdata (one for a binary response).
+#' @param interval type of interval of predict: "none", "confidence" for confidence intervals of the mean, computed on the log scale for poisson and on the logit scale for binomial and beta responses, or "prediction" for prediction intervals of a new observation with weight 1. Gaussian models without random effects use t quantiles with n - p degrees of freedom and the unbiased residual variance, see \code{\link{drmTMB}}. For the gaussian family without boot, the prediction intervals use the normal (or t) distribution, and the variance of the random effects of new groups is added by the delta method. Otherwise they are quantiles of new observations simulated at nsim draws from the normal approximation of the fixed and random effects, with the variance parameters kept at their estimates, or at the bootstrap fits (see boot); with new random effects for new groups; for a binomial response as proportions, with the number of trials from the response in newdata (one for a binary response).
 #' @param level confidence level of the intervals of predict
 #' @param digits number of significant digits in the printed output
 #' @param type type of residuals: "pearson" (default), the response residuals divided by the standard deviation of the fitted distribution and multiplied by the square root of the weights; "response", the observed minus the fitted values, as proportions for a binomial response; or "quantile", randomised quantile residuals (Dunn and Smyth, 1996), which are standard normal under the model. For the gaussian family, the quantile residuals are multiplied by the square root of the weights, as precision weights with standard deviation sigma/sqrt(w); for the other families they do not use the weights, as a weighted log-likelihood is not the density of a distribution of the observation. The quantile residuals are random for the count families; use set.seed for reproducible values.
@@ -26,12 +26,16 @@
 #' variance components, log-likelihood, AIC and BIC, sample sizes, a Pearson dispersion statistic for
 #' poisson and binomial models, and convergence information. logLik returns the log-likelihood at the
 #' estimates, with the number of free coefficients and variance parameters as degrees of freedom.
+#' df.residual returns the residual degrees of freedom n - p of gaussian models without random
+#' effects (small-sample inference, see \code{\link{drmTMB}}), and NULL otherwise; as the \code{df}
+#' argument of \code{multcomp::glht} for effective doses, it gives multivariate t instead of normal
+#' quantiles.
 #' simulate returns a data frame with nsim columns of simulated responses at the estimated
 #' parameters; for a binomial response given as cbind(successes, failures), the number of successes.
 #' @export
 #'
 #' @name drmTMB-methods
-#' @aliases print.drmTMB summary.drmTMB print.summary.drmTMB logLik.drmTMB nobs.drmTMB fitted.drmTMB residuals.drmTMB predict.drmTMB coef.drmTMB vcov.drmTMB simulate.drmTMB
+#' @aliases print.drmTMB summary.drmTMB print.summary.drmTMB logLik.drmTMB nobs.drmTMB df.residual.drmTMB fitted.drmTMB residuals.drmTMB predict.drmTMB coef.drmTMB vcov.drmTMB simulate.drmTMB
 #' 
 #' @rdname drmTMB-methods
 print.drmTMB <- function(x, digits=max(3L, getOption("digits") - 3L), ...){
@@ -63,6 +67,7 @@ summary.drmTMB <- function(object, ...){
   ests <- object$ssdrl
   coefs <- ests[rownames(ests) %in% paste("b", 1:5, sep=""), , drop=FALSE]
   rownames(coefs) <- object$coefnames[!object$fix]
+  coefs[, 2] <- sqrt(diag(fixedcov(object)))[seq_len(nrow(coefs))]
 
   # direction of the curve from the sign of the steepness b3 at the observations
   npi <- rep(1:5, sapply(object$Xs, ncol))
@@ -111,7 +116,7 @@ summary.drmTMB <- function(object, ...){
               direction=direction, b5=any(!object$fix[npi == 5]),
               nobs=nobs(object), ntrials=if (object$family %in% c("binomial", "betabinomial")) sum(dat$bn), ngroups=ngroups,
               logLik=ll, AIC=AIC(object), BIC=BIC(object),
-              coefficients=coefs, fixed=userfixed(object), varcor=vcs, residpar=residpar(object),
+              coefficients=coefs, fixed=userfixed(object), varcor=vcs, residpar=residpar(object), rdf=object$rdf,
               singular=singular, dispersion=dispersion,
               convergence=object$opt$convergence, message=object$opt$message,
               maxgrad=max(abs(gr)), pdHess=object$sdrl$pdHess)
@@ -146,7 +151,7 @@ print.summary.drmTMB <- function(x, digits=max(3L, getOption("digits") - 3L), ..
   if (length(x$singular) > 0){
     cat("Standard deviations close to zero (singular fit): ", paste(x$singular, collapse=", "), "\n", sep="")
   }
-  printresid(x$family, x$residpar, digits)
+  printresid(x$family, x$residpar, digits, x$rdf)
   if (!is.null(x$dispersion)){
     cat("\nPearson dispersion: ", format(x$dispersion["ratio"], digits=digits),
         " (chi-square ", format(x$dispersion["chisq"], digits=digits), " on ", x$dispersion["df"], " df)\n", sep="")
@@ -168,6 +173,12 @@ logLik.drmTMB <- function(object, ...){
 #' @export
 nobs.drmTMB <- function(object, ...){
   length(object$obj$env$data$y)
+}
+
+#' @rdname drmTMB-methods
+#' @export
+df.residual.drmTMB <- function(object, ...){
+  object$rdf
 }
 
 #' @rdname drmTMB-methods
@@ -244,7 +255,7 @@ predict.drmTMB <- function(object, newdata=NULL, random=TRUE, se.fit=FALSE, inte
     se <- apply(bc, 1, sd, na.rm=TRUE)
   }
   res <- data.frame(fit=fit, se.fit=se)
-  z <- qnorm((1 + level)/2)
+  z <- zquant(object, level)
   if (interval == "confidence"){
     res[c("lwr", "upr")] <- if (is.null(boot)) predci(fit, se, object$family, z)
                             else t(apply(bc, 1, quantile, probs=probs, na.rm=TRUE, names=FALSE))
@@ -388,7 +399,7 @@ predictse <- function(object, pd){
   obj <- MakeADFun(dat, env$parList(object$opt$par), map=env$map, random=if (rnd) "u",
                    DLL="drcTMB_TMBExports", silent=TRUE)
   # the likelihood is unchanged: the Hessian of the fit is reused
-  H <- if (isTRUE(object$sdrl$pdHess)) solve(object$sdrl$cov.fixed)
+  H <- if (isTRUE(object$sdrl$pdHess)) solve(fixedcov(object))
   sdr <- sdreport(obj, par.fixed=object$opt$par, hessian.fixed=H, getReportCovariance=FALSE)
   s <- summary(sdr, "report")
   unname(s[rownames(s) == "mu", 2])
@@ -463,7 +474,7 @@ jointdraws <- function(object, nsim){
   r <- env$random
   if (is.null(r)){
     m <- object$opt$par
-    R <- tryCatch(chol(object$sdrl$cov.fixed), error=function(e) NULL)
+    R <- tryCatch(chol(fixedcov(object)), error=function(e) NULL)
     if (is.null(R)) stop("the covariance matrix of the estimates is not positive definite.")
     return(m + t(R) %*% matrix(rnorm(length(m)*nsim), nrow=length(m)))
   }
@@ -592,7 +603,7 @@ coef.drmTMB <- function(object, ...){
 #' @rdname drmTMB-methods
 #' @export
 vcov.drmTMB <- function(object, ...){
-    vc <- object$sdrl$cov.fixed
+    vc <- fixedcov(object)
     rownames(vc) <- colnames(vc) <- names(coef(object))
     return(vc)
 }
@@ -681,14 +692,42 @@ printre <- function(vcs, digits){
 }
 
 # residual standard deviation (gaussian), precision (beta, betabinomial), size theta (nbinom2) or dispersion phi
-# (nbinom1); NULL for poisson and binomial
+# (nbinom1); NULL for poisson and binomial; the unbiased estimate for small-sample inference
 residpar <- function(object){
   if (object$family %in% c("poisson", "binomial")) return(NULL)
-  unname(exp(object$sdrl$par.fixed["log_sigma"]))
+  unname(exp(object$sdrl$par.fixed["log_sigma"])) * sqrt(varscale(object))
 }
 
-printresid <- function(family, residpar, digits){
-  if (family == "gaussian") cat("\nResidual standard deviation: ", format(residpar, digits=digits), "\n", sep="")
+# unbiased over maximum likelihood residual variance of gaussian models without random effects: the
+# ML estimate divides the weighted residual sum of squares by the sum of the weights, the unbiased
+# one by the residual degrees of freedom rdf; 1 without small-sample inference
+varscale <- function(object){
+  if (is.null(object$rdf)) return(1)
+  sum(object$obj$env$data$w) / object$rdf
+}
+
+# covariance of the estimated parameters: the inverse Hessian, with the block of the coefficients
+# b1-b5 scaled by varscale for small-sample inference
+fixedcov <- function(object){
+  vc <- object$sdrl$cov.fixed
+  s <- varscale(object)
+  if (s != 1){
+    d <- rep(1, nrow(vc))
+    d[seq_len(sum(!object$fix))] <- sqrt(s)
+    vc <- vc * outer(d, d)
+  }
+  vc
+}
+
+# quantile of two-sided intervals: t with the residual degrees of freedom for small-sample inference,
+# otherwise normal
+zquant <- function(object, level){
+  if (is.null(object$rdf)) qnorm((1 + level)/2) else qt((1 + level)/2, object$rdf)
+}
+
+printresid <- function(family, residpar, digits, rdf=NULL){
+  if (family == "gaussian") cat("\nResidual standard deviation: ", format(residpar, digits=digits),
+                                if (!is.null(rdf)) paste(" on", rdf, "degrees of freedom"), "\n", sep="")
   if (family == "beta") cat("\nPrecision: ", format(residpar, digits=digits), "\n", sep="")
   if (family == "nbinom2") cat("\nNegative binomial size (theta): ", format(residpar, digits=digits), "\n", sep="")
   if (family == "betabinomial") cat("\nBeta-binomial precision (phi): ", format(residpar, digits=digits), "\n", sep="")

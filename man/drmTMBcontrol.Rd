@@ -4,7 +4,12 @@
 \alias{drmTMBcontrol}
 \title{Set control parameters for drcTMB}
 \usage{
-drmTMBcontrol(optimiser = "nlminb", iter.max = 1000, eval.max = 2000)
+drmTMBcontrol(
+  optimiser = "nlminb",
+  iter.max = 1000,
+  eval.max = 2000,
+  smallsample = TRUE
+)
 }
 \arguments{
 \item{optimiser}{character string specifying the optimiser to use}
@@ -12,6 +17,10 @@ drmTMBcontrol(optimiser = "nlminb", iter.max = 1000, eval.max = 2000)
 \item{iter.max}{maximum number of iterations of the optimiser, see \code{\link{nlminb}}.}
 
 \item{eval.max}{maximum number of evaluations of the objective function, see \code{\link{nlminb}}.}
+
+\item{smallsample}{if TRUE (default), gaussian models without random effects use the unbiased
+residual variance with n - p residual degrees of freedom and t quantiles, as lm, nls and drc; if
+FALSE, the maximum likelihood estimate and normal quantiles. See \code{\link{drmTMB}}.}
 }
 \value{
 a list with control parameters

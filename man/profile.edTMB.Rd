@@ -40,5 +40,6 @@ and the other coefficients, which are re-optimised.
 The profiles are for the effective doses of the population curves, without the random effects;
 the variation between groups (\code{random=TRUE} in \code{\link{ed}}) and the residual variation are
 not included. For the models on the log-dose scale and the models without b3, the effective doses
-are profiled on the log scale.
+are profiled on the log scale. Gaussian models without random effects use the F-based cutoff of
+\code{\link{profile.drmTMB}} by default.
 }
