@@ -239,3 +239,37 @@ test_that("print returns the effective doses invisibly", {
   expect_identical(res$value, e)
   expect_true(any(grepl("^Effective dose estimates", out)))
 })
+
+test_that("methods for the negative binomial families", {
+  set.seed(3)
+  d <- data.frame(dose=rep(c(0, 0.5, 1, 2, 4, 8, 16, 32), each=5))
+  d$y <- rnbinom(nrow(d), size=5, mu=drcmean("loglogistic", d$dose, c(2, 60, -1.5, 3, 0)))
+  f2 <- fit4(y ~ dose, data=d, model="loglogistic", family="nbinom2")
+  f1 <- fit4(y ~ dose, data=d, model="loglogistic", family="nbinom1")
+  expect_equal(names(coef(f2))[5], "log_theta")
+  expect_equal(names(coef(f1))[5], "log_phi")
+  expect_true(any(grepl("^Negative binomial size \\(theta\\)", capture.output(print(f2)))))
+  expect_true(any(grepl("^Negative binomial dispersion \\(phi\\)", capture.output(print(summary(f1))))))
+  expect_null(summary(f2)$dispersion)
+
+  # Pearson residuals with the negative binomial variance; quantile residuals of a correct model
+  mu <- fitted(f2)
+  th <- exp(coef(f2)[["log_theta"]])
+  expect_equal(residuals(f2), (d$y - mu)/sqrt(mu*(1 + mu/th)))
+  ph <- exp(coef(f1)[["log_phi"]])
+  expect_equal(residuals(f1), (d$y - fitted(f1))/sqrt(fitted(f1)*(1 + ph)))
+  set.seed(1)
+  expect_true(abs(mean(residuals(f2, type="quantile"))) < 0.5)
+
+  # intervals: log scale for the mean, integer quantiles for new counts, size on the natural scale
+  pc <- predict(f2, data.frame(dose=c(0, 3)), interval="confidence")
+  expect_true(all(pc$lwr > 0 & pc$lwr < pc$fit & pc$fit < pc$upr))
+  pp <- predict(f2, data.frame(dose=c(0, 3)), interval="prediction", seed=1)
+  expect_true(all(pp$lwr == round(pp$lwr) & pp$upr == round(pp$upr)))
+  expect_true(all(pp$lwr < pc$lwr & pp$upr > pc$upr))
+  expect_equal(rownames(confint(f2, parm="log_theta", method="wald")), "theta")
+  expect_equal(dim(simulate(f2, 2, seed=1)), c(nrow(d), 2))
+  # the overdispersed counts are much better described than by the poisson model
+  fp <- fit4(y ~ dose, data=d, model="loglogistic", family="poisson")
+  expect_lt(AIC(f2), AIC(fp) - 50)
+})

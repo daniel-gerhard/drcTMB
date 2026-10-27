@@ -106,7 +106,8 @@ Type drced(int mod, Type q, Type f1, Type f2, Type f3, Type f4, Type f5, Type r)
 
 // log-likelihood contribution of a single observation
 // fam: 1 = gaussian (phi = sd), 2 = poisson, 3 = binomial (bn = number of trials),
-//      4 = beta (phi = precision)
+//      4 = beta (phi = precision), 5 = nbinom2 (variance f (1 + f/phi), phi = size),
+//      6 = nbinom1 (variance f (1 + phi))
 template<class Type>
 Type loglik(int fam, Type y, Type f, Type bn, Type phi){
   switch (fam){
@@ -118,6 +119,11 @@ Type loglik(int fam, Type y, Type f, Type bn, Type phi){
     return dbinom(y, bn, f, true);
   case 4:
     return lgamma(phi) - lgamma(f*phi) - lgamma((1-f)*phi) + (f*phi-1)*log(y) + ((1-f)*phi - 1)*log(1 - y);
+  case 5:
+    // on the log scale of the mean and of the variance minus the mean, for numerical stability
+    return dnbinom_robust(y, log(f), Type(2*log(f) - log(phi)), 1);
+  case 6:
+    return dnbinom_robust(y, log(f), Type(log(f) + log(phi)), 1);
   default:
     return 0;
   }
@@ -135,6 +141,10 @@ Type simobs(int fam, Type f, Type bn, Type phi){
     return rbinom(bn, f);
   case 4:
     return rbeta(f*phi, (1-f)*phi);
+  case 5:
+    return rnbinom2(f, Type(f*(1 + f/phi)));
+  case 6:
+    return rnbinom2(f, Type(f*(1 + phi)));
   default:
     return 0;
   }

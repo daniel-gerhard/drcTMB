@@ -27,7 +27,7 @@
 #' @param start a vector with starting values for each model parameter. Only NA entries are replaced.
 #' @param fix a binary vector with same length as start. If TRUE, a model coefficient is fixed to the starting value. Parameters not used by the model (b5 except for logistic and loglogistic, b3 for michaelismenten, asymptoticregression and exponentialdecay) are always fixed, at 0 unless given in start.
 #' @param weights a vector of weights, one for each row of data.
-#' @param family Specify the distributional assumptions. One of "gaussian", "binomial", "beta", and "poisson".
+#' @param family Specify the distributional assumptions. One of "gaussian", "binomial", "beta", "poisson", "nbinom2", and "nbinom1". The negative binomial families are for overdispersed counts, with variance mu (1 + mu/theta) for nbinom2 and mu (1 + phi) for nbinom1, as in glmmTMB.
 #' @param model Specify the nonlinear model. One of "logistic", "loglogistic", "weibull1", "weibull2", "lognormal", "michaelismenten", "asymptoticregression", "exponentialdecay", "gompertz".
 #' @param link Specify the link function for estimating asymptote parameters. One of "identity", "log", "logit".
 #' @param b4link link function for b4, "identity" or "log". With "log", the coefficients of b4 are on the log scale (models with a positive b4 only, not logistic and gompertz), see \code{\link{drmTMB}}.
@@ -77,9 +77,9 @@ drmTMBdata <- function(form, fform=NULL, rform=NULL, data, weights=NULL, family=
   # model
   mod <- which(model == c("logistic", "loglogistic", "weibull1", "weibull2", "lognormal", "michaelismenten", "asymptoticregression", "exponentialdecay", "gompertz"))
   lnk <- which(link == c("identity", "log", "logit"))
-  fam <- which(family == c("gaussian", "poisson", "binomial", "beta"))
+  fam <- which(family == c("gaussian", "poisson", "binomial", "beta", "nbinom2", "nbinom1"))
   if (length(mod) != 1) stop("Unknown model: ", model)
-  if (length(fam) != 1) stop("Unknown family: ", family, "; one of gaussian, poisson, binomial, beta.")
+  if (length(fam) != 1) stop("Unknown family: ", family, "; one of gaussian, poisson, binomial, beta, nbinom2, nbinom1.")
   if (length(lnk) != 1) stop("Unknown link: ", link, "; one of identity, log, logit.")
   lnk4 <- which(b4link == c("identity", "log"))
   if (length(lnk4) != 1) stop("Unknown b4link: ", b4link, "; one of identity, log.")
@@ -335,9 +335,11 @@ drmTMBobj <- function(dd, start, fix, rform=NULL){
   Xp <- setNames(lapply(dd$Xs, function(X) X[0, , drop=FALSE]), paste("Xp", 1:5, sep=""))
   datalist <- c(dlist, dd$Xs, list(xp=numeric(0)), Xp, list(Zp=re$Z[0, , drop=FALSE]))
 
-  # log_sigma: residual sd (gaussian) or precision (beta); fixed for poisson and binomial
+  # log_sigma: residual sd (gaussian), precision (beta), size theta (nbinom2) or dispersion phi
+  # (nbinom1); fixed for poisson and binomial
   if (dd$family == "gaussian") slsigma <- if (is.null(rform)) 1 else 0
   if (dd$family == "beta") slsigma <- 10
+  if (dd$family %in% c("nbinom2", "nbinom1")) slsigma <- 0
   if (dd$family %in% c("poisson", "binomial")) slsigma <- 0
   parameters <- list(b1=sb[[1]], b2=sb[[2]], b3=sb[[3]], b4=sb[[4]], b5=sb[[5]], u=up, theta=as.numeric(stheta), log_sigma=slsigma)
 
@@ -506,9 +508,12 @@ linkfun <- function(lnk, x, inverse=FALSE){
   }
 }
 
-# keep asymptotes inside the range of the link function, and inside (0, 1) for proportions
+# keep asymptotes inside the range of the link function, inside (0, 1) for proportions, and positive
+# for counts
 linkrange <- function(lnk, f, family){
   if (family %in% c("binomial", "beta") | lnk == 3) return(min(max(f, 1e-4), 1 - 1e-4))
   if (lnk == 2) return(max(f, 1e-8))
+  # means of counts are positive
+  if (family %in% c("poisson", "nbinom2", "nbinom1")) return(max(f, 1e-4))
   f
 }

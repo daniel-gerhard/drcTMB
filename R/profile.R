@@ -6,7 +6,8 @@
 #'
 #' The profiles are computed on the scale of \code{coef}: log standard deviations of the random effects
 #' (log_sd), parameters of their correlation matrix (corr_par), and the log residual standard deviation
-#' (log_sigma) or log precision (log_phi). The confint method transforms the intervals of the log
+#' (log_sigma), log precision (log_phi), or log size (log_theta) or dispersion (log_phi) of the negative
+#' binomial families. The confint method transforms the intervals of the log
 #' standard deviations and log precision to the natural scale; correlation parameters are only
 #' transformed for terms with two random effects, as their parameter determines the correlation
 #' only then. If the profile of a log standard deviation does not reach the cutoff at low values,
@@ -117,7 +118,7 @@ confint.profile.drmTMB <- function(object, parm=NULL, level=0.95, ...){
 # correlations of terms with two random effects from their parameter; rows named accordingly
 natscale <- function(ci, rn, corr2, level){
   ci <- matrix(ci, ncol=2)
-  tolog <- grepl("^log_sd:", rn) | rn %in% c("log_sigma", "log_phi")
+  tolog <- grepl("^log_sd:", rn) | rn %in% c("log_sigma", "log_phi", "log_theta")
   ci[tolog, ] <- exp(ci[tolog, ])
   rn[tolog] <- sub("^log_", "", rn[tolog])
   two <- rn %in% corr2
