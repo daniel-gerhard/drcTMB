@@ -9,7 +9,7 @@
 #' @importFrom stats plogis pnorm ppois predict printCoefmat profile qchisq qlogis qnorm
 #' @importFrom stats quantile residuals runif sd setNames simulate splinefun vcov
 #' @importFrom stats complete.cases terms .getXlevels na.pass
-#' @importFrom stats rnorm rpois rbinom rbeta rnbinom pnbinom anova pchisq
+#' @importFrom stats rnorm rpois rbinom rbeta rnbinom pnbinom anova pchisq pf
 #' @importFrom graphics plot
 #' @importFrom utils txtProgressBar setTxtProgressBar
 #' @importFrom Matrix t bdiag

@@ -4,18 +4,22 @@
 \alias{anova.drmTMB}
 \title{Likelihood ratio tests for drmTMB models}
 \usage{
-\method{anova}{drmTMB}(object, ...)
+\method{anova}{drmTMB}(object, ..., test = c("Chisq", "F"))
 }
 \arguments{
 \item{object}{a drmTMB object}
 
 \item{...}{further drmTMB objects}
+
+\item{test}{"Chisq" (default) for likelihood ratio tests, or "F" for F-tests of gaussian models
+without random effects}
 }
 \value{
 a data frame of class anova with the number of parameters (npar), AIC, BIC, log-likelihood
 and deviance (minus twice the log-likelihood) of each model, and the likelihood ratio statistic
 (Chisq), its degrees of freedom (Df) and p-value (Pr(>Chisq)) for the comparison with the
-previous model
+previous model. For \code{test="F"}, the residual degrees of freedom (Res.Df) and residual sum of
+squares (RSS) instead of the deviance, and the F statistic (F) and its p-value (Pr(>F)).
 }
 \description{
 Compares two or more models fitted to the same data by likelihood ratio tests, e.g. a model with
@@ -32,4 +36,11 @@ of their range under the smaller model, e.g. a standard deviation of random effe
 infinite size of the negative binomial for the poisson model, the chi-square distribution is
 conservative: the p-value is approximately twice the correct value for a single standard
 deviation.
+
+For gaussian models without random effects, \code{test="F"} gives F-tests, as drc does for
+continuous responses: the reduction of the (weighted) residual sum of squares per additional
+parameter, divided by the residual mean square of the largest model, with n - p residual degrees
+of freedom for p coefficients b1-b5. The F-test is exact for linear models and accounts for the
+estimation of the residual variance, which the likelihood ratio test does not, so it is usually
+preferable for small experiments.
 }

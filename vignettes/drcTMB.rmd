@@ -86,6 +86,11 @@ mod4 <- update(mod, start = c(NA, NA, NA, NA, 0), fix = c(FALSE, FALSE, FALSE, F
 anova(mod, mod4)
 ```
 
+For gaussian models without random effects, F-tests account for the estimation of the residual variance with n - p residual degrees of freedom, as in drc, and are usually preferable for small experiments.
+```{r}
+anova(mod, mod4, test = "F")
+```
+
 ## Effective dose estimation
 
 The `ed()` function can be used to estimate effective doses (e.g., ED50, ED90) from the fitted model, given a specified response level (`respLev`). The effective dose ED p is the dose at which the response has changed by p% of the difference between the asymptote at low doses (the control) and the asymptote at high doses.

@@ -51,3 +51,37 @@ test_that("anova checks its arguments", {
   expect_warning(a <- anova(f4, f5), "check the convergence")
   expect_equal(a[["Pr(>Chisq)"]][2], 1)
 })
+
+test_that("F-tests of gaussian models agree with drc", {
+  skip_if_not_installed("drc")
+  d <- simgauss("loglogistic")
+  # lower asymptote fixed at 0 instead of its true value 1
+  f3 <- drmTMB(y ~ dose, data=d, model="loglogistic", start=c(b1=0, b5=0), fix=c(b1=TRUE, b5=TRUE))
+  f4 <- fit4(y ~ dose, data=d, model="loglogistic")
+  a <- anova(f3, f4, test="F")
+  expect_equal(rownames(a), c("f3", "f4"))
+  d3 <- drc::drm(y ~ dose, data=d, fct=drc::LL.4(fixed=c(NA, 0, NA, NA)))
+  d4 <- drc::drm(y ~ dose, data=d, fct=drc::LL.4())
+  ad <- drc:::anova.drc(d3, d4, details=FALSE)
+  expect_equal(a$Res.Df, ad[, "ModelDf"])
+  expect_equal(a$RSS, ad[, "RSS"], tolerance=1e-5)
+  expect_gt(a$F[2], 10)
+  expect_equal(a$F[2], ad[2, "F value"], tolerance=1e-4)
+  expect_equal(a[["Pr(>F)"]][2], ad[2, "p value"], tolerance=1e-4)
+
+  # several models: the residual mean square of the largest model, as for anova.lm
+  f5 <- drmTMB(y ~ dose, data=d, model="loglogistic")
+  a3 <- anova(f3, f4, f5, test="F")
+  s2 <- a3$RSS[3]/a3$Res.Df[3]
+  expect_equal(a3$F[2:3], -diff(a3$RSS)/s2)
+  expect_equal(a3[["Pr(>F)"]][3], pf(a3$F[3], 1, a3$Res.Df[3], lower.tail=FALSE))
+})
+
+test_that("F-tests are only for gaussian models without random effects", {
+  set.seed(3)
+  d <- data.frame(dose=rep(c(0, 0.5, 1, 2, 4, 8, 16, 32), each=5))
+  d$y <- rpois(nrow(d), drcmean("loglogistic", d$dose, c(2, 60, -1.5, 3, 0)))
+  p4 <- fit4(y ~ dose, data=d, model="loglogistic", family="poisson")
+  p5 <- drmTMB(y ~ dose, data=d, model="loglogistic", family="poisson")
+  expect_error(anova(p4, p5, test="F"), "only available for gaussian")
+})
