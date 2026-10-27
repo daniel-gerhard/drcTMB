@@ -313,13 +313,17 @@ relevels <- function(object, newdata, use=TRUE, skip=FALSE, covs=TRUE){
     nc <- length(tm$cnms)
     Zl[[t]] <- rep(list(Matrix::sparseMatrix(i=integer(0), j=integer(0), x=numeric(0), dims=c(n, nl))), nc)
     Xl[[t]] <- matrix(NA_real_, n, nc)
-    bar <- findbars(tm$formula)[[1]]
-    cmiss <- setdiff(all.vars(bar[[2]]), names(newdata))
+    cmiss <- setdiff(all.vars(tm$xterms$terms), names(newdata))
     if (length(cmiss) > 0){
       if (use || covs) stop("newdata needs the covariates of the random slopes: ", paste(cmiss, collapse=", "), ".")
       next
     }
-    # rows without a fitted level get a level that is not in the fit
+    # columns of the term with the factor levels and contrasts of the fit
+    X <- designmatrix(tm$xterms, newdata)
+    # level of each row from the intercept of the term; rows without a fitted level get a level
+    # that is not in the fit
+    bar <- str2lang(tm$name)
+    bar[[2]] <- 1
     nd <- newdata
     for (v in all.vars(bar[[3]])){
       if (use && !skip && !(v %in% names(nd))) stop("newdata needs the grouping variable ", v, " of the random effects, or random=FALSE.")
@@ -327,19 +331,14 @@ relevels <- function(object, newdata, use=TRUE, skip=FALSE, covs=TRUE){
       g[is.na(g)] <- " new"
       nd[[v]] <- g
     }
-    mf <- model.frame(subbars(tm$formula), data=nd)
-    rows <- setdiff(seq_len(n), attr(mf, "na.action"))
-    if (length(rows) == 0) next
-    rt <- mkReTrms(findbars(tm$formula), mf)
-    zb <- reblocks(rt$Ztlist[[tm$name]], nc)
-    lid <- match(zb$levels, tm$levels)
+    rt <- mkReTrms(list(bar), model.frame(subbars(as.formula(call("~", bar))), data=nd))
+    lid <- match(as.character(rt$flist[[1]]), tm$levels)
     ok <- which(!is.na(lid))
-    P <- Matrix::sparseMatrix(i=ok, j=lid[ok], x=1, dims=c(length(zb$levels), nl))
-    R <- Matrix::sparseMatrix(i=rows, j=seq_along(rows), x=1, dims=c(n, length(rows)))
-    Zl[[t]] <- lapply(zb$blocks, function(B) R %*% B %*% P)
-    # a single entry in each row of a block: the column of the term
-    Xl[[t]][rows, ] <- matrix(sapply(zb$blocks, Matrix::rowSums), nrow=length(rows))
-    newgroup[rows, t] <- !(as.character(rt$flist[[tm$group]]) %in% tm$levels)
+    J <- Matrix::sparseMatrix(i=ok, j=lid[ok], x=1, dims=c(n, nl))
+    # rows with missing covariates: missing X, and no random effects in the blocks
+    Zl[[t]] <- lapply(seq_len(nc), function(c) Matrix::Diagonal(x=ifelse(is.na(X[, c]), 0, X[, c])) %*% J)
+    Xl[[t]] <- X
+    newgroup[, t] <- is.na(lid)
   }
   list(Zl=Zl, X=Xl, newgroup=newgroup)
 }

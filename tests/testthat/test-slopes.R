@@ -97,3 +97,29 @@ test_that("uncorrelated random intercepts and slopes with ||", {
   expect_equal(names(coef(f))[6:7], c("log_sd:b4|grp", "log_sd:b4:temp|grp"))
   expect_equal(summary(f)$ngroups, c(grp=12))
 })
+
+test_that("random slopes of a factor use the levels and contrasts of the fit for any newdata", {
+  set.seed(5)
+  ng <- 10
+  d <- expand.grid(rep=1:2, dose=c(0, 0.5, 1, 2, 4, 8, 16, 32), time=factor(c("24h", "48h", "72h")), grp=factor(seq_len(ng)))
+  d$rep <- NULL
+  U <- matrix(rnorm(ng*3, 0, 0.25), ng)
+  b4 <- 3*exp(c(0, -0.3, -0.6)[d$time] + U[cbind(as.integer(d$grp), as.integer(d$time))])
+  d$y <- drcTMB:::drcmeanR(2, d$dose, 1, 8, -1.5, b4, 0) + rnorm(nrow(d), 0, 0.3)
+  f <- fit4(y ~ dose, fform=b4 ~ time, rform=b4 ~ time | grp, data=d, model="loglogistic", b4link="log")
+  expect_equal(names(coef(f))[7:9], c("log_sd:b4|grp", "log_sd:b4:time48h|grp", "log_sd:b4:time72h|grp"))
+
+  lev <- c("24h", "48h", "72h")
+  full <- predict(f, data.frame(dose=2, time=lev, grp="3"), interval="prediction")
+  # a single level, a subset, and the levels in another order of the factor
+  expect_equal(predict(f, data.frame(dose=2, time="72h", grp="3"), interval="prediction"), full[3, ], ignore_attr=TRUE)
+  expect_equal(predict(f, data.frame(dose=2, time=c("48h", "72h"), grp="3"), interval="prediction"), full[2:3, ], ignore_attr=TRUE)
+  nd <- data.frame(dose=2, time=factor(lev, levels=rev(lev)), grp="3")
+  expect_equal(predict(f, nd, interval="prediction"), full, ignore_attr=TRUE)
+
+  # effective doses of a fitted and a new group
+  ef <- ed(f, newdata=expand.grid(time=lev, grp=c("3", "new")))
+  e1 <- ed(f, newdata=data.frame(time="72h", grp=c("3", "new")))
+  expect_equal(unname(coef(e1)), unname(coef(ef)[c(3, 6)]))
+  expect_equal(unname(vcov(e1)), unname(vcov(ef)[c(3, 6), c(3, 6)]))
+})

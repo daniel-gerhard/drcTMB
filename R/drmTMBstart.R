@@ -394,8 +394,9 @@ coefnames <- function(Xs){
 # (random intercepts) or b4 ~ x | group (random intercepts and slopes in x); nested grouping factors
 # (1 | a/b) give one term per level of nesting. A term has a random coefficient for each parameter
 # and each column of its design (intercept, slopes), correlated within the term: pars, the parameter
-# of each coefficient, zcol, its column of the design, and labels, e.g. b4 and b4:x. Z has a block
-# for each column of each term, with a column for each level.
+# of each coefficient, zcol, its column of the design, and labels, e.g. b4 and b4:x; xterms, the
+# terms, factor levels and contrasts of the design, for the design matrices of new data. Z has a
+# block for each column of each term, with a column for each level.
 reterms <- function(rform, data){
   if (is.null(rform)){
     n <- if (is.numeric(data)) data else nrow(data)
@@ -415,10 +416,15 @@ reterms <- function(rform, data){
     for (j in seq_along(rt$Ztlist)){
       cn <- rt$cnms[[j]]
       zb <- reblocks(rt$Ztlist[[j]], length(cn))
+      # design of the intercept and slopes, from the left-hand side of the bar of the term
+      xmf <- model.frame(as.formula(call("~", str2lang(names(rt$Ztlist)[j])[[2]])), data=data)
+      xt <- terms(xmf)
+      xterms <- list(terms=xt, xlev=.getXlevels(xt, xmf), contrasts=attr(model.matrix(xt, xmf), "contrasts"))
+      if (!identical(colnames(designmatrix(xterms, data)), cn)) stop("the design of the random effect term ", names(rt$Ztlist)[j], " is not supported.")
       # each parameter with each column of the design
       cf <- expand.grid(zcol=seq_along(cn), par=pars)
       # name and formula identify the term again in new data (predict)
-      terms[[length(terms) + 1]] <- list(pars=cf$par, zcol=cf$zcol, cnms=cn,
+      terms[[length(terms) + 1]] <- list(pars=cf$par, zcol=cf$zcol, cnms=cn, xterms=xterms,
                                          labels=paste("b", cf$par, ifelse(cn[cf$zcol] == "(Intercept)", "", paste(":", cn[cf$zcol], sep="")), sep=""),
                                          name=names(rt$Ztlist)[j], group=sub("^.*\\| ", "", names(rt$Ztlist)[j]),
                                          levels=zb$levels, formula=frh)
