@@ -78,6 +78,14 @@ bs <- bootstrap(mod, nsim = 200, seed = 1)
 head(predict(mod, newdata = ndata, interval = "confidence", boot = bs), 3)
 ```
 
+### Model comparison
+
+Nested models fitted to the same data can be compared by likelihood ratio tests with `anova()`, here the model with the lower asymptote fixed at 0 against a model with an estimated lower asymptote.
+```{r}
+mod4 <- update(mod, start = c(NA, NA, NA, NA, 0), fix = c(FALSE, FALSE, FALSE, FALSE, TRUE))
+anova(mod, mod4)
+```
+
 ## Effective dose estimation
 
 The `ed()` function can be used to estimate effective doses (e.g., ED50, ED90) from the fitted model, given a specified response level (`respLev`). The effective dose ED p is the dose at which the response has changed by p% of the difference between the asymptote at low doses (the control) and the asymptote at high doses.
