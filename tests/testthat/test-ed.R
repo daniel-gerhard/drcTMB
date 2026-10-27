@@ -116,3 +116,56 @@ test_that("predict uses the population curve for rows with a missing group", {
   expect_equal(p[2], predict(f, newdata=data.frame(dose=2, grp="new")))
   expect_equal(p[c(1, 3)], predict(f, newdata=data.frame(dose=2, grp=c("2", "3"))))
 })
+
+test_that("absolute effective doses: doses at which the curve reaches a response", {
+  d <- simgauss("loglogistic")
+  f <- fit4(y ~ dose, data=d, model="loglogistic")
+  e <- ed(f, c(2, 4, 6), type="absolute")
+  expect_equal(names(coef(e)), c("y=2:lf1", "y=4:lf2", "y=6:lf3"))
+  for (i in 1:3){
+    y <- c(2, 4, 6)[i]
+    expect_equal(coef(e)[[i]], uniroot(function(x) predict(f, data.frame(dose=x)) - y, c(0.01, 100), tol=1e-10)$root, tolerance=1e-6)
+  }
+  # delta method with the dependence on the asymptotes
+  b <- bcoef(f)[1:4]
+  edabs <- function(b, y) b[4] * (((y - b[1])/(b[2] - b[1]))^(-1) - 1)^(-1/b[3])
+  g <- numDeriv::grad(function(b) edabs(b, 4), b)
+  expect_equal(sqrt(vcov(e)[2, 2]), sqrt(drop(g %*% vcov(f)[1:4, 1:4] %*% g)), tolerance=1e-6)
+  # same dose as the relative effective dose at the corresponding response
+  y50 <- (b[[1]] + b[[2]])/2
+  expect_equal(unname(coef(ed(f, y50, type="absolute"))), unname(coef(ed(f, 50))))
+  # responses outside the curve
+  expect_warning(ea <- ed(f, c(4, 20), type="absolute"), "do not reach the response for y=20:lf2")
+  expect_true(is.na(coef(ea)[2]) && !is.na(coef(ea)[1]))
+  expect_error(profile(ea, parm=2), "NA")
+
+  # profile and bootstrap intervals
+  ci <- confint(profile(e, parm=2, progress=FALSE))
+  expect_true(ci[1] < coef(e)[2] && coef(e)[2] < ci[2])
+  expect_equal(ci, confint(e, parm=2, method="wald"), tolerance=0.05)
+  cb <- suppressMessages(confint(e, method="boot", nsim=20, seed=1, progress=FALSE))
+  expect_true(all(cb[, 1] < coef(e) & coef(e) < cb[, 2]))
+})
+
+test_that("absolute effective doses agree with drc", {
+  skip_if_not_installed("drc")
+  d <- simgauss("loglogistic")
+  f <- fit4(y ~ dose, data=d, model="loglogistic")
+  f2 <- drc::drm(y ~ dose, data=d, fct=drc::LL.4())
+  expect_equal(unname(coef(ed(f, c(2, 4, 6), type="absolute"))),
+               unname(drc::ED(f2, c(2, 4, 6), type="absolute", display=FALSE)[, 1]), tolerance=1e-4)
+})
+
+test_that("absolute effective doses of fitted groups depend on their random asymptotes", {
+  d <- simre()
+  f <- fit4(y ~ dose, rform=b1 + b4 ~ 1 | grp, data=d, model="loglogistic", b4link="log")
+  e <- ed(f, 4, newdata=data.frame(grp=c("2", "new")), type="absolute")
+  root <- uniroot(function(x) predict(f, data.frame(dose=x, grp="2")) - 4, c(0.01, 100), tol=1e-10)$root
+  expect_equal(coef(e)[[1]], root, tolerance=1e-6)
+  # the random effects of b1 change the absolute effective dose of a new group, not the relative one
+  er <- ed(f, newdata=data.frame(grp="new"))
+  er0 <- ed(f, newdata=data.frame(grp="new"), random=FALSE)
+  ea0 <- ed(f, 4, newdata=data.frame(grp="new"), random=FALSE, type="absolute")
+  expect_gt(vcov(e)[2, 2] - vcov(ea0)[1, 1], 0)
+  expect_equal(c(vcov(er) - vcov(er0)), unname(coef(er)^2 * recov(f)[[1]]$cov[2, 2]), tolerance=1e-8)
+})

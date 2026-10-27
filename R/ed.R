@@ -1,11 +1,12 @@
 #' Effective dose estimation
 #'
 #' @param x a drmTMB object
-#' @param respLev effective dose level in percent, default is 50. The effective dose ED p is the dose at which the response has changed by p percent of the difference between the asymptote at low doses (the control) and the asymptote at high doses.
+#' @param respLev effective dose level in percent, default is 50. The effective dose ED p is the dose at which the response has changed by p percent of the difference between the asymptote at low doses (the control) and the asymptote at high doses. For \code{type="absolute"}, values of the response.
 #' @param linfct a matrix of linear functions to identify the parameters of the dose-response curve, with 5 rows (b1-b5) and one column for each model coefficient, or a list of such matrices; default is the identity matrix, for models without covariates in fform. Each matrix is paired with an entry of respLev.
 #' @param newdata a data frame with the values of the covariates in fform, one row for each dose-response curve, as an alternative to linfct; the dose is not needed. With grouping variables of the random effects, the curves of fitted groups, see Details. The effective doses are computed at each level of respLev for each row, named by the covariate and group values (or by the row names of newdata, if set).
 #' @param random logical, if TRUE, the effective doses of rows of newdata with fitted groups are conditional on their random effects, and for the other random effect terms, the variance-covariance matrix of the random effects is included in the standard error estimation. If FALSE, the effective doses are for the population curves.
 #' @param residual logical, if TRUE, the residual variance is included in the standard error estimation (gaussian family only)
+#' @param type "relative" (default) for effective doses relative to the asymptotes, or "absolute" for the doses at which the curves reach the responses in respLev, on the scale of the response (proportions for binomial and beta). Absolute effective doses depend on the asymptotes, and on their random effects; responses outside the range of a curve give NA, with a warning.
 #'
 #' @details Without random effects, or with \code{random=FALSE}, the effective doses are those of the
 #' population curves, with all random effects at zero, and their standard errors include the
@@ -24,7 +25,9 @@
 #' @return a edTMB object
 #' @export
 #'
-ed <- function(x, respLev=50, linfct=NULL, newdata=NULL, random=TRUE, residual=FALSE){
+ed <- function(x, respLev=50, linfct=NULL, newdata=NULL, random=TRUE, residual=FALSE, type=c("relative", "absolute")){
+  type <- match.arg(type)
+  absolute <- type == "absolute"
   if (!is.null(newdata)){
     if (!is.null(linfct)) stop("give either linfct or newdata, not both.")
     # every level of respLev for every curve
@@ -101,13 +104,25 @@ ed <- function(x, respLev=50, linfct=NULL, newdata=NULL, random=TRUE, residual=F
     u <- as.vector(W[[i]] %*% uhat)
 
     # level of the increasing function F of the model at the ED: the control is b1 for an
-    # increasing curve (b3 > 0) and for the models without b3, and b2 for a decreasing curve
-    q <- respLev[i]/100
-    if (!(mod %in% c(6, 7, 8)) && lpv[3] + u[3] < 0) q <- 1 - q
+    # increasing curve (b3 > 0) and for the models without b3, and b2 for a decreasing curve;
+    # for absolute effective doses, the response, and the level of F follows from the asymptotes
+    if (absolute){
+      q <- respLev[i]
+      qf <- edq(x, q, lpv + u, TRUE)
+      if (!is.finite(qf) || qf <= 0 || qf >= 1){
+        edl[i] <- NA
+        grad[i, ] <- NA
+        ql[i] <- q
+        next
+      }
+    } else {
+      q <- respLev[i]/100
+      if (!(mod %in% c(6, 7, 8)) && lpv[3] + u[3] < 0) q <- 1 - q
+    }
     ql[i] <- q
 
     # ED and its gradient w.r.t. (b1-b5, u1-u5, r) from the drcED TMB template
-    eobj <- MakeADFun(list(model="drcED", mod=mod, lnk=lnk, lnk4=b4linkindex(x), q=q),
+    eobj <- MakeADFun(list(model="drcED", mod=mod, lnk=lnk, lnk4=b4linkindex(x), absolute=as.integer(absolute), q=q),
                       list(b=lpv, u=u, r=0),
                       ADreport=TRUE, DLL="drcTMB_TMBExports", silent=TRUE)
     edl[i] <- eobj$fn()
@@ -122,15 +137,27 @@ ed <- function(x, respLev=50, linfct=NULL, newdata=NULL, random=TRUE, residual=F
   cbu <- if (any(cond)) jointcov(x) else as.matrix(bdiag(x$sdrl$cov.fixed[seq_len(nb), seq_len(nb), drop=FALSE], matrix(0, nu, nu)))
   cvc <- as.matrix(bdiag(c(list(cbu), lapply(recov(x), function(vc) vc$cov), list(matrix(rvar)))))
   edvar <- grad %*% cvc %*% t(grad)
-  names(edl) <- paste(respLev, names(linfct), sep=":")
-  colnames(edvar) <- rownames(edvar) <- paste(respLev, names(linfct), sep=":")
+  edn <- paste(if (absolute) paste("y=", respLev, sep="") else respLev, names(linfct), sep=":")
+  if (anyNA(edl)) warning("the curves do not reach the response for ", paste(edn[is.na(edl)], collapse=", "), "; the effective doses are NA.", call.=FALSE)
+  names(edl) <- edn
+  colnames(edvar) <- rownames(edvar) <- edn
   # the fit, linear functions, random effect weights and levels of F are kept for profile and confint
   names(ql) <- names(edl)
-  res <- list(estimates=edl, variance=edvar, fit=x, linfct=linfct, q=ql, random=random, residual=residual,
+  res <- list(estimates=edl, variance=edvar, fit=x, linfct=linfct, q=ql, type=type, random=random, residual=residual,
               uweights=W, conditional=setNames(cond, names(edl)),
               newvar=setNames(apply(newterm, 1, any) & length(terms) > 0, names(edl)))
   class(res) <- "edTMB"
   return(res)
+}
+
+# level of F at an effective dose with level q (absolute=FALSE) or response q (absolute=TRUE), for the
+# parameters lpv (b1-b5 on the scale of the linear predictors) of the curve
+edq <- function(fit, q, lpv, absolute){
+  if (!absolute) return(q)
+  lnk <- which(fit$link == c("identity", "log", "logit"))
+  f1 <- linkfun(lnk, lpv[1], inverse=TRUE)
+  f2 <- linkfun(lnk, lpv[2], inverse=TRUE)
+  (q - f1) / (f2 - f1)
 }
 
 # weights of the fitted random effects u on b1-b5 for row r of the random effect design rl of newdata
