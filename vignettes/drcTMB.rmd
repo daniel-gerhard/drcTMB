@@ -187,6 +187,17 @@ edose_glht <- glht(ed75, linfct = lfdiff)
 confint(edose_glht)
 ```
 
+Ratios of effective doses, e.g. the relative potency of two curves, are often more natural than differences. As `ed()` returns the estimates and their variance-covariance matrix, simultaneous confidence intervals for ratios can be constructed with the function `gsci.ratio()` of the package mratios, here for the ED50 and ED75 after 24 hours relative to 48 hours.
+```{r, eval=requireNamespace("mratios", quietly=TRUE)}
+library(mratios)
+ed5075 <- ed(dmodg, respLev = c(50, 75), newdata = data.frame(time = c("24h", "48h")))
+num <- rbind("ED50 24h/48h" = c(1, 0, 0, 0),
+             "ED75 24h/48h" = c(0, 0, 1, 0))
+den <- rbind(c(0, 1, 0, 0),
+             c(0, 0, 0, 1))
+gsci.ratio(coef(ed5075), vcov(ed5075), num, den)
+```
+
 More generally, the `linfct` argument identifies the parameters b1 to b5 of each curve by linear functions of the model coefficients, with one matrix for each curve. The matrices for the two curves above are
 ```{r, message=FALSE, warning=FALSE}
 linfct <- list("24h"=rbind(c(1, 0, 0, 0, 0, 0, 0),
