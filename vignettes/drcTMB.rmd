@@ -91,6 +91,12 @@ For gaussian models without random effects, F-tests account for the estimation o
 anova(mod, mod4, test = "F")
 ```
 
+A model without a dose effect, `model = "constant"` with the same mean b1 at all doses, tests whether the response changes with the dose at all, as `noEffect()` in drc.
+```{r}
+mod0 <- update(mod, model = "constant", start = NULL, fix = NULL)
+anova(mod0, mod)
+```
+
 ## Effective dose estimation
 
 The `ed()` function can be used to estimate effective doses (e.g., ED50, ED90) from the fitted model, given a specified response level (`respLev`). The effective dose ED p is the dose at which the response has changed by p% of the difference between the asymptote at low doses (the control) and the asymptote at high doses.
@@ -332,3 +338,9 @@ $$ f(x) = b_1 + \frac{b_2 - b_1}{1 + \frac{b_4}{x}} $$
 Both names refer to the same model; an increasing curve is an asymptotic regression and a decreasing curve an exponential decay.
 
 $$ f(x) = b_1 + \left( b_2 - b_1 \right) \left( 1 - \exp \left( \frac{-x}{b_4} \right) \right) $$
+
+#### constant
+
+A model without a dose effect, for testing a dose-response model against a flat curve with `anova()`; b2 to b5 are not used.
+
+$$ f(x) = b_1 $$

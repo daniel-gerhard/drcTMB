@@ -35,7 +35,7 @@ drmTMB(
 
 \item{start}{a vector with starting values for each model coefficient. NA entries are replaced by the starting values of \code{\link{drmTMBstart}}. Alternatively, a vector named by parameter, e.g. c(b1=0, b5=0), gives the same starting value to all coefficients of each named parameter.}
 
-\item{fix}{a logical vector with one entry for each model coefficient. If TRUE, a model coefficient is fixed to its value in start. Alternatively, a vector named by parameter, e.g. c(b1=TRUE, b5=TRUE), fixes all coefficients of the named parameters; their values must then be given in start, e.g. start=c(b1=0, b5=0). Parameters not used by the model (b5 except for logistic and loglogistic, b3 for michaelismenten, asymptoticregression and exponentialdecay) are always fixed, at 0 unless given in start.}
+\item{fix}{a logical vector with one entry for each model coefficient. If TRUE, a model coefficient is fixed to its value in start. Alternatively, a vector named by parameter, e.g. c(b1=TRUE, b5=TRUE), fixes all coefficients of the named parameters; their values must then be given in start, e.g. start=c(b1=0, b5=0). Parameters not used by the model (b5 except for logistic and loglogistic, b3 for michaelismenten, asymptoticregression and exponentialdecay, b2-b5 for constant) are always fixed, at 0 unless given in start.}
 
 \item{weights}{a vector of weights, one for each row of data.}
 
@@ -45,7 +45,7 @@ drmTMB(
 
 \item{family}{Specify the distributional assumptions. One of "gaussian", "binomial", "betabinomial", "beta", "poisson", "nbinom2", and "nbinom1". The negative binomial families are for overdispersed counts, with variance mu (1 + mu/theta) for nbinom2 and mu (1 + phi) for nbinom1, and the beta-binomial family for overdispersed binomial counts, with variance n mu (1 - mu) (1 + (n - 1)/(phi + 1)) for n trials, as in glmmTMB.}
 
-\item{model}{Specify the nonlinear model. One of "logistic", "loglogistic", "weibull1", "weibull2", "lognormal", "michaelismenten", "asymptoticregression", "exponentialdecay", "gompertz".}
+\item{model}{Specify the nonlinear model. One of "logistic", "loglogistic", "weibull1", "weibull2", "lognormal", "michaelismenten", "asymptoticregression", "exponentialdecay", "gompertz", "constant". The constant model has no dose effect, see Details.}
 
 \item{link}{Specify the link function for estimating asymptote parameters. One of "identity", "log", "logit".}
 
@@ -73,6 +73,12 @@ the upper asymptote, and b3 is positive for an increasing and negative for a dec
 For michaelismenten, asymptoticregression and exponentialdecay (b3 and b5 are not used),
 b1 is the response at dose zero and b2 the asymptote at high doses. The asymmetry parameter b5
 of the logistic and loglogistic models is on the log scale. See the vignette for the model functions.
+
+The constant model, f(x) = b1, has the same mean at all doses; b2-b5 are not used. Compared with
+a dose-response model by \code{\link{anova.drmTMB}}, it tests for a dose effect, as
+\code{noEffect} in drc. Under the constant model, the parameters of the curve other than an
+asymptote are not identifiable, so the chi-square distribution of the likelihood ratio statistic
+is only an approximation.
 
 With \code{b4link="log"}, the linear predictor of b4, including its random effects, is log(b4):
 the coefficients of b4 in \code{coef}, \code{start}, \code{fix}, \code{lower}, \code{upper} and

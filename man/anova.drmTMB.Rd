@@ -24,7 +24,8 @@ squares (RSS) instead of the deviance, and the F statistic (F) and its p-value (
 \description{
 Compares two or more models fitted to the same data by likelihood ratio tests, e.g. a model with
 and without covariates in \code{fform}, with and without random effects, or a poisson and a
-negative binomial model.
+negative binomial model. A model with \code{model="constant"} as the smaller model tests for a
+dose effect.
 }
 \details{
 The models are ordered by their number of parameters, and each model is compared with the
