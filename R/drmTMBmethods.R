@@ -18,7 +18,7 @@
 #' predict returns a vector of predicted means, or, with se.fit=TRUE or an interval, a data frame with
 #' the predicted means (fit), their standard errors (se.fit), and the limits of the intervals (lwr, upr).
 #' coef and vcov include the variance parameters: for each random effect term the log standard deviations
-#' (log_sd:b1|group) and, for correlated random effects, the parameters of the correlation matrix
+#' (log_sd:b1|group, or log_sd:b4:x|group for a random slope of b4 in x) and, for correlated random effects, the parameters of the correlation matrix
 #' (corr_par:b2,b1|group, unconstrained elements of the lower triangle of its Cholesky factor, by row);
 #' and the log residual standard deviation (log_sigma, gaussian) or log precision (log_phi, beta).
 #' summary returns a summary.drmTMB object with the coefficient table (Estimate, Std. Error), the
@@ -81,7 +81,7 @@ summary.drmTMB <- function(object, ...){
     np <- length(vc$pars)
     se <- ses[toff + seq_len(np)]
     toff <<- toff + np + np*(np - 1)/2
-    nm <- paste(vc$group, paste("b", vc$pars, sep=""))
+    nm <- paste(vc$group, vc$labels)
     nm[!is.finite(se) | se > 100 | vc$sd < 1e-8]
   }))
 
@@ -217,7 +217,7 @@ residuals.drmTMB <- function(object, type=c("pearson", "response", "quantile"), 
 predict.drmTMB <- function(object, newdata=NULL, random=TRUE, se.fit=FALSE, interval=c("none", "confidence", "prediction"), level=0.95, boot=NULL, nsim=1000, seed=NULL, ...){
   interval <- match.arg(interval)
   if (is.null(newdata)) newdata <- object$data
-  pd <- preddata(object, newdata, random)
+  pd <- preddata(object, newdata, random, covs=interval == "prediction")
   fit <- predmean(pd, pd$eta)
   if (!se.fit && interval == "none") return(fit)
   if (!is.null(seed)) set.seed(seed)
@@ -259,7 +259,7 @@ predict.drmTMB <- function(object, newdata=NULL, random=TRUE, se.fit=FALSE, inte
 # design of the predictions for newdata: doses, design matrices, linear predictors of b1-b5 (with the
 # random effects of the fitted levels if random=TRUE), the random effects design Zp for the TMB
 # template, and for each term the rows without a fitted level (newgroup)
-preddata <- function(object, newdata, random){
+preddata <- function(object, newdata, random, covs=FALSE){
   form <- object$formula
   form[2] <- NULL
   x <- model.frame(form, data=newdata, na.action=na.pass)[, 1]
@@ -274,7 +274,7 @@ preddata <- function(object, newdata, random){
   eta <- matrix(eta, nrow=n)
 
   # random effects of the fitted levels; levels not in the fitted data get zero
-  rl <- relevels(object, newdata, use=random)
+  rl <- relevels(object, newdata, use=random, covs=covs)
   Zl <- rl$Zl
   newgroup <- rl$newgroup
   re <- ests[rn %in% "u", 1]
@@ -285,41 +285,75 @@ preddata <- function(object, newdata, random){
     np <- length(tm$pars)
     U <- matrix(re[uoff + seq_len(nl*np)], nrow=nl)
     uoff <- uoff + nl*np
-    for (k in seq_len(np)) eta[, tm$pars[k]] <- eta[, tm$pars[k]] + as.vector(Zl[[t]] %*% U[, k])
+    eta <- addre(eta, tm, Zl[[t]], U)
+    # random slopes with missing covariates
+    if (random) eta[rowSums(is.na(rl$X[[t]])) > 0, unique(tm$pars)] <- NA
   }
-  Zp <- if (length(Zl) > 0) do.call(cbind, Zl) else Matrix::sparseMatrix(i=integer(0), j=integer(0), x=numeric(0), dims=c(n, 0))
-  list(x=x, Xs=Xs, eta=eta, Zp=Zp, Zl=Zl, newgroup=newgroup,
+  Zp <- if (length(Zl) > 0) do.call(cbind, unlist(Zl, recursive=FALSE)) else Matrix::sparseMatrix(i=integer(0), j=integer(0), x=numeric(0), dims=c(n, 0))
+  list(x=x, Xs=Xs, eta=eta, Zp=Zp, Zl=Zl, X=rl$X, newgroup=newgroup,
        mod=modelindex(object$model), lnk=which(object$link == c("identity", "log", "logit")), lnk4=b4linkindex(object))
 }
 
-# design of the random effects of the fitted levels in newdata: for each term, a matrix with a row for
-# each row of newdata and a column for each fitted level, and the rows without a fitted level
-# (newgroup). Rows with a level not in the fit or a missing level, all rows for use=FALSE, and with
-# skip=TRUE all rows of terms whose grouping variables are not in newdata have no fitted level.
-relevels <- function(object, newdata, use=TRUE, skip=FALSE){
+# design of the random effects of the fitted levels in newdata. For each term: Zl, a design block for
+# each column of the term (intercept, slopes), with a row for each row of newdata and a column for
+# each fitted level; X, the columns of the term in each row (1 for the intercept, the covariates of
+# the slopes), for the random effects of a new group; and newgroup, the rows without a fitted level.
+# Rows with a level not in the fit or a missing level, all rows for use=FALSE, and with skip=TRUE all
+# rows of terms whose grouping variables are not in newdata have no fitted level. Rows with missing
+# covariates of the slopes have missing X; without the covariates in newdata, an error for use=TRUE
+# or covs=TRUE, and missing X otherwise.
+relevels <- function(object, newdata, use=TRUE, skip=FALSE, covs=TRUE){
   n <- nrow(newdata)
   Zl <- list()
+  Xl <- list()
   newgroup <- matrix(TRUE, n, length(object$reterms))
   for (t in seq_along(object$reterms)){
     tm <- object$reterms[[t]]
     nl <- length(tm$levels)
-    Zt <- Matrix::sparseMatrix(i=integer(0), j=integer(0), x=numeric(0), dims=c(n, nl))
-    if (use && !(skip && !all(all.vars(tm$formula) %in% names(newdata)))){
-      mf <- model.frame(subbars(tm$formula), data=newdata)
-      rows <- setdiff(seq_len(n), attr(mf, "na.action"))
-      if (length(rows) > 0){
-        Zn <- mkReTrms(findbars(tm$formula), mf)$Ztlist[[tm$name]]
-        lid <- match(rownames(Zn), tm$levels)
-        ok <- which(!is.na(lid))
-        P <- Matrix::sparseMatrix(i=ok, j=lid[ok], x=1, dims=c(nrow(Zn), nl))
-        R <- Matrix::sparseMatrix(i=rows, j=seq_along(rows), x=1, dims=c(n, length(rows)))
-        Zt <- R %*% t(Zn) %*% P
-        newgroup[, t] <- Matrix::rowSums(abs(Zt)) == 0
-      }
+    nc <- length(tm$cnms)
+    Zl[[t]] <- rep(list(Matrix::sparseMatrix(i=integer(0), j=integer(0), x=numeric(0), dims=c(n, nl))), nc)
+    Xl[[t]] <- matrix(NA_real_, n, nc)
+    cmiss <- setdiff(all.vars(tm$xterms$terms), names(newdata))
+    if (length(cmiss) > 0){
+      if (use || covs) stop("newdata needs the covariates of the random slopes: ", paste(cmiss, collapse=", "), ".")
+      next
     }
-    Zl[[t]] <- Zt
+    # columns of the term with the factor levels and contrasts of the fit
+    X <- designmatrix(tm$xterms, newdata)
+    # level of each row from the intercept of the term; rows without a fitted level get a level
+    # that is not in the fit
+    bar <- str2lang(tm$name)
+    bar[[2]] <- 1
+    nd <- newdata
+    for (v in all.vars(bar[[3]])){
+      if (use && !skip && !(v %in% names(nd))) stop("newdata needs the grouping variable ", v, " of the random effects, or random=FALSE.")
+      g <- if (use && v %in% names(nd)) as.character(nd[[v]]) else rep(NA_character_, n)
+      g[is.na(g)] <- " new"
+      nd[[v]] <- g
+    }
+    rt <- mkReTrms(list(bar), model.frame(subbars(as.formula(call("~", bar))), data=nd))
+    lid <- match(as.character(rt$flist[[1]]), tm$levels)
+    ok <- which(!is.na(lid))
+    J <- Matrix::sparseMatrix(i=ok, j=lid[ok], x=1, dims=c(n, nl))
+    # rows with missing covariates: missing X, and no random effects in the blocks
+    Zl[[t]] <- lapply(seq_len(nc), function(c) Matrix::Diagonal(x=ifelse(is.na(X[, c]), 0, X[, c])) %*% J)
+    Xl[[t]] <- X
+    newgroup[, t] <- is.na(lid)
   }
-  list(Zl=Zl, newgroup=newgroup)
+  list(Zl=Zl, X=Xl, newgroup=newgroup)
+}
+
+# add the random effects U of term tm (a column for each random coefficient, a row for each level)
+# to the linear predictors eta of b1-b5, with the design blocks Zb of the term
+addre <- function(eta, tm, Zb, U){
+  for (k in seq_along(tm$pars)) eta[, tm$pars[k]] <- eta[, tm$pars[k]] + as.vector(Zb[[tm$zcol[k]]] %*% U[, k])
+  eta
+}
+
+# weights of the random coefficients of term tm on the linear predictors of their parameters for a
+# new group, from the columns X of the term: a column for each coefficient
+reloads <- function(tm, X){
+  X[, tm$zcol, drop=FALSE]
 }
 
 # mean function at the linear predictors eta of b1-b5
@@ -360,7 +394,7 @@ draweta <- function(object, pd, par){
     np <- length(tm$pars)
     U <- matrix(pl$u[uoff + seq_len(nl*np)], nrow=nl)
     uoff <- uoff + nl*np
-    eta[, tm$pars] <- eta[, tm$pars] + as.matrix(pd$Zl[[t]] %*% U)
+    eta <- addre(eta, tm, pd$Zl[[t]], U)
   }
   eta
 }
@@ -472,7 +506,8 @@ predsim <- function(object, pd, draws, trials, probs, vardraws=FALSE){
       new <- which(pd$newgroup[, t])
       if (length(new) > 0){
         E <- matrix(rnorm(length(new)*np), ncol=np) %*% chol(Ct) %*% diag(sdt, nrow=np)
-        eta[new, tm$pars] <- eta[new, tm$pars] + E
+        E <- E * reloads(tm, pd$X[[t]][new, , drop=FALSE])
+        for (k in seq_len(np)) eta[new, tm$pars[k]] <- eta[new, tm$pars[k]] + E[, k]
       }
     }
     mu <- predmean(pd, eta)
@@ -525,7 +560,7 @@ newgroupvar <- function(object, pd){
   g <- matrix(g, nrow=n)
   vcs <- recov(object)
   for (t in seq_along(vcs)){
-    gt <- g[, vcs[[t]]$pars, drop=FALSE]
+    gt <- g[, vcs[[t]]$pars, drop=FALSE] * reloads(object$reterms[[t]], pd$X[[t]])
     vt <- rowSums((gt %*% vcs[[t]]$cov) * gt)
     v <- v + ifelse(pd$newgroup[, t], vt, 0)
   }
@@ -583,7 +618,7 @@ recov <- function(object){
     cr <- matrix(corrs[coff + seq_len(np*np)], nrow=np)
     toff <<- toff + np + np*(np-1)/2
     coff <<- coff + np*np
-    list(pars=tm$pars, group=tm$group, sd=sdm, corr=cr, cov=diag(sdm, nrow=np) %*% cr %*% diag(sdm, nrow=np))
+    list(pars=tm$pars, labels=relabels(tm), group=tm$group, sd=sdm, corr=cr, cov=diag(sdm, nrow=np) %*% cr %*% diag(sdm, nrow=np))
   })
 }
 
@@ -619,7 +654,7 @@ printre <- function(vcs, digits){
     np <- length(vc$pars)
     cr <- matrix("", np, max(np - 1, 0))
     for (i in seq_len(np)[-1]) cr[i, seq_len(i - 1)] <- format(vc$corr[i, seq_len(i - 1)], digits=2, nsmall=2)
-    cbind(Groups=c(vc$group, rep("", np - 1)), Name=paste("b", vc$pars, sep=""),
+    cbind(Groups=c(vc$group, rep("", np - 1)), Name=vc$labels,
           Std.Dev.=format(unname(vc$sd), digits=digits), cr)
   })
   ncr <- max(sapply(rows, ncol)) - 3
@@ -648,7 +683,7 @@ printresid <- function(family, residpar, digits){
 # the log residual standard deviation (gaussian) or log precision (beta)
 parnames <- function(object){
   renames <- unlist(lapply(object$reterms, function(tm){
-    pn <- paste("b", tm$pars, sep="")
+    pn <- relabels(tm)
     np <- length(pn)
     pairs <- unlist(lapply(seq_len(np)[-1], function(i) paste(pn[i], pn[seq_len(i - 1)], sep=",")))
     c(paste("log_sd:", pn, "|", tm$group, sep=""),

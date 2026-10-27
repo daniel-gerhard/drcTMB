@@ -74,10 +74,16 @@ ed <- function(x, respLev=50, linfct=NULL, newdata=NULL, random=TRUE, residual=F
   ned <- length(linfct)
   W <- rep(list(matrix(0, 5, nu)), ned)
   newterm <- matrix(random, ned, length(terms))
+  # columns of each term for a new group (intercept, covariates of slopes), for each ED
+  loads <- lapply(terms, function(tm) reloads(tm, matrix(as.numeric(tm$cnms == "(Intercept)"), ned, length(tm$cnms), byrow=TRUE)))
   if (!is.null(newdata) && random && length(terms) > 0){
     rl <- relevels(x, newdata, skip=TRUE)
     W <- lapply(rows, function(r) reweights(x, rl, r))
     newterm <- rl$newgroup[rows, , drop=FALSE]
+    loads <- lapply(seq_along(terms), function(t) reloads(terms[[t]], rl$X[[t]][rows, , drop=FALSE]))
+    if (any(is.na(unlist(loads)))) stop("newdata has missing values in the covariates of the random slopes.")
+  } else if (random && any(unlist(lapply(terms, function(tm) tm$cnms)) != "(Intercept)")){
+    stop("the variance of the effective doses depends on the covariates of the random slopes: give their values in newdata, or use random=FALSE.")
   }
   cond <- vapply(W, function(w) any(w != 0), logical(1))
 
@@ -107,7 +113,7 @@ ed <- function(x, respLev=50, linfct=NULL, newdata=NULL, random=TRUE, residual=F
     edl[i] <- eobj$fn()
     egrad <- eobj$gr()
     gu <- egrad[6:10]
-    gnew <- unlist(lapply(seq_along(terms), function(t) gu[terms[[t]]$pars] * newterm[i, t]))
+    gnew <- unlist(lapply(seq_along(terms), function(t) gu[terms[[t]]$pars] * loads[[t]][i, ] * newterm[i, t]))
     grad[i, ] <- c((egrad[1:5] %*% linfct[[i]])[!x$fix], gu %*% W[[i]], gnew, egrad[11])
   }
 
@@ -134,8 +140,7 @@ reweights <- function(object, rl, r){
   for (t in seq_along(object$reterms)){
     tm <- object$reterms[[t]]
     nl <- length(tm$levels)
-    z <- as.vector(rl$Zl[[t]][r, ])
-    for (k in seq_along(tm$pars)) w[tm$pars[k], uoff + (k - 1)*nl + seq_len(nl)] <- z
+    for (k in seq_along(tm$pars)) w[tm$pars[k], uoff + (k - 1)*nl + seq_len(nl)] <- as.vector(rl$Zl[[t]][[tm$zcol[k]]][r, ])
     uoff <- uoff + nl*length(tm$pars)
   }
   w
@@ -149,7 +154,9 @@ jointcov <- function(object){
   H <- if (isTRUE(object$sdrl$pdHess)) solve(object$sdrl$cov.fixed)
   sdr <- sdreport(object$obj, par.fixed=object$opt$par, hessian.fixed=H, getJointPrecision=TRUE)
   id <- c(seq_len(sum(!object$fix)), env$random)
-  as.matrix(solve(sdr$jointPrecision))[id, id, drop=FALSE]
+  C <- tryCatch(solve(sdr$jointPrecision), error=function(e) NULL)
+  if (is.null(C)) stop("the joint precision matrix of the coefficients and random effects is singular; check the convergence of the fit.")
+  as.matrix(C)[id, id, drop=FALSE]
 }
 
 # linear functions of the curves in the rows of newdata: the rows of the design matrices of b1-b5,

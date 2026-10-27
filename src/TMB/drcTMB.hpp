@@ -9,9 +9,10 @@ Type drcTMB(objective_function<Type>* obj) {
   DATA_INTEGER(mod);
   DATA_INTEGER(lnk);
   DATA_INTEGER(lnk4);      // link for b4: 1 = identity, 2 = log
-  DATA_IVECTOR(tnp);       // random effect terms: number of parameters per term
+  DATA_IVECTOR(tnp);       // random effect terms: number of random coefficients per term
   DATA_IVECTOR(tnl);       // number of levels per term
-  DATA_IVECTOR(tpar);      // parameter indices (0-4) of all terms, concatenated
+  DATA_IVECTOR(tpar);      // parameter indices (0-4) of the random coefficients of all terms, concatenated
+  DATA_IVECTOR(tzb);       // first column in Z (and Zp) of the design block of each random coefficient
   DATA_INTEGER(simre);     // simulate: 1 = new random effects, 0 = keep the fitted ones
   DATA_VECTOR(y);
   DATA_VECTOR(x);
@@ -22,7 +23,8 @@ Type drcTMB(objective_function<Type>* obj) {
   DATA_MATRIX(X3);
   DATA_MATRIX(X4);
   DATA_MATRIX(X5);
-  DATA_SPARSE_MATRIX(Z);   // design matrices of all terms, side by side; zero columns without random effects
+  DATA_SPARSE_MATRIX(Z);   // design blocks of all terms, side by side: a column for each level, with the
+                           // covariate of a random slope (1 for intercepts); zero columns without random effects
   DATA_VECTOR(xp);         // predictions (predict with se.fit): doses, length zero otherwise
   DATA_MATRIX(Xp1);
   DATA_MATRIX(Xp2);
@@ -52,8 +54,8 @@ Type drcTMB(objective_function<Type>* obj) {
   int n = y.size();
 
   // random effects: column k of Zu is added to the linear predictor of b(k+1)
-  // term t has tnl(t) levels and random intercepts for the tnp(t) parameters tpar,
-  // correlated within a term and independent between terms
+  // term t has tnl(t) levels and tnp(t) random coefficients (intercepts or slopes) of the parameters
+  // tpar, with design blocks at columns tzb of Z, correlated within a term and independent between terms
   matrix<Type> Zu(n, 5);
   Zu.setZero();
   int nt = tnp.size();
@@ -62,7 +64,7 @@ Type drcTMB(objective_function<Type>* obj) {
     for (int t = 0; t < nt; t++) ncorr += tnp(t)*tnp(t);
     vector<Type> corr(ncorr);
 
-    int uoff = 0, toff = 0, poff = 0, zoff = 0, coff = 0;
+    int uoff = 0, toff = 0, poff = 0, coff = 0;
     for (int t = 0; t < nt; t++){
       int np = tnp(t);
       int nl = tnl(t);
@@ -98,14 +100,13 @@ Type drcTMB(objective_function<Type>* obj) {
       }
 
       for (int k = 0; k < np; k++){
-        vector<Type> Zuk = Z.middleCols(zoff, nl) * U.col(k).matrix();
+        vector<Type> Zuk = Z.middleCols(tzb(poff + k), nl) * U.col(k).matrix();
         Zu.col(tpar(poff + k)) += Zuk.matrix();
       }
 
       uoff += nl*np;
       toff += np + np*(np-1)/2;
       poff += np;
-      zoff += nl;
       coff += np*np;
     }
     ADREPORT(corr);
@@ -139,18 +140,17 @@ Type drcTMB(objective_function<Type>* obj) {
   if (npred > 0){
     matrix<Type> Zup(npred, 5);
     Zup.setZero();
-    int uoff = 0, poff = 0, zoff = 0;
+    int uoff = 0, poff = 0;
     for (int t = 0; t < nt; t++){
       int np = tnp(t);
       int nl = tnl(t);
       for (int k = 0; k < np; k++){
         vector<Type> uk = u.segment(uoff + k*nl, nl);
-        vector<Type> Zuk = Zp.middleCols(zoff, nl) * uk.matrix();
+        vector<Type> Zuk = Zp.middleCols(tzb(poff + k), nl) * uk.matrix();
         Zup.col(tpar(poff + k)) += Zuk.matrix();
       }
       uoff += nl*np;
       poff += np;
-      zoff += nl;
     }
     vector<Type> Xpb1 = Xp1 * b1;
     vector<Type> Xpb2 = Xp2 * b2;
