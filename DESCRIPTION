@@ -11,7 +11,6 @@ Suggests:
     knitr,
     markdown,
     rmarkdown,
-    ggplot2,
     drcData,
     multcomp,
     mratios,
@@ -27,6 +26,8 @@ Encoding: UTF-8
 Roxygen: list(markdown = TRUE)
 RoxygenNote: 8.0.0
 Imports: 
+    ggplot2,
+    grid,
     Matrix,
     methods,
     reformulas,
