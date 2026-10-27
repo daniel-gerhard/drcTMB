@@ -63,7 +63,7 @@
 \item{random}{logical, if TRUE, the random effects are included in the predictions, fitted values and residuals (conditional residuals). For simulate, if TRUE, new random effects are drawn for each simulation, otherwise the fitted random effects are kept.
 For prediction intervals, random=TRUE gives the interval of a new observation in the group of each row of newdata, and random=FALSE the interval of a new observation in a new group, including the variance of the random effects. Rows of newdata with a level that is not in the fitted data are treated as new groups for that random effect term.}
 
-\item{type}{type of residuals: "pearson" (default), the response residuals divided by the standard deviation of the fitted distribution and multiplied by the square root of the weights; "response", the observed minus the fitted values, as proportions for a binomial response; or "quantile", randomised quantile residuals (Dunn and Smyth, 1996), which are standard normal under the model. The quantile residuals do not use the weights, and are random for poisson and binomial responses; use set.seed for reproducible values.}
+\item{type}{type of residuals: "pearson" (default), the response residuals divided by the standard deviation of the fitted distribution and multiplied by the square root of the weights; "response", the observed minus the fitted values, as proportions for a binomial response; or "quantile", randomised quantile residuals (Dunn and Smyth, 1996), which are standard normal under the model. The quantile residuals do not use the weights, and are random for the count families; use set.seed for reproducible values.}
 
 \item{newdata}{a data frame for prediction. If NULL, the original data is used.}
 
@@ -86,7 +86,8 @@ the predicted means (fit), their standard errors (se.fit), and the limits of the
 coef and vcov include the variance parameters: for each random effect term the log standard deviations
 (log_sd:b1|group, or log_sd:b4:x|group for a random slope of b4 in x) and, for correlated random effects, the parameters of the correlation matrix
 (corr_par:b2,b1|group, unconstrained elements of the lower triangle of its Cholesky factor, by row);
-and the log residual standard deviation (log_sigma, gaussian) or log precision (log_phi, beta).
+and the log residual standard deviation (log_sigma, gaussian), log precision (log_phi, beta), log size
+(log_theta, nbinom2) or log dispersion (log_phi, nbinom1).
 summary returns a summary.drmTMB object with the coefficient table (Estimate, Std. Error), the
 variance components, log-likelihood, AIC and BIC, sample sizes, a Pearson dispersion statistic for
 poisson and binomial models, and convergence information. logLik returns the log-likelihood at the

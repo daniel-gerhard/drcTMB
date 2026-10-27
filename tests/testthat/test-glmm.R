@@ -6,6 +6,7 @@
 #   poisson, exponentialdecay, log link,
 #     b2 = -30 (exp(b2) ~ 0):              log(mu) = b1 - x / b4, random b1
 #   beta, logistic, b1 = 0, b2 = 1:        logit(mu) as for binomial, precision phi
+#   nbinom2, nbinom1: as for poisson, with size theta or dispersion phi as in glmmTMB
 
 skip_if_not_installed("lme4")
 
@@ -74,6 +75,39 @@ test_that("beta logistic agrees with glmmTMB, with and without random effects", 
   b <- glmmTMB::fixef(g2)$cond
   expect_equal(f2$opt$objective, -as.numeric(logLik(g2)), tolerance=1e-6)
   expect_equal(unname(bcoef(f2)), unname(c(b[2], -b[1]/b[2])), tolerance=1e-4)
+})
+
+simnb <- function(seed=2){
+  d <- simgroups(dose=c(0, 1, 2, 4, 6, 8, 10), ng=12, nrep=1, seed=seed)
+  u <- rnorm(12, 0, 0.5)
+  d$y <- rnbinom(nrow(d), size=4, mu=exp(log(50) + u[d$grp] - d$dose/4))
+  d
+}
+
+test_that("nbinom2 exponential decay agrees with glm.nb", {
+  skip_if_not_installed("MASS")
+  d <- simnb()
+  f1 <- drmTMB(y ~ dose, data=d, model="exponentialdecay", family="nbinom2", link="log", start=c(b2=-30), fix=c(b2=TRUE))
+  g1 <- MASS::glm.nb(y ~ dose, data=d)
+  b <- coef(g1)
+  expect_equal(f1$opt$objective, -as.numeric(logLik(g1)), tolerance=1e-7)
+  expect_equal(unname(bcoef(f1)), unname(c(b[1], -1/b[2])), tolerance=1e-5)
+  expect_equal(unname(exp(coef(f1)["log_theta"])), g1$theta, tolerance=1e-4)
+})
+
+test_that("negative binomial families with random b1 agree with glmmTMB", {
+  skip_if_not_installed("glmmTMB")
+  d <- simnb()
+  for (fam in c("nbinom2", "nbinom1")){
+    f1 <- drmTMB(y ~ dose, rform=b1 ~ 1 | grp, data=d, model="exponentialdecay", family=fam, link="log",
+                 start=c(b2=-30), fix=c(b2=TRUE))
+    g1 <- glmmTMB::glmmTMB(y ~ dose + (1 | grp), data=d, family=get(fam, asNamespace("glmmTMB"))())
+    b <- glmmTMB::fixef(g1)$cond
+    expect_equal(f1$opt$objective, -as.numeric(logLik(g1)), tolerance=1e-6, info=fam)
+    expect_equal(unname(bcoef(f1)), unname(c(b[1], -1/b[2])), tolerance=1e-4, info=fam)
+    expect_equal(unname(exp(coef(f1)[length(coef(f1))])), sigma(g1), tolerance=1e-4, info=fam)
+    expect_equal(drcTMB:::recov(f1)[[1]]$sd, sqrt(glmmTMB::VarCorr(g1)$cond$grp[1]), tolerance=1e-3, info=fam)
+  }
 })
 
 test_that("Laplace approximation is close to the exact marginal likelihood for binomial data", {

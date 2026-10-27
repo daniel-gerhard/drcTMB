@@ -43,7 +43,7 @@ drmTMB(
 
 \item{upper}{upper bounds for the model coefficients b1-b5, a single value or a vector with the same length as start.}
 
-\item{family}{Specify the distributional assumptions. One of "gaussian", "binomial", "beta", and "poisson".}
+\item{family}{Specify the distributional assumptions. One of "gaussian", "binomial", "beta", "poisson", "nbinom2", and "nbinom1". The negative binomial families are for overdispersed counts, with variance mu (1 + mu/theta) for nbinom2 and mu (1 + phi) for nbinom1, as in glmmTMB.}
 
 \item{model}{Specify the nonlinear model. One of "logistic", "loglogistic", "weibull1", "weibull2", "lognormal", "michaelismenten", "asymptoticregression", "exponentialdecay", "gompertz".}
 

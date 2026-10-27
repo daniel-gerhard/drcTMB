@@ -8,7 +8,7 @@
 #' @param interval type of interval of predict: "none", "confidence" for confidence intervals of the mean, computed on the log scale for poisson and on the logit scale for binomial and beta responses, or "prediction" for prediction intervals of a new observation with weight 1. For the gaussian family without boot, the prediction intervals use the normal distribution, and the variance of the random effects of new groups is added by the delta method. Otherwise they are quantiles of new observations simulated at nsim draws from the normal approximation of the fixed and random effects, with the variance parameters kept at their estimates, or at the bootstrap fits (see boot); with new random effects for new groups; for a binomial response as proportions, with the number of trials from the response in newdata (one for a binary response).
 #' @param level confidence level of the intervals of predict
 #' @param digits number of significant digits in the printed output
-#' @param type type of residuals: "pearson" (default), the response residuals divided by the standard deviation of the fitted distribution and multiplied by the square root of the weights; "response", the observed minus the fitted values, as proportions for a binomial response; or "quantile", randomised quantile residuals (Dunn and Smyth, 1996), which are standard normal under the model. The quantile residuals do not use the weights, and are random for poisson and binomial responses; use set.seed for reproducible values.
+#' @param type type of residuals: "pearson" (default), the response residuals divided by the standard deviation of the fitted distribution and multiplied by the square root of the weights; "response", the observed minus the fitted values, as proportions for a binomial response; or "quantile", randomised quantile residuals (Dunn and Smyth, 1996), which are standard normal under the model. The quantile residuals do not use the weights, and are random for the count families; use set.seed for reproducible values.
 #' @param nsim number of response vectors to simulate; for predict, the number of parameter draws for simulated prediction intervals
 #' @param seed an optional seed for the random number generator
 #' @param boot a bootstrap sample of the model from \code{\link{bootstrap}}. predict then gives the standard deviation of the bootstrap predictions as se.fit, percentile confidence intervals, and prediction intervals simulated at the bootstrap fits, including their variance parameters. The bootstrap responses have new random effects, so for random=TRUE the random effects of the fitted groups are drawn, for each bootstrap fit, from the Laplace approximation of their conditional distribution given the original data at the parameters of that fit.
@@ -20,7 +20,8 @@
 #' coef and vcov include the variance parameters: for each random effect term the log standard deviations
 #' (log_sd:b1|group, or log_sd:b4:x|group for a random slope of b4 in x) and, for correlated random effects, the parameters of the correlation matrix
 #' (corr_par:b2,b1|group, unconstrained elements of the lower triangle of its Cholesky factor, by row);
-#' and the log residual standard deviation (log_sigma, gaussian) or log precision (log_phi, beta).
+#' and the log residual standard deviation (log_sigma, gaussian), log precision (log_phi, beta), log size
+#' (log_theta, nbinom2) or log dispersion (log_phi, nbinom1).
 #' summary returns a summary.drmTMB object with the coefficient table (Estimate, Std. Error), the
 #' variance components, log-likelihood, AIC and BIC, sample sizes, a Pearson dispersion statistic for
 #' poisson and binomial models, and convergence information. logLik returns the log-likelihood at the
@@ -194,7 +195,9 @@ residuals.drmTMB <- function(object, type=c("pearson", "response", "quantile"), 
                 gaussian=phi^2,
                 poisson=mu,
                 binomial=mu*(1 - mu)/n,
-                beta=mu*(1 - mu)/(1 + phi))
+                beta=mu*(1 - mu)/(1 + phi),
+                nbinom2=mu*(1 + mu/phi),
+                nbinom1=mu*(1 + phi))
     return((y - mu)/sqrt(v) * sqrt(as.vector(dat$w)))
   }
 
@@ -205,6 +208,10 @@ residuals.drmTMB <- function(object, type=c("pearson", "response", "quantile"), 
   if (object$family == "poisson"){
     lo <- ppois(cnt - 1, mu)
     hi <- ppois(cnt, mu)
+  } else if (object$family %in% c("nbinom2", "nbinom1")){
+    size <- nbsize(object$family, mu, phi)
+    lo <- pnbinom(cnt - 1, size=size, mu=mu)
+    hi <- pnbinom(cnt, size=size, mu=mu)
   } else {
     lo <- pbinom(cnt - 1, n, mu)
     hi <- pbinom(cnt, n, mu)
@@ -517,23 +524,24 @@ predsim <- function(object, pd, draws, trials, probs, vardraws=FALSE){
                             gaussian=rnorm(n, mu, phi),
                             poisson=rpois(n, mu),
                             binomial=rbinom(n, trials, mu)/trials,
-                            beta=rbeta(n, mu*phi, (1 - mu)*phi)))
+                            beta=rbeta(n, mu*phi, (1 - mu)*phi),
+                            rnbinom(n, size=nbsize(object$family, mu, phi), mu=mu)))
   })
   sims <- matrix(sims, nrow=n)
   bad <- mean(!is.finite(sims))
   if (bad > 0) warning(format(100*bad, digits=2), "% of the simulated observations are not finite and are left out; ",
                        "parameter draws may fall outside the valid parameter range (e.g., b4 <= 0).", call.=FALSE)
   # discrete responses: quantiles of the simulated values
-  type <- if (object$family %in% c("poisson", "binomial")) 1 else 7
+  type <- if (object$family %in% c("poisson", "binomial", "nbinom2", "nbinom1")) 1 else 7
   t(apply(sims, 1, quantile, probs=probs, na.rm=TRUE, names=FALSE, type=type))
 }
 
-# confidence intervals of the means, computed on the log scale for poisson and the logit scale for
-# binomial and beta, so that they stay inside the range of the mean
+# confidence intervals of the means, computed on the log scale for the count families and the logit
+# scale for binomial and beta, so that they stay inside the range of the mean
 predci <- function(fit, se, family, z){
   tr <- switch(family,
                gaussian=list(f=identity, d=function(m) 1, i=identity),
-               poisson=list(f=log, d=function(m) 1/m, i=exp),
+               poisson=, nbinom2=, nbinom1=list(f=log, d=function(m) 1/m, i=exp),
                list(f=qlogis, d=function(m) 1/(m*(1 - m)), i=plogis))
   eta <- tr$f(fit)
   se.eta <- se*tr$d(fit)
@@ -666,15 +674,18 @@ printre <- function(vcs, digits){
   print(tab, quote=FALSE, right=FALSE)
 }
 
-# residual standard deviation (gaussian) or precision (beta); NULL for poisson and binomial
+# residual standard deviation (gaussian), precision (beta), size theta (nbinom2) or dispersion phi
+# (nbinom1); NULL for poisson and binomial
 residpar <- function(object){
-  if (!(object$family %in% c("gaussian", "beta"))) return(NULL)
+  if (object$family %in% c("poisson", "binomial")) return(NULL)
   unname(exp(object$sdrl$par.fixed["log_sigma"]))
 }
 
 printresid <- function(family, residpar, digits){
   if (family == "gaussian") cat("\nResidual standard deviation: ", format(residpar, digits=digits), "\n", sep="")
   if (family == "beta") cat("\nPrecision: ", format(residpar, digits=digits), "\n", sep="")
+  if (family == "nbinom2") cat("\nNegative binomial size (theta): ", format(residpar, digits=digits), "\n", sep="")
+  if (family == "nbinom1") cat("\nNegative binomial dispersion (phi): ", format(residpar, digits=digits), "\n", sep="")
 }
 
 # names of the estimated parameters: the free coefficients; for each random effect term the log
@@ -690,5 +701,10 @@ parnames <- function(object){
       if (np > 1) paste("corr_par:", pairs, "|", tm$group, sep=""))
   }))
   c(object$coefnames[!object$fix], renames,
-    switch(object$family, gaussian="log_sigma", beta="log_phi"))
+    switch(object$family, gaussian="log_sigma", beta="log_phi", nbinom2="log_theta", nbinom1="log_phi"))
+}
+
+# size parameter of R's negative binomial functions for mean mu: theta for nbinom2, mu/phi for nbinom1
+nbsize <- function(family, mu, phi){
+  if (family == "nbinom2") rep(phi, length(mu)) else mu/phi
 }
