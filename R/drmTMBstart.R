@@ -329,6 +329,7 @@ drmTMBobj <- function(dd, start, fix, rform=NULL){
   up <- rep(0, sum(tnp*tnl))
   dlist <- list(model="drcTMB", y=dd$y, x=dd$x, w=dd$w, bn=dd$bn, fam=dd$fam, mod=dd$mod, lnk=dd$lnk, lnk4=dd$lnk4,
                 tnp=tnp, tnl=tnl, tpar=as.integer(unlist(lapply(re$terms, function(tm) tm$pars)) - 1),
+                tzb=if (length(re$terms) > 0) tzbvec(re$terms) else integer(0),
                 simre=1L, Z=re$Z)
   # no predictions: see predictse
   Xp <- setNames(lapply(dd$Xs, function(X) X[0, , drop=FALSE]), paste("Xp", 1:5, sep=""))
@@ -389,8 +390,12 @@ coefnames <- function(Xs){
   unlist(lapply(1:5, function(i) paste("b", i, ":", colnames(Xs[[i]]), sep="")))
 }
 
-# random intercept terms from rform, a formula or a list of formulas of the form
-# b1 + b4 ~ 1 | group; nested grouping factors (1 | a/b) give one term per level of nesting
+# random effect terms from rform, a formula or a list of formulas of the form b1 + b4 ~ 1 | group
+# (random intercepts) or b4 ~ x | group (random intercepts and slopes in x); nested grouping factors
+# (1 | a/b) give one term per level of nesting. A term has a random coefficient for each parameter
+# and each column of its design (intercept, slopes), correlated within the term: pars, the parameter
+# of each coefficient, zcol, its column of the design, and labels, e.g. b4 and b4:x. Z has a block
+# for each column of each term, with a column for each level.
 reterms <- function(rform, data){
   if (is.null(rform)){
     n <- if (is.numeric(data)) data else nrow(data)
@@ -407,18 +412,45 @@ reterms <- function(rform, data){
     frh <- f
     frh[2] <- NULL
     rt <- mkReTrms(findbars(frh), model.frame(subbars(frh), data=data))
-    if (!all(sapply(rt$cnms, function(cn) identical(cn, "(Intercept)")))) stop("Only random intercepts are supported, e.g. b4 ~ 1 | group.")
     for (j in seq_along(rt$Ztlist)){
-      Zt <- rt$Ztlist[[j]]
+      cn <- rt$cnms[[j]]
+      zb <- reblocks(rt$Ztlist[[j]], length(cn))
+      # each parameter with each column of the design
+      cf <- expand.grid(zcol=seq_along(cn), par=pars)
       # name and formula identify the term again in new data (predict)
-      terms[[length(terms) + 1]] <- list(pars=pars, name=names(rt$Ztlist)[j], group=sub("^1 \\| ", "", names(rt$Ztlist)[j]),
-                                         levels=rownames(Zt), formula=frh)
-      Zl[[length(Zl) + 1]] <- t(Zt)
+      terms[[length(terms) + 1]] <- list(pars=cf$par, zcol=cf$zcol, cnms=cn,
+                                         labels=paste("b", cf$par, ifelse(cn[cf$zcol] == "(Intercept)", "", paste(":", cn[cf$zcol], sep="")), sep=""),
+                                         name=names(rt$Ztlist)[j], group=sub("^.*\\| ", "", names(rt$Ztlist)[j]),
+                                         levels=zb$levels, formula=frh)
+      Zl <- c(Zl, zb$blocks)
     }
   }
   list(terms=terms, Z=do.call(cbind, Zl))
 }
 
+# design blocks of a transposed random effect design Zt of lme4 with nc columns per level (rows by
+# level, then column): for each column a matrix with a row for each observation and a column for each
+# level, and the levels
+reblocks <- function(Zt, nc){
+  blocks <- lapply(seq_len(nc), function(c) t(Zt[seq(c, nrow(Zt), by=nc), , drop=FALSE]))
+  list(blocks=blocks, levels=rownames(Zt)[seq(1, nrow(Zt), by=nc)])
+}
+
+# first column in Z (zero-based) of the design block of each random coefficient of all terms
+tzbvec <- function(terms){
+  zoff <- 0
+  unlist(lapply(terms, function(tm){
+    nl <- length(tm$levels)
+    zb <- zoff + (tm$zcol - 1)*nl
+    zoff <<- zoff + length(tm$cnms)*nl
+    as.integer(zb)
+  }))
+}
+
+# labels of the random coefficients of a term, e.g. b4 and b4:x; parameters for fits without them
+relabels <- function(tm){
+  if (is.null(tm$labels)) paste("b", tm$pars, sep="") else tm$labels
+}
 
 # dose-response mean function, same as drcmean in the TMB template: f1 + (f2 - f1) * F,
 # with F increasing from 0 to 1; f1 is the lower and f2 the upper asymptote for the models with

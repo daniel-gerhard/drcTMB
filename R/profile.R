@@ -130,7 +130,7 @@ natscale <- function(ci, rn, corr2, level){
 # correlation parameters of terms with two random effects, which determine the correlation
 corr2names <- function(fit){
   unlist(lapply(fit$reterms, function(tm){
-    if (length(tm$pars) == 2) paste("corr_par:b", tm$pars[2], ",b", tm$pars[1], "|", tm$group, sep="")
+    if (length(tm$pars) == 2) paste("corr_par:", relabels(tm)[2], ",", relabels(tm)[1], "|", tm$group, sep="")
   }))
 }
 

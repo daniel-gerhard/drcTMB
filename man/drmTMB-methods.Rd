@@ -84,7 +84,7 @@ Estimated model coefficients, variance-covariance matrix, or predictions.
 predict returns a vector of predicted means, or, with se.fit=TRUE or an interval, a data frame with
 the predicted means (fit), their standard errors (se.fit), and the limits of the intervals (lwr, upr).
 coef and vcov include the variance parameters: for each random effect term the log standard deviations
-(log_sd:b1|group) and, for correlated random effects, the parameters of the correlation matrix
+(log_sd:b1|group, or log_sd:b4:x|group for a random slope of b4 in x) and, for correlated random effects, the parameters of the correlation matrix
 (corr_par:b2,b1|group, unconstrained elements of the lower triangle of its Cholesky factor, by row);
 and the log residual standard deviation (log_sigma, gaussian) or log precision (log_phi, beta).
 summary returns a summary.drmTMB object with the coefficient table (Estimate, Std. Error), the
