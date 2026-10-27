@@ -21,7 +21,7 @@
 #' (log_sd:b1|group, or log_sd:b4:x|group for a random slope of b4 in x) and, for correlated random effects, the parameters of the correlation matrix
 #' (corr_par:b2,b1|group, unconstrained elements of the lower triangle of its Cholesky factor, by row);
 #' and the log residual standard deviation (log_sigma, gaussian), log precision (log_phi, beta), log size
-#' (log_theta, nbinom2) or log dispersion (log_phi, nbinom1).
+#' (log_theta, nbinom2), log dispersion (log_phi, nbinom1) or log precision (log_phi, betabinomial).
 #' summary returns a summary.drmTMB object with the coefficient table (Estimate, Std. Error), the
 #' variance components, log-likelihood, AIC and BIC, sample sizes, a Pearson dispersion statistic for
 #' poisson and binomial models, and convergence information. logLik returns the log-likelihood at the
@@ -109,7 +109,7 @@ summary.drmTMB <- function(object, ...){
   gr <- object$obj$gr(object$opt$par)
   res <- list(call=object$call, model=object$model, family=object$family, link=object$link, b4log=b4linkindex(object) == 2,
               direction=direction, b5=any(!object$fix[npi == 5]),
-              nobs=nobs(object), ntrials=if (object$family == "binomial") sum(dat$bn), ngroups=ngroups,
+              nobs=nobs(object), ntrials=if (object$family %in% c("binomial", "betabinomial")) sum(dat$bn), ngroups=ngroups,
               logLik=ll, AIC=AIC(object), BIC=BIC(object),
               coefficients=coefs, fixed=userfixed(object), varcor=vcs, residpar=residpar(object),
               singular=singular, dispersion=dispersion,
@@ -185,8 +185,8 @@ residuals.drmTMB <- function(object, type=c("pearson", "response", "quantile"), 
   cnt <- as.vector(dat$y)
   n <- as.vector(dat$bn)
   phi <- residpar(object)
-  # binomial: on the scale of proportions
-  y <- if (object$family == "binomial") cnt/n else cnt
+  # binomial and beta-binomial: on the scale of proportions
+  y <- if (object$family %in% c("binomial", "betabinomial")) cnt/n else cnt
 
   if (type == "response") return(y - mu)
 
@@ -195,6 +195,7 @@ residuals.drmTMB <- function(object, type=c("pearson", "response", "quantile"), 
                 gaussian=phi^2,
                 poisson=mu,
                 binomial=mu*(1 - mu)/n,
+                betabinomial=mu*(1 - mu)/n*(1 + (n - 1)/(phi + 1)),
                 beta=mu*(1 - mu)/(1 + phi),
                 nbinom2=mu*(1 + mu/phi),
                 nbinom1=mu*(1 + phi))
@@ -212,6 +213,9 @@ residuals.drmTMB <- function(object, type=c("pearson", "response", "quantile"), 
     size <- nbsize(object$family, mu, phi)
     lo <- pnbinom(cnt - 1, size=size, mu=mu)
     hi <- pnbinom(cnt, size=size, mu=mu)
+  } else if (object$family == "betabinomial"){
+    lo <- pbetabinom(cnt - 1, n, mu, phi)
+    hi <- pbetabinom(cnt, n, mu, phi)
   } else {
     lo <- pbinom(cnt - 1, n, mu)
     hi <- pbinom(cnt, n, mu)
@@ -481,10 +485,10 @@ corrmatrix <- function(cpar, np){
   S / sqrt(diag(S) %o% diag(S))
 }
 
-# number of trials of the new observations of a binomial model: from the response in newdata, or
-# one for a binary response
+# number of trials of the new observations of a binomial or beta-binomial model: from the response in
+# newdata, or one for a binary response
 predtrials <- function(object, newdata){
-  if (object$family != "binomial") return(NULL)
+  if (!(object$family %in% c("binomial", "betabinomial"))) return(NULL)
   y <- tryCatch(model.response(model.frame(object$formula, data=newdata, na.action=na.pass)), error=function(e) NULL)
   if (is.matrix(y) && ncol(y) == 2) return(rowSums(y))
   if (all(object$obj$env$data$bn == 1)) return(rep(1, nrow(newdata)))
@@ -524,6 +528,7 @@ predsim <- function(object, pd, draws, trials, probs, vardraws=FALSE){
                             gaussian=rnorm(n, mu, phi),
                             poisson=rpois(n, mu),
                             binomial=rbinom(n, trials, mu)/trials,
+                            betabinomial=rbinom(n, trials, rbeta(n, mu*phi, (1 - mu)*phi))/trials,
                             beta=rbeta(n, mu*phi, (1 - mu)*phi),
                             rnbinom(n, size=nbsize(object$family, mu, phi), mu=mu)))
   })
@@ -532,7 +537,7 @@ predsim <- function(object, pd, draws, trials, probs, vardraws=FALSE){
   if (bad > 0) warning(format(100*bad, digits=2), "% of the simulated observations are not finite and are left out; ",
                        "parameter draws may fall outside the valid parameter range (e.g., b4 <= 0).", call.=FALSE)
   # discrete responses: quantiles of the simulated values
-  type <- if (object$family %in% c("poisson", "binomial", "nbinom2", "nbinom1")) 1 else 7
+  type <- if (object$family %in% c("poisson", "binomial", "betabinomial", "nbinom2", "nbinom1")) 1 else 7
   t(apply(sims, 1, quantile, probs=probs, na.rm=TRUE, names=FALSE, type=type))
 }
 
@@ -674,7 +679,7 @@ printre <- function(vcs, digits){
   print(tab, quote=FALSE, right=FALSE)
 }
 
-# residual standard deviation (gaussian), precision (beta), size theta (nbinom2) or dispersion phi
+# residual standard deviation (gaussian), precision (beta, betabinomial), size theta (nbinom2) or dispersion phi
 # (nbinom1); NULL for poisson and binomial
 residpar <- function(object){
   if (object$family %in% c("poisson", "binomial")) return(NULL)
@@ -685,6 +690,7 @@ printresid <- function(family, residpar, digits){
   if (family == "gaussian") cat("\nResidual standard deviation: ", format(residpar, digits=digits), "\n", sep="")
   if (family == "beta") cat("\nPrecision: ", format(residpar, digits=digits), "\n", sep="")
   if (family == "nbinom2") cat("\nNegative binomial size (theta): ", format(residpar, digits=digits), "\n", sep="")
+  if (family == "betabinomial") cat("\nBeta-binomial precision (phi): ", format(residpar, digits=digits), "\n", sep="")
   if (family == "nbinom1") cat("\nNegative binomial dispersion (phi): ", format(residpar, digits=digits), "\n", sep="")
 }
 
@@ -701,7 +707,16 @@ parnames <- function(object){
       if (np > 1) paste("corr_par:", pairs, "|", tm$group, sep=""))
   }))
   c(object$coefnames[!object$fix], renames,
-    switch(object$family, gaussian="log_sigma", beta="log_phi", nbinom2="log_theta", nbinom1="log_phi"))
+    switch(object$family, gaussian="log_sigma", beta="log_phi", nbinom2="log_theta", nbinom1="log_phi", betabinomial="log_phi"))
+}
+
+# distribution function of the beta-binomial distribution with n trials, mean mu and precision phi
+pbetabinom <- function(q, n, mu, phi){
+  mapply(function(q, n, a, b){
+    if (q < 0) return(0)
+    k <- 0:min(q, n)
+    sum(exp(lchoose(n, k) + lbeta(k + a, n - k + b) - lbeta(a, b)))
+  }, q, n, mu*phi, (1 - mu)*phi)
 }
 
 # size parameter of R's negative binomial functions for mean mu: theta for nbinom2, mu/phi for nbinom1

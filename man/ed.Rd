@@ -27,7 +27,7 @@ ed(
 
 \item{residual}{logical, if TRUE, the residual variance is included in the standard error estimation (gaussian family only)}
 
-\item{type}{"relative" (default) for effective doses relative to the asymptotes, or "absolute" for the doses at which the curves reach the responses in respLev, on the scale of the response (proportions for binomial and beta). Absolute effective doses depend on the asymptotes, and on their random effects; responses outside the range of a curve give NA, with a warning.}
+\item{type}{"relative" (default) for effective doses relative to the asymptotes, or "absolute" for the doses at which the curves reach the responses in respLev, on the scale of the response (proportions for binomial, beta-binomial and beta). Absolute effective doses depend on the asymptotes, and on their random effects; responses outside the range of a curve give NA, with a warning.}
 }
 \value{
 a edTMB object

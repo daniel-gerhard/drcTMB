@@ -7,6 +7,7 @@
 #     b2 = -30 (exp(b2) ~ 0):              log(mu) = b1 - x / b4, random b1
 #   beta, logistic, b1 = 0, b2 = 1:        logit(mu) as for binomial, precision phi
 #   nbinom2, nbinom1: as for poisson, with size theta or dispersion phi as in glmmTMB
+#   betabinomial: as for binomial, with precision phi as in glmmTMB
 
 skip_if_not_installed("lme4")
 
@@ -108,6 +109,31 @@ test_that("negative binomial families with random b1 agree with glmmTMB", {
     expect_equal(unname(exp(coef(f1)[length(coef(f1))])), sigma(g1), tolerance=1e-4, info=fam)
     expect_equal(drcTMB:::recov(f1)[[1]]$sd, sqrt(glmmTMB::VarCorr(g1)$cond$grp[1]), tolerance=1e-3, info=fam)
   }
+})
+
+test_that("beta-binomial logistic agrees with glmmTMB, with and without random effects", {
+  skip_if_not_installed("glmmTMB")
+  d <- simgroups(dose=c(0, 1, 2, 4, 6, 8, 10), ng=12, nrep=1, seed=2)
+  u <- rnorm(12, 0, 0.8)
+  d$n <- 20
+  p <- plogis(0.9*(d$dose - (5 + u[d$grp])))
+  d$y <- rbinom(nrow(d), d$n, rbeta(nrow(d), p*8, (1 - p)*8))
+
+  f1 <- drmTMB(cbind(y, n - y) ~ dose, data=d, model="logistic", family="betabinomial", start=asym01$start, fix=asym01$fix)
+  g1 <- glmmTMB::glmmTMB(cbind(y, n - y) ~ dose, data=d, family=glmmTMB::betabinomial())
+  b <- glmmTMB::fixef(g1)$cond
+  expect_equal(f1$opt$objective, -as.numeric(logLik(g1)), tolerance=1e-6)
+  expect_equal(unname(bcoef(f1)), unname(c(b[2], -b[1]/b[2])), tolerance=1e-4)
+  expect_equal(unname(exp(coef(f1)["log_phi"])), sigma(g1), tolerance=1e-4)
+
+  f2 <- drmTMB(cbind(y, n - y) ~ dose, rform=b4 ~ 1 | grp, data=d, model="logistic", family="betabinomial",
+               start=asym01$start, fix=asym01$fix)
+  g2 <- glmmTMB::glmmTMB(cbind(y, n - y) ~ dose + (1 | grp), data=d, family=glmmTMB::betabinomial())
+  b <- glmmTMB::fixef(g2)$cond
+  expect_equal(f2$opt$objective, -as.numeric(logLik(g2)), tolerance=1e-6)
+  expect_equal(unname(bcoef(f2)), unname(c(b[2], -b[1]/b[2])), tolerance=1e-4)
+  expect_equal(unname(exp(coef(f2)["log_phi"])), sigma(g2), tolerance=1e-4)
+  expect_equal(drcTMB:::recov(f2)[[1]]$sd, unname(sqrt(glmmTMB::VarCorr(g2)$cond$grp[1]) / b[2]), tolerance=1e-3)
 })
 
 test_that("Laplace approximation is close to the exact marginal likelihood for binomial data", {

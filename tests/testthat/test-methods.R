@@ -273,3 +273,38 @@ test_that("methods for the negative binomial families", {
   fp <- fit4(y ~ dose, data=d, model="loglogistic", family="poisson")
   expect_lt(AIC(f2), AIC(fp) - 50)
 })
+
+test_that("methods for the beta-binomial family", {
+  set.seed(4)
+  d <- data.frame(dose=rep(c(0, 0.5, 1, 2, 4, 8, 16, 32), each=4), n=25)
+  p <- drcmean("loglogistic", d$dose, c(0.05, 0.9, -1.5, 3, 0))
+  d$y <- rbinom(nrow(d), d$n, rbeta(nrow(d), p*6, (1 - p)*6))
+  f <- fit4(cbind(y, n - y) ~ dose, data=d, model="loglogistic", family="betabinomial", link="logit", b4link="log")
+  expect_equal(names(coef(f))[5], "log_phi")
+  out <- capture.output(print(summary(f)))
+  expect_true(any(grepl("^Beta-binomial precision \\(phi\\)", out)))
+  expect_true(any(grepl("number of trials: 800", out)))
+  expect_null(summary(f)$dispersion)
+
+  # Pearson residuals on the scale of proportions with the beta-binomial variance
+  mu <- fitted(f)
+  ph <- exp(coef(f)[["log_phi"]])
+  expect_equal(residuals(f), (d$y/d$n - mu)/sqrt(mu*(1 - mu)/d$n*(1 + (d$n - 1)/(ph + 1))))
+  # distribution function: complete at n, binomial for a large precision
+  expect_equal(drcTMB:::pbetabinom(20, 20, 0.3, 5), 1)
+  expect_equal(drcTMB:::pbetabinom(c(-1, 3, 8), 20, 0.3, 1e8), c(0, pbinom(c(3, 8), 20, 0.3)), tolerance=1e-6)
+  set.seed(1)
+  expect_true(abs(mean(residuals(f, type="quantile"))) < 0.5)
+
+  # prediction intervals of proportions need the number of trials
+  pp <- predict(f, data.frame(dose=c(1, 3), y=0, n=25), interval="prediction", seed=1)
+  expect_true(all(pp$lwr*25 == round(pp$lwr*25)))
+  expect_error(predict(f, data.frame(dose=1), interval="prediction"), "number of trials")
+  expect_equal(dim(simulate(f, 2, seed=1)), c(nrow(d), 2))
+  # overdispersed proportions are much better described than by the binomial model
+  fb <- fit4(cbind(y, n - y) ~ dose, data=d, model="loglogistic", family="binomial", link="logit", b4link="log")
+  expect_lt(AIC(f), AIC(fb) - 20)
+  # binary responses
+  d$bin <- as.integer(d$y > 12)
+  expect_error(fit4(bin ~ dose, data=d, model="loglogistic", family="betabinomial"), "not identifiable for binary")
+})
