@@ -47,3 +47,72 @@ test_that("ed checks newdata", {
   expect_error(ed(f, newdata=data.frame(trt=NA_character_)), "missing values")
   expect_error(ed(f, newdata=data.frame(trt=character(0))), "at least one row")
 })
+
+# grouped loglogistic data with random effects on b1 and log b4
+simre <- function(ng=10, seed=3){
+  d <- simgroups(dose=c(0, 0.5, 1, 2, 4, 8, 16, 32), ng=ng, seed=seed)
+  u4 <- rnorm(ng, 0, 0.4)
+  u1 <- rnorm(ng, 0, 0.3)
+  d$y <- drcTMB:::drcmeanR(2, d$dose, 1 + u1[d$grp], 8, -1.5, 3*exp(u4[d$grp]), 0) + rnorm(nrow(d), 0, 0.3)
+  d
+}
+
+test_that("ed with fitted groups in newdata gives the effective doses of the group curves", {
+  d <- simre()
+  f <- fit4(y ~ dose, rform=b1 + b4 ~ 1 | grp, data=d, model="loglogistic", b4link="log")
+  nd <- data.frame(grp=c("2", "7", "new"))
+  e <- ed(f, c(20, 50), newdata=nd)
+  expect_equal(names(coef(e))[1:3], c("20:grp=2", "20:grp=7", "20:grp=new"))
+  expect_equal(unname(e$conditional), rep(c(TRUE, TRUE, FALSE), 2))
+
+  # the dose at which the predicted curve of the group is halfway between its asymptotes
+  pr <- function(dose, g) predict(f, newdata=data.frame(dose=dose, grp=g))
+  for (g in c("2", "7")){
+    lo <- pr(1e-8, g)
+    hi <- pr(1e8, g)
+    ed50 <- uniroot(function(x) pr(x, g) - (lo + hi)/2, c(0.01, 100), tol=1e-10)$root
+    expect_equal(coef(e)[[paste("50:grp=", g, sep="")]], ed50, tolerance=1e-6)
+  }
+
+  # standard errors from the joint normal approximation of the coefficients and random effects
+  set.seed(1)
+  dr <- drcTMB:::jointdraws(f, 4000)
+  r <- f$obj$env$random
+  sim <- sapply(4:5, function(i) apply(dr, 2, function(par){
+    pv <- f$start
+    pv[!f$fix] <- par[1:4]
+    lp <- as.vector(e$linfct[[i]] %*% pv + e$uweights[[i]] %*% par[r])
+    drcTMB:::edfun(2, e$q[[i]], lp[3], exp(lp[4]), lp[5])
+  }))
+  expect_equal(unname(sqrt(diag(vcov(e)))[4:5]), apply(sim, 2, sd), tolerance=0.05)
+
+  # a group not in the fit, and random=FALSE: the population effective dose
+  ep <- ed(f, c(20, 50))
+  expect_equal(unname(coef(e)[c(3, 6)]), unname(coef(ep)))
+  expect_equal(unname(diag(vcov(e))[c(3, 6)]), unname(diag(vcov(ep))))
+  e0 <- ed(f, 50, newdata=nd, random=FALSE)
+  expect_equal(unname(coef(e0)), rep(unname(coef(ed(f, 50, random=FALSE))), 3))
+  expect_false(any(e0$conditional))
+})
+
+test_that("intervals of effective doses of fitted groups", {
+  d <- simre()
+  f <- fit4(y ~ dose, rform=b1 + b4 ~ 1 | grp, data=d, model="loglogistic", b4link="log")
+  e <- ed(f, newdata=data.frame(grp=c("2", "7")))
+  expect_message(ci <- confint(e), "not available for effective doses of fitted groups")
+  expect_equal(ci, confint(e, method="wald"))
+  expect_error(profile(e), "fitted groups")
+  cb <- suppressMessages(confint(e, method="boot", nsim=20, seed=2, progress=FALSE))
+  expect_true(all(cb[, 1] < coef(e) & coef(e) < cb[, 2]))
+  # with a new group, the variance of the random effects is included: Wald intervals
+  en <- ed(f, newdata=data.frame(grp="new"))
+  expect_message(confint(en, method="boot"), "only available for population")
+})
+
+test_that("predict uses the population curve for rows with a missing group", {
+  d <- simre(ng=6)
+  f <- fit4(y ~ dose, rform=b1 ~ 1 | grp, data=d, model="loglogistic")
+  p <- predict(f, newdata=data.frame(dose=2, grp=c("2", NA, "3")))
+  expect_equal(p[2], predict(f, newdata=data.frame(dose=2, grp="new")))
+  expect_equal(p[c(1, 3)], predict(f, newdata=data.frame(dose=2, grp=c("2", "3"))))
+})

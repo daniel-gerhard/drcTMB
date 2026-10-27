@@ -250,7 +250,7 @@ ggplot(pic, aes(x = conc)) +
 
 ### Estimating effective doses in a mixed-effect model
 
-The `ed()` function is using the delta method to estimates effective doses and their corresponding standard errors. The standard error estimation includes by default the estimated variance components of the random effects. Here, the random effects are on the asymptotes only. The effective doses are defined relative to the asymptotes, so they do not depend on these random effects, and the standard error is the same as for the population curve.
+The `ed()` function is using the delta method to estimates effective doses and their corresponding standard errors. The standard error estimation includes by default the estimated variance components of the random effects. Here, the random effects are on the asymptotes only. The effective doses are defined relative to the asymptotes, so they do not depend on these random effects, and the standard error is the same as for the population curve. With a grouping variable in `newdata`, `ed()` computes the effective doses of the curves of fitted groups, conditional on their predicted random effects, e.g. `ed(vmod, newdata = data.frame(exper = "10509"))`.
 
 ```{r, message=FALSE, warning=FALSE}
 (edv <- ed(vmod, respLev=50, random=TRUE))

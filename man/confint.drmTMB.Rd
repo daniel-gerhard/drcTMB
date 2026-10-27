@@ -63,9 +63,13 @@ reported on their natural scale; Wald intervals for them are computed on the log
 correlation of a term with two random effects is reported as a correlation; the parameters of
 larger correlation matrices on the unconstrained scale of \code{coef}.
 
-Profile and bootstrap intervals for effective doses are for the population curves. Effective doses computed
-with \code{random=TRUE} for a model with random effects, or with \code{residual=TRUE}, include
-further variation in their standard errors; for these, Wald intervals are returned with a message.
+Profile and bootstrap intervals for effective doses are for the population curves, and bootstrap
+intervals also for the curves of fitted groups (\code{newdata} in \code{\link{ed}}), with the random
+effects of the groups drawn from their conditional distribution at each bootstrap fit; for these,
+profile intervals are not available and Wald intervals are returned with a message. Effective
+doses computed with \code{random=TRUE} for random effect terms without a fitted group, or with
+\code{residual=TRUE}, include further variation in their standard errors; for these, Wald intervals
+are returned with a message.
 Bootstrap intervals need many fits of the model; with random effects this can take several minutes.
 Computing profiles can take a while for models with random effects; see \code{\link{profile.drmTMB}}
 and \code{\link{profile.edTMB}}, whose results can be reused with \code{confint}.

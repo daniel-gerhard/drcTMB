@@ -182,6 +182,7 @@ profile.edTMB <- function(fitted, parm=NULL, level=0.99, maxit=100, progress=int
   if (is.null(parm)) parm <- seq_along(est)
   if (is.character(parm)) parm <- match(parm, names(est))
   if (any(is.na(parm))) stop("unknown effective doses in parm.")
+  if (any(edflag(fitted, "conditional")[parm])) stop("profiles are not available for effective doses of fitted groups.")
 
   obj <- fit$obj
   # keep the state of the TMB object, as tmbprofile does
@@ -318,9 +319,13 @@ edb4 <- function(mod, q, ed, b3, b5){
 #' correlation of a term with two random effects is reported as a correlation; the parameters of
 #' larger correlation matrices on the unconstrained scale of \code{coef}.
 #'
-#' Profile and bootstrap intervals for effective doses are for the population curves. Effective doses computed
-#' with \code{random=TRUE} for a model with random effects, or with \code{residual=TRUE}, include
-#' further variation in their standard errors; for these, Wald intervals are returned with a message.
+#' Profile and bootstrap intervals for effective doses are for the population curves, and bootstrap
+#' intervals also for the curves of fitted groups (\code{newdata} in \code{\link{ed}}), with the random
+#' effects of the groups drawn from their conditional distribution at each bootstrap fit; for these,
+#' profile intervals are not available and Wald intervals are returned with a message. Effective
+#' doses computed with \code{random=TRUE} for random effect terms without a fitted group, or with
+#' \code{residual=TRUE}, include further variation in their standard errors; for these, Wald intervals
+#' are returned with a message.
 #' Bootstrap intervals need many fits of the model; with random effects this can take several minutes.
 #' Computing profiles can take a while for models with random effects; see \code{\link{profile.drmTMB}}
 #' and \code{\link{profile.edTMB}}, whose results can be reused with \code{confint}.
@@ -372,9 +377,13 @@ confint.edTMB <- function(object, parm=NULL, level=0.95, method=c("profile", "wa
     if (is.null(fit)){
       message("Wald intervals: compute the effective doses again with ed() for ", method, " intervals.")
       method <- "wald"
-    } else if ((isTRUE(object$random) && length(fit$reterms) > 0) || isTRUE(object$residual)){
+    } else if (any(edflag(object, "newvar")[parm]) || isTRUE(object$residual)){
       message("Wald intervals: ", method, " intervals are only available for population effective doses, ",
-              "ed(..., random=FALSE, residual=FALSE).")
+              "ed(..., random=FALSE, residual=FALSE), or effective doses of fitted groups.")
+      method <- "wald"
+    } else if (method == "profile" && any(edflag(object, "conditional")[parm])){
+      message("Wald intervals: profile intervals are not available for effective doses of fitted groups; ",
+              "use method=\"boot\" for bootstrap intervals.")
       method <- "wald"
     }
   }
@@ -384,15 +393,19 @@ confint.edTMB <- function(object, parm=NULL, level=0.95, method=c("profile", "wa
   }
   if (method == "boot"){
     fit <- object$fit
-    b <- bootconverged(getboot(fit, boot, nsim, seed, ...))
+    # parameters of the bootstrap fits, with random effects of the fitted groups drawn from their
+    # conditional distribution at each fit for effective doses of fitted groups
+    draws <- bootdraws(fit, getboot(fit, boot, nsim, seed, ...), any(edflag(object, "conditional")[parm]))
+    r <- fit$obj$env$random
     mod <- modelindex(fit$model)
     nb <- sum(!fit$fix)
     # effective doses of each bootstrap fit
     eds <- sapply(parm, function(i){
-      apply(b[, seq_len(nb), drop=FALSE], 1, function(bf){
+      apply(draws, 2, function(par){
         pv <- fit$start
-        pv[!fit$fix] <- bf
+        pv[!fit$fix] <- par[seq_len(nb)]
         lpv <- as.vector(object$linfct[[i]] %*% pv)
+        if (isTRUE(object$conditional[[i]])) lpv <- lpv + as.vector(object$uweights[[i]] %*% par[r])
         edfun(mod, object$q[[i]], lpv[3], linkfun(b4linkindex(fit), lpv[4], inverse=TRUE), lpv[5])
       })
     })
@@ -405,4 +418,14 @@ confint.edTMB <- function(object, parm=NULL, level=0.95, method=c("profile", "wa
   ci <- cbind(est[parm] - z*se, est[parm] + z*se)
   dimnames(ci) <- list(names(est)[parm], paste(format(100*c((1 - level)/2, (1 + level)/2), trim=TRUE, scientific=FALSE, digits=3), "%"))
   ci
+}
+
+# logical flags of the effective doses of an edTMB object: conditional (on the random effects of
+# fitted groups) or newvar (with the variance of the random effects of a new group); for objects
+# without them, newvar for all effective doses with random=TRUE and random effects
+edflag <- function(object, flag){
+  f <- object[[flag]]
+  if (!is.null(f)) return(f)
+  n <- length(object$estimates)
+  if (flag == "newvar") rep(isTRUE(object$random) && length(object$fit$reterms) > 0, n) else rep(FALSE, n)
 }

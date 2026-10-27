@@ -273,33 +273,53 @@ preddata <- function(object, newdata, random){
   eta <- sapply(1:5, function(i) as.vector(Xs[[i]] %*% cest[npi == i]))
   eta <- matrix(eta, nrow=n)
 
+  # random effects of the fitted levels; levels not in the fitted data get zero
+  rl <- relevels(object, newdata, use=random)
+  Zl <- rl$Zl
+  newgroup <- rl$newgroup
   re <- ests[rn %in% "u", 1]
   uoff <- 0
-  Zl <- list()
-  newgroup <- matrix(TRUE, n, length(object$reterms))
   for (t in seq_along(object$reterms)){
     tm <- object$reterms[[t]]
     nl <- length(tm$levels)
     np <- length(tm$pars)
     U <- matrix(re[uoff + seq_len(nl*np)], nrow=nl)
     uoff <- uoff + nl*np
-    Zt <- Matrix::sparseMatrix(i=integer(0), j=integer(0), x=numeric(0), dims=c(n, nl))
-    if (random){
-      # random effects of the fitted levels; levels not in the fitted data get zero
-      rt <- mkReTrms(findbars(tm$formula), model.frame(subbars(tm$formula), data=newdata))
-      Zn <- rt$Ztlist[[tm$name]]
-      lid <- match(rownames(Zn), tm$levels)
-      ok <- which(!is.na(lid))
-      P <- Matrix::sparseMatrix(i=ok, j=lid[ok], x=1, dims=c(nrow(Zn), nl))
-      Zt <- t(Zn) %*% P
-      newgroup[, t] <- Matrix::rowSums(Zt) == 0
-      for (k in seq_len(np)) eta[, tm$pars[k]] <- eta[, tm$pars[k]] + as.vector(Zt %*% U[, k])
-    }
-    Zl[[t]] <- Zt
+    for (k in seq_len(np)) eta[, tm$pars[k]] <- eta[, tm$pars[k]] + as.vector(Zl[[t]] %*% U[, k])
   }
   Zp <- if (length(Zl) > 0) do.call(cbind, Zl) else Matrix::sparseMatrix(i=integer(0), j=integer(0), x=numeric(0), dims=c(n, 0))
   list(x=x, Xs=Xs, eta=eta, Zp=Zp, Zl=Zl, newgroup=newgroup,
        mod=modelindex(object$model), lnk=which(object$link == c("identity", "log", "logit")), lnk4=b4linkindex(object))
+}
+
+# design of the random effects of the fitted levels in newdata: for each term, a matrix with a row for
+# each row of newdata and a column for each fitted level, and the rows without a fitted level
+# (newgroup). Rows with a level not in the fit or a missing level, all rows for use=FALSE, and with
+# skip=TRUE all rows of terms whose grouping variables are not in newdata have no fitted level.
+relevels <- function(object, newdata, use=TRUE, skip=FALSE){
+  n <- nrow(newdata)
+  Zl <- list()
+  newgroup <- matrix(TRUE, n, length(object$reterms))
+  for (t in seq_along(object$reterms)){
+    tm <- object$reterms[[t]]
+    nl <- length(tm$levels)
+    Zt <- Matrix::sparseMatrix(i=integer(0), j=integer(0), x=numeric(0), dims=c(n, nl))
+    if (use && !(skip && !all(all.vars(tm$formula) %in% names(newdata)))){
+      mf <- model.frame(subbars(tm$formula), data=newdata)
+      rows <- setdiff(seq_len(n), attr(mf, "na.action"))
+      if (length(rows) > 0){
+        Zn <- mkReTrms(findbars(tm$formula), mf)$Ztlist[[tm$name]]
+        lid <- match(rownames(Zn), tm$levels)
+        ok <- which(!is.na(lid))
+        P <- Matrix::sparseMatrix(i=ok, j=lid[ok], x=1, dims=c(nrow(Zn), nl))
+        R <- Matrix::sparseMatrix(i=rows, j=seq_along(rows), x=1, dims=c(n, length(rows)))
+        Zt <- R %*% t(Zn) %*% P
+        newgroup[, t] <- Matrix::rowSums(abs(Zt)) == 0
+      }
+    }
+    Zl[[t]] <- Zt
+  }
+  list(Zl=Zl, newgroup=newgroup)
 }
 
 # mean function at the linear predictors eta of b1-b5
