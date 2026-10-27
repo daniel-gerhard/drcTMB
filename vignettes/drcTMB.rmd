@@ -94,6 +94,11 @@ effdose_glht <- glht(effdose, linfct = linfct)
 confint(effdose_glht)
 ```
 
+With `type = "absolute"`, `respLev` gives values of the response instead, and `ed()` estimates the doses at which the curve reaches them, here a root length of 2, 4 and 6 cm. These depend on the asymptotes as well, which is included in the standard errors.
+```{r}
+ed(mod, respLev = c(2, 4, 6), type = "absolute")
+```
+
 ## Non-normal response distributions
 
 The `family` argument allows to specify the distribution of the response as "gaussian", "poisson", "binomial", or "beta".
