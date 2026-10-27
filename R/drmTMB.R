@@ -9,7 +9,7 @@
 #' @param weights a vector of weights, one for each row of data.
 #' @param lower lower bounds for the model coefficients b1-b5, a single value or a vector with the same length as start. Bounds of fixed coefficients are ignored; variance parameters are unbounded.
 #' @param upper upper bounds for the model coefficients b1-b5, a single value or a vector with the same length as start.
-#' @param family Specify the distributional assumptions. One of "gaussian", "binomial", "beta", "poisson", "nbinom2", and "nbinom1". The negative binomial families are for overdispersed counts, with variance mu (1 + mu/theta) for nbinom2 and mu (1 + phi) for nbinom1, as in glmmTMB.
+#' @param family Specify the distributional assumptions. One of "gaussian", "binomial", "betabinomial", "beta", "poisson", "nbinom2", and "nbinom1". The negative binomial families are for overdispersed counts, with variance mu (1 + mu/theta) for nbinom2 and mu (1 + phi) for nbinom1, and the beta-binomial family for overdispersed binomial counts, with variance n mu (1 - mu) (1 + (n - 1)/(phi + 1)) for n trials, as in glmmTMB.
 #' @param model Specify the nonlinear model. One of "logistic", "loglogistic", "weibull1", "weibull2", "lognormal", "michaelismenten", "asymptoticregression", "exponentialdecay", "gompertz".
 #' @param link Specify the link function for estimating asymptote parameters. One of "identity", "log", "logit". 
 #' @param b4link link function for b4, "identity" (default) or "log", see Details. Only for the models with a positive b4, not for logistic and gompertz.
