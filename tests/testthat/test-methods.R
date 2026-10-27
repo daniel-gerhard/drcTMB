@@ -101,6 +101,18 @@ test_that("fitted values and response residuals", {
   expect_equal(residuals(f, type="quantile"), residuals(f))
 })
 
+test_that("gaussian quantile residuals use the weights as precision weights", {
+  d <- simgauss("loglogistic", nrep=6)
+  # standard deviation 0.4/sqrt(w)
+  d$w <- rep(c(1, 4), length.out=nrow(d))
+  d$y <- drcmean("loglogistic", d$dose, truepars$loglogistic$b) + rnorm(nrow(d), 0, 0.4/sqrt(d$w))
+  f <- fit4(y ~ dose, data=d, model="loglogistic", weights=d$w)
+  sig <- exp(coef(f)[["log_sigma"]])
+  r <- residuals(f, type="quantile")
+  expect_equal(r, (d$y - fitted(f))*sqrt(d$w)/sig)
+  expect_equal(r, residuals(f, type="pearson"))
+})
+
 test_that("pearson residuals agree with glm", {
   set.seed(15)
   d <- data.frame(dose=rep(c(0, 1, 2, 4, 6, 8, 10), each=3), n=20)

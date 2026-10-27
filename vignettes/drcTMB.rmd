@@ -97,6 +97,13 @@ mod0 <- update(mod, model = "constant", start = NULL, fix = NULL)
 anova(mod0, mod)
 ```
 
+### Model diagnostics
+
+The `plot()` method draws residuals against the fitted values and against the dose, and a normal QQ plot of the residuals. The default randomised quantile residuals are standard normal under the model for all families. A trend of the residuals against the dose points to a model function that does not fit the data, and `which = 4` adds QQ plots of the predicted random effects for models with random effects. The graphs are ggplot2 objects, returned invisibly, so a single one can be changed and drawn again.
+```{r, fig.width = 7, fig.height = 6}
+plot(mod)
+```
+
 ## Effective dose estimation
 
 The `ed()` function can be used to estimate effective doses (e.g., ED50, ED90) from the fitted model, given a specified response level (`respLev`). The effective dose ED p is the dose at which the response has changed by p% of the difference between the asymptote at low doses (the control) and the asymptote at high doses.

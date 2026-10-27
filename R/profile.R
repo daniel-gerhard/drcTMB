@@ -138,7 +138,6 @@ corr2names <- function(fit){
 #' @rdname profile.drmTMB
 #' @export
 plot.profile.drmTMB <- function(x, level=0.95, ...){
-  if (!requireNamespace("ggplot2", quietly=TRUE)) stop("the plot method needs the package ggplot2.")
   nm <- names(x)
   d <- do.call(rbind, lapply(nm, function(n) data.frame(parameter=n, par=x[[n]]$par, deviance=x[[n]]$deviance)))
   d$parameter <- factor(d$parameter, levels=nm)
