@@ -25,10 +25,10 @@
 #' @param fform fixed effects for the model parameters: a formula of the form b2 + b4 ~ Stress, or a list of such formulas, e.g. list(b2 ~ Stress, b4 ~ Stress + Time). Parameters not listed have a single intercept (~ 1). A list of five right-hand side formulas, one for each of b1-b5 (X1 = ~ 1, ..., X5 = ~ 1), is also accepted.
 #' @param data a data.frame object. Observations with missing values in the variables of the model or in the weights are left out.
 #' @param start a vector with starting values for each model parameter. Only NA entries are replaced.
-#' @param fix a binary vector with same length as start. If TRUE, a model coefficient is fixed to the starting value. Parameters not used by the model (b5 except for logistic and loglogistic, b3 for michaelismenten, asymptoticregression and exponentialdecay) are always fixed, at 0 unless given in start.
+#' @param fix a binary vector with same length as start. If TRUE, a model coefficient is fixed to the starting value. Parameters not used by the model (b5 except for logistic and loglogistic, b3 for michaelismenten, asymptoticregression and exponentialdecay, b2-b5 for constant) are always fixed, at 0 unless given in start.
 #' @param weights a vector of weights, one for each row of data.
 #' @param family Specify the distributional assumptions. One of "gaussian", "binomial", "betabinomial", "beta", "poisson", "nbinom2", and "nbinom1". The negative binomial families are for overdispersed counts, with variance mu (1 + mu/theta) for nbinom2 and mu (1 + phi) for nbinom1, and the beta-binomial family for overdispersed binomial counts, with variance n mu (1 - mu) (1 + (n - 1)/(phi + 1)) for n trials, as in glmmTMB.
-#' @param model Specify the nonlinear model. One of "logistic", "loglogistic", "weibull1", "weibull2", "lognormal", "michaelismenten", "asymptoticregression", "exponentialdecay", "gompertz".
+#' @param model Specify the nonlinear model. One of "logistic", "loglogistic", "weibull1", "weibull2", "lognormal", "michaelismenten", "asymptoticregression", "exponentialdecay", "gompertz", "constant".
 #' @param link Specify the link function for estimating asymptote parameters. One of "identity", "log", "logit".
 #' @param b4link link function for b4, "identity" or "log". With "log", the coefficients of b4 are on the log scale (models with a positive b4 only, not logistic and gompertz), see \code{\link{drmTMB}}.
 #' @param method one of "lm" or "grid".
@@ -75,7 +75,7 @@ drmTMBdata <- function(form, fform=NULL, rform=NULL, data, weights=NULL, family=
   npars <- sapply(Xs, ncol)
 
   # model
-  mod <- which(model == c("logistic", "loglogistic", "weibull1", "weibull2", "lognormal", "michaelismenten", "asymptoticregression", "exponentialdecay", "gompertz"))
+  mod <- modelindex(model)
   lnk <- which(link == c("identity", "log", "logit"))
   fam <- which(family == c("gaussian", "poisson", "binomial", "beta", "nbinom2", "nbinom1", "betabinomial"))
   if (length(mod) != 1) stop("Unknown model: ", model)
@@ -145,6 +145,12 @@ lmstart <- function(dd, start, fix){
   yd <- as.vector(yd)
   ylow <- yd[1]
   yhigh <- yd[length(yd)]
+
+  # constant model: b1 at the overall mean
+  if (mod == 10){
+    ybar <- if (dd$family %in% c("binomial", "betabinomial") & any(dd$bn > 0)) sum(dd$w * dd$y) / sum(dd$w * dd$bn) else sum(dd$w * dd$y) / sum(dd$w)
+    return(projectstart(dd, start, fix, c(linkfun(dd$lnk, linkrange(dd$lnk, ybar, dd$family)), 0, 0, 0, 0)))
+  }
 
   # asymptotes on the mean scale: for the models with steepness b3, b1 is the lower and b2 the
   # upper asymptote; for michaelismenten, asymptoticregression and exponentialdecay, b1 is
@@ -226,8 +232,13 @@ lmstart <- function(dd, start, fix){
   }
 
   pooled <- c(linkfun(dd$lnk, f1), linkfun(dd$lnk, f2), b3, linkfun(dd$lnk4, b4), 0)
+  projectstart(dd, start, fix, pooled)
+}
 
-  # project the pooled value onto each design matrix
+# starting values from pooled values of b1-b5: projected onto each design matrix, for the NA
+# entries of start that are not fixed
+projectstart <- function(dd, start, fix, pooled){
+  npi <- dd$npi
   for (i in 1:5){
     id <- which(npi == i)
     X <- dd$Xs[[i]]
@@ -465,8 +476,10 @@ relabels <- function(tm){
 
 # dose-response mean function, same as drcmean in the TMB template: f1 + (f2 - f1) * F,
 # with F increasing from 0 to 1; f1 is the lower and f2 the upper asymptote for the models with
-# steepness f3, and the asymptotes at dose zero and at high doses for models 6 to 8
+# steepness f3, and the asymptotes at dose zero and at high doses for models 6 to 8; f1 at all
+# doses for the constant model
 drcmeanR <- function(mod, x, f1, f2, f3, f4, f5){
+  if (mod == 10) return(f1 + 0*x)
   t <- f3 * (if (mod %in% c(2, 3, 4, 5)) log(x) - log(f4) else x - f4)
   Fx <- switch(mod,
                (1 + exp(-t))^(-exp(f5)),  # logistic
@@ -497,8 +510,10 @@ parvector <- function(v, npi, default, arg){
 }
 
 # parameters not used by the model, which cannot be estimated: b3 without steepness
-# (michaelismenten, asymptoticregression, exponentialdecay), b5 without asymmetry
+# (michaelismenten, asymptoticregression, exponentialdecay), b5 without asymmetry, and all but b1
+# for the constant model
 unusedpars <- function(mod){
+  if (mod == 10) return(2:5)
   c(if (mod %in% c(6, 7, 8)) 3, if (!(mod %in% c(1, 2))) 5)
 }
 

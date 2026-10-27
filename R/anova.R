@@ -2,7 +2,8 @@
 #'
 #' Compares two or more models fitted to the same data by likelihood ratio tests, e.g. a model with
 #' and without covariates in \code{fform}, with and without random effects, or a poisson and a
-#' negative binomial model.
+#' negative binomial model. A model with \code{model="constant"} as the smaller model tests for a
+#' dose effect.
 #'
 #' The models are ordered by their number of parameters, and each model is compared with the
 #' previous one: the likelihood ratio statistic is twice the difference of their log-likelihoods

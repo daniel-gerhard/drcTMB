@@ -28,6 +28,7 @@
 ed <- function(x, respLev=50, linfct=NULL, newdata=NULL, random=TRUE, residual=FALSE, type=c("relative", "absolute")){
   type <- match.arg(type)
   absolute <- type == "absolute"
+  if (x$model == "constant") stop("the constant model has no effective doses.")
   if (!is.null(newdata)){
     if (!is.null(linfct)) stop("give either linfct or newdata, not both.")
     # every level of respLev for every curve
