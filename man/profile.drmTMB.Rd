@@ -26,8 +26,7 @@
 estimated coefficients b1-b5, without the variance parameters.}
 
 \item{level}{the highest confidence level the profiles are computed for: each profile extends until
-the deviance from the maximum exceeds the quantile of the chi-square distribution with one degree
-of freedom. For confint and plot, the confidence level of the intervals and of the cutoff line.}
+the deviance from the maximum exceeds the cutoff (see Details). For confint and plot, the confidence level of the intervals and of the cutoff line.}
 
 \item{trace}{logical, print the progress of \code{\link[TMB]{tmbprofile}}}
 
@@ -43,7 +42,7 @@ profile returns a profile.drmTMB object, a list with a data frame for each param
 the parameter values (\code{par}) and the deviance from the maximum (\code{deviance}), i.e. twice
 the difference of the negative log-likelihoods. confint returns a matrix of confidence intervals.
 plot returns a ggplot object (package ggplot2) with a panel for each parameter, showing the
-deviance, the quantile of the chi-square distribution for \code{level} (dashed), and the
+deviance, the cutoff for \code{level} (dashed), and the
 estimate (dotted).
 }
 \description{
@@ -62,4 +61,10 @@ only then. If the profile of a log standard deviation does not reach the cutoff 
 the likelihood is flat towards zero and the lower limit of the standard deviation is 0.
 Bounds given by \code{lower} and \code{upper} in \code{\link{drmTMB}} are used for the profiled
 coefficient, but not when re-optimising the other coefficients.
+
+The cutoff of the deviance is the quantile of the chi-square distribution with one degree of
+freedom. For gaussian models without random effects and small-sample inference (see
+\code{\link{drmTMB}}), the cutoff of the coefficients b1-b5 is F-based instead,
+sum(w) log(1 + F/(n - p)) with the quantile F of the F distribution with 1 and n - p degrees of
+freedom, which gives the intervals of a t-test of each coefficient, as profile intervals of nls.
 }

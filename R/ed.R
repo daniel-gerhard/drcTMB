@@ -63,7 +63,7 @@ ed <- function(x, respLev=50, linfct=NULL, newdata=NULL, random=TRUE, residual=F
   if (residual == TRUE && x$family != "gaussian"){
     stop("residual=TRUE is only available for the gaussian family.")
   }
-  rvar <- if (residual) exp(x$sdrl$par.fixed[["log_sigma"]])^2 else 0
+  rvar <- if (residual) residpar(x)^2 else 0
 
   pv <- x$start
   pv[!x$fix] <- x$sdrl$par.fixed[seq_len(sum(!x$fix))]
@@ -135,7 +135,7 @@ ed <- function(x, respLev=50, linfct=NULL, newdata=NULL, random=TRUE, residual=F
 
   # covariance of the free coefficients and the fitted random effects: jointly for effective doses of
   # fitted groups, otherwise of the coefficients only
-  cbu <- if (any(cond)) jointcov(x) else as.matrix(bdiag(x$sdrl$cov.fixed[seq_len(nb), seq_len(nb), drop=FALSE], matrix(0, nu, nu)))
+  cbu <- if (any(cond)) jointcov(x) else as.matrix(bdiag(fixedcov(x)[seq_len(nb), seq_len(nb), drop=FALSE], matrix(0, nu, nu)))
   cvc <- as.matrix(bdiag(c(list(cbu), lapply(recov(x), function(vc) vc$cov), list(matrix(rvar)))))
   edvar <- grad %*% cvc %*% t(grad)
   edn <- paste(if (absolute) paste("y=", respLev, sep="") else respLev, names(linfct), sep=":")

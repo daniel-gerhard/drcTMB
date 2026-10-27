@@ -35,6 +35,8 @@ mod <- drmTMB(rootl ~ conc, data=ryegrass, model="loglogistic",
 print(mod)
 ```
 
+The model is fitted by maximum likelihood. For gaussian models without random effects, the inference follows `lm()`, `nls()` and drc by default: the residual standard deviation is the square root of the unbiased residual variance with n - p residual degrees of freedom (`df.residual(mod)`), the standard errors are scaled accordingly, and confidence and prediction intervals use t quantiles. With `control = list(smallsample = FALSE)`, they use the maximum likelihood estimate and normal quantiles instead. The other families and models with random effects always use maximum likelihood and normal quantiles.
+
 With the `predict()` method, we can visualize the fitted curve.
 ```{r}
 newdata <- data.frame(conc = exp(seq(-0.5, log(30), length.out = 100)))
@@ -111,12 +113,12 @@ The `ed()` function can be used to estimate effective doses (e.g., ED50, ED90) f
 (effdose <- ed(mod, respLev = c(25, 50, 75)))
 ```
 
-Simultaneous confidence intervals can be constructed through the package multcomp.
+Simultaneous confidence intervals can be constructed through the package multcomp. For gaussian models without random effects, the residual degrees of freedom of the model give multivariate t quantiles (`df.residual()` is `NULL` otherwise, and multcomp then uses the normal distribution).
 ```{r, message=FALSE, warning=FALSE}
 library(multcomp)
 linfct <- diag(3)
 rownames(linfct) <- c("ED25", "ED50", "ED75")
-effdose_glht <- glht(effdose, linfct = linfct)
+effdose_glht <- glht(effdose, linfct = linfct, df = df.residual(mod))
 confint(effdose_glht)
 ```
 

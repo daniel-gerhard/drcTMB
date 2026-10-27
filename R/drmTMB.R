@@ -40,6 +40,17 @@
 #' loglogistic (weibull1), with b4 the log ED50, but it keeps observations at dose zero and reports
 #' effective doses on the dose scale. Without random effects on b4, both links give the same fit.
 #'
+#' Gaussian models without random effects are estimated by maximum likelihood, but by default
+#' (\code{smallsample=TRUE} in \code{\link{drmTMBcontrol}}) their inference follows lm, nls and drc:
+#' the residual standard deviation is the square root of the unbiased residual variance, the weighted
+#' residual sum of squares divided by n - p residual degrees of freedom, for n observations with
+#' positive weights and p free coefficients b1-b5; the covariance of the coefficients
+#' (\code{vcov}, \code{summary}, \code{\link{ed}}, \code{predict}) is scaled accordingly, the Wald
+#' and prediction intervals use t quantiles with n - p degrees of freedom, and the profile intervals of
+#' the coefficients and effective doses an F-based cutoff. The log-likelihood, the estimate log_sigma in
+#' \code{coef}, AIC, \code{anova}, \code{simulate} and \code{\link{bootstrap}} remain maximum likelihood.
+#' The other families and models with random effects use maximum likelihood and normal quantiles.
+#'
 #' @return A drmTMB object
 #' @export
 
@@ -105,6 +116,12 @@ drmTMB <- function(form, fform=NULL, rform=NULL, data, start=NULL, fix=NULL, wei
   res$obj <- obj
   res$sdrl <- sdreport(obj, par.fixed=opt$par)
   res$ssdrl <- summary(res$sdrl)
+  # residual degrees of freedom for small-sample inference of gaussian models without random effects:
+  # observations with positive weights minus free coefficients
+  if (isTRUE(control$smallsample) && family == "gaussian" && length(dd$re$terms) == 0){
+    rdf <- sum(dd$w > 0) - sum(!fix)
+    if (rdf > 0) res$rdf <- rdf else warning("no residual degrees of freedom; the standard errors use the maximum likelihood estimate of the residual variance.", call.=FALSE)
+  }
   class(res) <- "drmTMB"
   return(res)
 }

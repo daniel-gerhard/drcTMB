@@ -12,21 +12,39 @@ test_that("standard errors equal the delta method and agree with drc", {
   G <- numDeriv::jacobian(function(b) drcmean("loglogistic", nd$dose, c(b, 0)), coef(f)[1:4])
   expect_equal(p$se.fit, sqrt(diag(G %*% vcov(f)[1:4, 1:4] %*% t(G))), tolerance=1e-6)
 
-  # drc uses the unbiased residual variance
+  # the unbiased residual variance, as drc
   skip_if_not_installed("drc")
   f2 <- drc::drm(y ~ dose, data=d, fct=drc::LL.4())
   se2 <- predict(f2, nd, se.fit=TRUE)[, "SE"]
-  expect_equal(unname(se2), p$se.fit*sqrt(nrow(d)/(nrow(d) - 4)), tolerance=1e-4)
+  expect_equal(unname(se2), p$se.fit, tolerance=1e-4)
+  pc <- predict(f, nd, interval="confidence")
+  pc2 <- predict(f2, nd, interval="confidence")
+  expect_equal(unname(as.matrix(pc[c("lwr", "upr")])), unname(pc2[, c("Lower", "Upper")]), tolerance=1e-4)
+  pp <- predict(f, nd, interval="prediction")
+  pp2 <- predict(f2, nd, interval="prediction")
+  expect_equal(unname(as.matrix(pp[c("lwr", "upr")])), unname(pp2[, c("Lower", "Upper")]), tolerance=1e-4)
 })
 
 test_that("confidence and prediction intervals of gaussian models", {
-  f <- fit4(y ~ dose, data=simgauss("loglogistic"), model="loglogistic")
-  z <- qnorm(0.95)
+  d <- simgauss("loglogistic")
+  f <- fit4(y ~ dose, data=d, model="loglogistic")
+  # t quantiles and the unbiased residual variance
+  z <- qt(0.95, nrow(d) - 4)
   ci <- predict(f, interval="confidence", level=0.9)
   expect_equal(ci$lwr, ci$fit - z*ci$se.fit)
   expect_equal(ci$upr, ci$fit + z*ci$se.fit)
   pi <- predict(f, interval="prediction", level=0.9)
-  sig <- exp(coef(f)[["log_sigma"]])
+  sig <- sqrt(sum(residuals(f, type="response")^2)/(nrow(d) - 4))
+  expect_equal(pi$upr, pi$fit + z*sqrt(pi$se.fit^2 + sig^2))
+
+  # maximum likelihood: normal quantiles and the ML residual standard deviation
+  fml <- fit4(y ~ dose, data=d, model="loglogistic", control=list(smallsample=FALSE))
+  z <- qnorm(0.95)
+  ci <- predict(fml, interval="confidence", level=0.9)
+  expect_equal(ci$upr, ci$fit + z*ci$se.fit)
+  expect_equal(ci$se.fit, predict(f, se.fit=TRUE)$se.fit*sqrt((nrow(d) - 4)/nrow(d)))
+  pi <- predict(fml, interval="prediction", level=0.9)
+  sig <- exp(coef(fml)[["log_sigma"]])
   expect_equal(pi$upr, pi$fit + z*sqrt(pi$se.fit^2 + sig^2))
 })
 

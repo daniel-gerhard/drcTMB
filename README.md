@@ -55,7 +55,7 @@ print(mod)
 #>          7.855          -2.470           3.263  
 #> Fixed: b1:(Intercept) = 0, b5:(Intercept) = 0
 #> 
-#> Residual standard deviation: 0.5253
+#> Residual standard deviation: 0.5616
 ```
 
 With the `predict()` method, we can visualize the fitted curve, together
@@ -69,12 +69,12 @@ ci <- predict(mod, newdata = newdata, interval = "confidence")
 pi <- predict(mod, newdata = newdata, interval = "prediction")
 head(cbind(newdata, ci))
 #>        conc      fit    se.fit      lwr      upr
-#> 1 0.6065307 7.734345 0.1675733 7.405907 8.062783
-#> 2 0.6309088 7.722175 0.1665990 7.395647 8.048703
-#> 3 0.6562668 7.708806 0.1657090 7.384022 8.033589
-#> 4 0.6826439 7.694123 0.1649320 7.370862 8.017384
-#> 5 0.7100813 7.678003 0.1643010 7.355979 8.000027
-#> 6 0.7386214 7.660314 0.1638521 7.339169 7.981458
+#> 1 0.6065307 7.734345 0.1791433 7.361796 8.106894
+#> 2 0.6309088 7.722175 0.1781019 7.351792 8.092558
+#> 3 0.6562668 7.708806 0.1771504 7.340401 8.077210
+#> 4 0.6826439 7.694123 0.1763198 7.327446 8.060800
+#> 5 0.7100813 7.678003 0.1756451 7.312729 8.043277
+#> 6 0.7386214 7.660314 0.1751653 7.296038 8.024590
 newdata[c("pred", "clwr", "cupr")] <- ci[c("fit", "lwr", "upr")]
 newdata[c("plwr", "pupr")] <- pi[c("lwr", "upr")]
 library(ggplot2)
@@ -106,9 +106,9 @@ has changed by p% of the difference between the asymptote at low doses
 #> Effective dose estimates:
 #> 
 #>        Estimate Std.Error
-#> 25:lf1     2.09     0.175
-#> 50:lf2     3.26     0.184
-#> 75:lf3     5.09     0.394
+#> 25:lf1     2.09     0.187
+#> 50:lf2     3.26     0.196
+#> 75:lf3     5.09     0.421
 ```
 
 Profile likelihood confidence intervals of the effective doses are
@@ -118,32 +118,35 @@ computed by `confint()`; `method = "wald"` gives Wald intervals and
 ``` r
 confint(effdose)
 #>           2.5 %   97.5 %
-#> 25:lf1 1.748566 2.462471
-#> 50:lf2 2.909019 3.664987
-#> 75:lf3 4.386816 6.015573
+#> 25:lf1 1.719261 2.496939
+#> 50:lf2 2.879163 3.703885
+#> 75:lf3 4.332774 6.110914
 ```
 
 Simultaneous confidence intervals can be constructed through the package
-multcomp.
+multcomp. For gaussian models without random effects, the residual
+degrees of freedom of the model give multivariate t quantiles
+(`df.residual()` is `NULL` otherwise, and multcomp then uses the normal
+distribution).
 
 ``` r
 library(multcomp)
 linfct <- diag(3)
 rownames(linfct) <- c("ED25", "ED50", "ED75")
-effdose_glht <- glht(effdose, linfct = linfct)
+effdose_glht <- glht(effdose, linfct = linfct, df = df.residual(mod))
 confint(effdose_glht)
 #> 
 #>   Simultaneous Confidence Intervals
 #> 
 #> Fit: NULL
 #> 
-#> Quantile = 2.3187
+#> Quantile = 2.4899
 #> 95% family-wise confidence level
 #>  
 #> 
 #> Linear Hypotheses:
 #>           Estimate lwr    upr   
-#> ED25 == 0 2.0918   1.6869 2.4967
-#> ED50 == 0 3.2634   2.8374 3.6893
-#> ED75 == 0 5.0910   4.1774 6.0047
+#> ED25 == 0 2.0918   1.6270 2.5567
+#> ED50 == 0 3.2634   2.7743 3.7524
+#> ED75 == 0 5.0910   4.0422 6.1399
 ```

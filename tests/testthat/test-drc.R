@@ -49,18 +49,19 @@ for (m in names(drcmap)){
     expect_equal(unname(bcoef(f1)), unname(map(drccoef(f2))), tolerance=1e-3)
     expect_equal(f1$opt$objective, -as.numeric(logLik(f2)), tolerance=1e-5)
 
-    n <- nrow(d)
+    # small-sample inference as drc: unbiased residual variance with n - p degrees of freedom
     np <- length(bcoef(f1))
     se1 <- sqrt(diag(vcov(f1)))[seq_len(np)]
-    se2 <- sqrt(diag(drcvcov(f2, map))) * sqrt((n - np) / n)
+    se2 <- sqrt(diag(drcvcov(f2, map)))
     expect_equal(unname(se1), unname(se2), tolerance=1e-2)
+    expect_equal(residpar(f1), summary(f2)$rseMat[1, 1], tolerance=1e-4)
 
     e1 <- ed(f1, respLev=c(10, 50, 90))
     e2 <- drc::ED(f2, c(10, 50, 90), display=FALSE)
     expect_equal(unname(e1$estimates), unname(e2[, 1]), tolerance=1e-3)
     # drc::ED gives too large standard errors for G.4; compare with the delta method instead
     if (m != "gompertz"){
-      expect_equal(unname(sqrt(diag(e1$variance))), unname(e2[, 2]) * sqrt((n - np) / n), tolerance=1e-2)
+      expect_equal(unname(sqrt(diag(e1$variance))), unname(e2[, 2]), tolerance=1e-2)
     } else {
       edg <- function(b, q) b[4] - log(-log(q))/b[3]
       se <- sapply(c(0.1, 0.5, 0.9), function(q){

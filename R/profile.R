@@ -15,12 +15,17 @@
 #' Bounds given by \code{lower} and \code{upper} in \code{\link{drmTMB}} are used for the profiled
 #' coefficient, but not when re-optimising the other coefficients.
 #'
+#' The cutoff of the deviance is the quantile of the chi-square distribution with one degree of
+#' freedom. For gaussian models without random effects and small-sample inference (see
+#' \code{\link{drmTMB}}), the cutoff of the coefficients b1-b5 is F-based instead,
+#' sum(w) log(1 + F/(n - p)) with the quantile F of the F distribution with 1 and n - p degrees of
+#' freedom, which gives the intervals of a t-test of each coefficient, as profile intervals of nls.
+#'
 #' @param fitted a drmTMB object
 #' @param parm parameters to profile, names or positions in \code{coef(fitted)}. Default are the
 #'   estimated coefficients b1-b5, without the variance parameters.
 #' @param level the highest confidence level the profiles are computed for: each profile extends until
-#'   the deviance from the maximum exceeds the quantile of the chi-square distribution with one degree
-#'   of freedom. For confint and plot, the confidence level of the intervals and of the cutoff line.
+#'   the deviance from the maximum exceeds the cutoff (see Details). For confint and plot, the confidence level of the intervals and of the cutoff line.
 #' @param trace logical, print the progress of \code{\link[TMB]{tmbprofile}}
 #' @param progress logical, show a progress bar over the profiled parameters
 #' @param object,x a profile.drmTMB object
@@ -31,7 +36,7 @@
 #'   the parameter values (\code{par}) and the deviance from the maximum (\code{deviance}), i.e. twice
 #'   the difference of the negative log-likelihoods. confint returns a matrix of confidence intervals.
 #'   plot returns a ggplot object (package ggplot2) with a panel for each parameter, showing the
-#'   deviance, the quantile of the chi-square distribution for \code{level} (dashed), and the
+#'   deviance, the cutoff for \code{level} (dashed), and the
 #'   estimate (dotted).
 #' @export
 #'
@@ -54,7 +59,7 @@ profile.drmTMB <- function(fitted, parm=NULL, level=0.99, trace=FALSE, progress=
   upper <- if (is.null(fitted$upper)) rep(Inf, length(est)) else fitted$upper
 
   nllmin <- fitted$opt$objective
-  ytol <- qchisq(level, 1)/2 + 0.1
+  ytol <- profcutoff(level, fitted)/2 + 0.1
   pb <- progressbar(length(parm), progress)
   prof <- lapply(parm, function(i){
     p <- TMB::tmbprofile(fitted$obj, name=i, ytol=ytol, parm.range=c(lower[i], upper[i]), trace=trace, ...)
@@ -66,6 +71,7 @@ profile.drmTMB <- function(fitted, parm=NULL, level=0.99, trace=FALSE, progress=
   names(prof) <- pn[parm]
   attr(prof, "estimates") <- est[parm]
   attr(prof, "corr2") <- corr2names(fitted)
+  attr(prof, "cutoff") <- cutoffattr(fitted, parm <= nb)
   class(prof) <- "profile.drmTMB"
   prof
 }
@@ -76,12 +82,12 @@ confint.profile.drmTMB <- function(object, parm=NULL, level=0.95, ...){
   if (is.null(parm)) parm <- names(object)
   if (is.numeric(parm)) parm <- names(object)[parm]
   est <- attr(object, "estimates")
-  cutoff <- qchisq(level, 1)
   # limits: the parameter values at which the deviance reaches the cutoff, interpolated on each
   # side of the estimate; NA if the profile does not reach the cutoff
   logscale <- attr(object, "logscale")
   if (is.null(logscale)) logscale <- setNames(rep(FALSE, length(object)), names(object))
   limit <- function(d, e, side, nm){
+    cutoff <- profcutoffs(object, level)[[nm]]
     ds <- d[is.finite(d$deviance) & (if (side == "lower") d$par <= e else d$par >= e), ]
     ds <- ds[order(abs(ds$par - e)), ]
     k <- which(ds$deviance >= cutoff)[1]
@@ -144,14 +150,39 @@ plot.profile.drmTMB <- function(x, level=0.95, ...){
   est <- data.frame(parameter=factor(nm, levels=nm), par=unname(attr(x, "estimates")))
   ggplot2::ggplot(d, ggplot2::aes(x=par, y=deviance)) +
     ggplot2::geom_line() +
-    ggplot2::geom_hline(yintercept=qchisq(level, 1), linetype="dashed") +
+    ggplot2::geom_hline(data=data.frame(parameter=factor(nm, levels=nm), cutoff=profcutoffs(x, level)[nm]),
+                        ggplot2::aes(yintercept=cutoff), linetype="dashed") +
     ggplot2::geom_vline(data=est, ggplot2::aes(xintercept=par), linetype="dotted") +
     ggplot2::facet_wrap(~ parameter, scales="free_x") +
     ggplot2::labs(x=NULL, y="Deviance")
 }
 
 # columns of the profile data used in the aesthetics of plot.profile.drmTMB
-utils::globalVariables(c("par", "deviance"))
+utils::globalVariables(c("par", "deviance", "cutoff"))
+
+# cutoff of the profile deviance for confidence level level: the chi-square quantile with one degree
+# of freedom, or with small-sample inference (rdf of the fit) the F-based cutoff, equivalent to a t
+# interval: the profile deviance of a gaussian model is sum(w) log(RSS/RSSmin), so
+# (RSS - RSSmin)/(RSSmin/rdf) <= F(1, rdf) gives sum(w) log(1 + F(1, rdf)/rdf)
+profcutoff <- function(level, fit=NULL){
+  if (is.null(fit$rdf)) return(qchisq(level, 1))
+  sum(fit$obj$env$data$w) * log(1 + qf(level, 1, fit$rdf)/fit$rdf)
+}
+
+# what a profile needs for its cutoffs: the fit's residual degrees of freedom and sum of weights,
+# and which profiled parameters use them (coefficients and effective doses, not variance parameters)
+cutoffattr <- function(fit, small){
+  if (is.null(fit$rdf)) return(NULL)
+  list(rdf=fit$rdf, sumw=sum(fit$obj$env$data$w), small=small)
+}
+
+# cutoff for each profiled parameter
+profcutoffs <- function(object, level){
+  ca <- attr(object, "cutoff")
+  cut <- setNames(rep(qchisq(level, 1), length(object)), names(object))
+  if (!is.null(ca)) cut[ca$small] <- ca$sumw * log(1 + qf(level, 1, ca$rdf)/ca$rdf)
+  cut
+}
 
 #' Likelihood profiles of effective doses
 #'
@@ -163,7 +194,8 @@ utils::globalVariables(c("par", "deviance"))
 #' The profiles are for the effective doses of the population curves, without the random effects;
 #' the variation between groups (\code{random=TRUE} in \code{\link{ed}}) and the residual variation are
 #' not included. For the models on the log-dose scale and the models without b3, the effective doses
-#' are profiled on the log scale.
+#' are profiled on the log scale. Gaussian models without random effects use the F-based cutoff of
+#' \code{\link{profile.drmTMB}} by default.
 #'
 #' @param fitted an edTMB object
 #' @param parm effective doses to profile, names or positions in \code{coef(fitted)}; default all
@@ -201,7 +233,7 @@ profile.edTMB <- function(fitted, parm=NULL, level=0.99, maxit=100, progress=int
   nf <- length(free)
   par0 <- fit$opt$par
   nllmin <- fit$opt$objective
-  cutoff <- qchisq(level, 1)
+  cutoff <- profcutoff(level, fit)
   Hfull <- tryCatch(solve(fit$sdrl$cov.fixed), error=function(e) NULL)
 
   pb <- progressbar(length(parm), progress)
@@ -283,6 +315,7 @@ profile.edTMB <- function(fitted, parm=NULL, level=0.99, maxit=100, progress=int
   names(prof) <- names(est)[parm]
   attr(prof, "estimates") <- est[parm]
   attr(prof, "logscale") <- setNames(rep(logscale, length(parm)), names(est)[parm])
+  attr(prof, "cutoff") <- cutoffattr(fit, rep(TRUE, length(parm)))
   class(prof) <- c("profile.edTMB", "profile.drmTMB")
   prof
 }
@@ -366,7 +399,8 @@ confint.drmTMB <- function(object, parm=NULL, level=0.95, method=c("profile", "w
   }
   if (method == "boot") return(confint(getboot(object, boot, nsim, seed, ...), parm=parm, level=level))
   se <- sqrt(diag(vcov(object)))[parm]
-  z <- qnorm((1 + level)/2)
+  # t quantiles for the coefficients b1-b5 with small-sample inference
+  z <- ifelse(parm <= sum(!object$fix), zquant(object, level), qnorm((1 + level)/2))
   natscale(cbind(est[parm] - z*se, est[parm] + z*se), names(est)[parm], corr2names(object), level)
 }
 
@@ -422,7 +456,7 @@ confint.edTMB <- function(object, parm=NULL, level=0.95, method=c("profile", "wa
     return(ci)
   }
   se <- sqrt(diag(vcov(object)))[parm]
-  z <- qnorm((1 + level)/2)
+  z <- if (is.null(object$fit)) qnorm((1 + level)/2) else zquant(object$fit, level)
   ci <- cbind(est[parm] - z*se, est[parm] + z*se)
   dimnames(ci) <- list(names(est)[parm], paste(format(100*c((1 - level)/2, (1 + level)/2), trim=TRUE, scientific=FALSE, digits=3), "%"))
   ci

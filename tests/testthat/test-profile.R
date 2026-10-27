@@ -12,13 +12,27 @@ test_that("profile intervals of a gaussian model are likelihood ratio intervals"
   expect_equal(colnames(ci), c("2.5 %", "97.5 %"))
   expect_true(all(ci[, 1] < bcoef(f) & bcoef(f) < ci[, 2]))
 
-  # nls with b4 fixed at a limit: the deviance n log(RSS / RSSmin) equals the chi-square quantile
+  # nls with b4 fixed at a limit: the deviance n log(RSS / RSSmin) equals the F-based cutoff of
+  # small-sample inference, n log(1 + F/(n - p)), i.e. the F-test of b4 rejects at the limits
   rss0 <- sum((d$y - predict(f))^2)
+  n <- nrow(d)
+  fcut <- n*log(1 + qf(0.95, 1, n - 4)/(n - 4))
   for (b4 in ci[4, ]){
     n1 <- nls(y ~ b1 + (b2 - b1)/(1 + exp(-b3*(log(dose) - log(b4)))), data=d,
               start=setNames(bcoef(f)[1:3], paste("b", 1:3, sep="")))
-    expect_equal(nrow(d)*log(sum(residuals(n1)^2)/rss0), qchisq(0.95, 1), tolerance=1e-3)
+    expect_equal(n*log(sum(residuals(n1)^2)/rss0), fcut, tolerance=1e-3)
   }
+  # the profile intervals of nls (MASS), from the t distribution of the profile t statistic
+  ns <- nls(y ~ b1 + (b2 - b1)/(1 + exp(-b3*(log(dose) - log(b4)))), data=d,
+            start=setNames(bcoef(f), paste("b", 1:4, sep="")))
+  expect_equal(unname(ci), unname(suppressMessages(confint(ns))), tolerance=1e-3)
+
+  # maximum likelihood: the deviance equals the chi-square quantile
+  fml <- fit4(y ~ dose, data=d, model="loglogistic", control=list(smallsample=FALSE))
+  ciml <- confint(profile(fml, parm=4))
+  n1 <- nls(y ~ b1 + (b2 - b1)/(1 + exp(-b3*(log(dose) - log(b4)))), data=transform(d, b4=ciml[1, 1]),
+            start=setNames(bcoef(f)[1:3], paste("b", 1:3, sep="")))
+  expect_equal(n*log(sum(residuals(n1)^2)/rss0), qchisq(0.95, 1), tolerance=1e-3)
 
   # close to the Wald intervals for a nearly linear parameter
   expect_equal(unname(ci[2, ]), unname(confint(f, method="wald")[2, ]), tolerance=0.02)
@@ -110,8 +124,10 @@ test_that("profile intervals of effective doses are likelihood ratio intervals",
     expect_equal(rownames(ci), names(coef(e)))
     expect_true(all(ci[, 1] < coef(e) & coef(e) < ci[, 2]))
 
-    # nls with the effective dose fixed at a limit: b4 from the effective dose
+    # nls with the effective dose fixed at a limit: b4 from the effective dose; F-based cutoff
     rss0 <- sum((d$y - predict(f))^2)
+    n <- nrow(d)
+    fcut <- n*log(1 + qf(0.95, 1, n - 4)/(n - 4))
     mod <- match(m, models)
     for (j in 1:3){
       q <- e$q[[j]]
@@ -122,7 +138,7 @@ test_that("profile intervals of effective doses are likelihood ratio intervals",
           y ~ b1 + (b2 - b1)/(1 + exp(-b3*(dose - drcTMB:::edb4(mod, q, ED, b3, 0))))
         }
         n1 <- nls(fm, data=d, start=setNames(bcoef(f)[1:3], paste("b", 1:3, sep="")))
-        expect_equal(nrow(d)*log(sum(residuals(n1)^2)/rss0), qchisq(0.95, 1), tolerance=1e-4,
+        expect_equal(n*log(sum(residuals(n1)^2)/rss0), fcut, tolerance=1e-4,
                      label=paste(m, names(coef(e))[j]))
       }
     }

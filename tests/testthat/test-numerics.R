@@ -110,10 +110,12 @@ test_that("predict equals the mean function at the estimates", {
 })
 
 test_that("weights are equivalent to replicated observations", {
+  # for the likelihood; small-sample inference counts the observations, as lm
   d <- simgauss("loglogistic")
   w <- rep(1:2, length.out=nrow(d))
-  f1 <- fit4(y ~ dose, data=d, model="loglogistic", weights=w)
-  f2 <- fit4(y ~ dose, data=d[rep(seq_len(nrow(d)), w), ], model="loglogistic")
+  ml <- list(smallsample=FALSE)
+  f1 <- fit4(y ~ dose, data=d, model="loglogistic", weights=w, control=ml)
+  f2 <- fit4(y ~ dose, data=d[rep(seq_len(nrow(d)), w), ], model="loglogistic", control=ml)
   expect_equal(f1$opt$objective, f2$opt$objective, tolerance=1e-8)
   expect_equal(coef(f1), coef(f2), tolerance=1e-5)
   expect_equal(vcov(f1), vcov(f2), tolerance=1e-4)
