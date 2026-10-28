@@ -99,6 +99,11 @@ mod0 <- update(mod, model = "constant", start = NULL, fix = NULL)
 anova(mod0, mod)
 ```
 
+The chi-square distribution of the likelihood ratio statistic is only an approximation here, as the steepness and location of the curve are not identified under the constant model, and similarly for small experiments or for testing a standard deviation of random effects against zero. A parametric bootstrap test, `test = "boot"`, simulates responses from the smaller model and fits both models to each of them; with 200 simulations, the smallest possible p-value is 1/201.
+```{r}
+anova(mod0, mod, test = "boot", nsim = 200, seed = 1)
+```
+
 ### Model diagnostics
 
 The `plot()` method draws residuals against the fitted values and against the dose, and a normal QQ plot of the residuals. The default randomised quantile residuals are standard normal under the model for all families. A trend of the residuals against the dose points to a model function that does not fit the data, and `which = 4` adds QQ plots of the predicted random effects for models with random effects. The graphs are ggplot2 objects, returned invisibly, so a single one can be changed and drawn again.

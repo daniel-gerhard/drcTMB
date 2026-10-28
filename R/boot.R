@@ -24,21 +24,15 @@
 bootstrap <- function(object, nsim=500, seed=NULL, progress=interactive()){
   if (!inherits(object, "drmTMB")) stop("object must be a drmTMB object.")
   sims <- simulate(object, nsim=nsim, seed=seed)
-  env <- object$obj$env
-  rnd <- !is.null(env$random)
-  pars <- env$parList(object$opt$par)
+  pars <- object$obj$env$parList(object$opt$par)
   # iteration limits of the fit
   control <- if (is.null(object$control)) drmTMBcontrol() else object$control
   ctrl <- list(iter.max=control$iter.max, eval.max=control$eval.max)
   pb <- progressbar(nsim, progress)
   est <- t(sapply(sims, function(y){
     on.exit(pb$tick())
-    dat <- env$data
-    dat$y <- y
-    obj <- MakeADFun(dat, pars, map=env$map, random=if (rnd) "u", DLL=env$DLL, silent=TRUE)
-    opt <- suppressWarnings(try(nlminb(obj$par, obj$fn, obj$gr, if (!rnd) obj$he,
-                                       lower=object$lower, upper=object$upper, control=ctrl), silent=TRUE))
-    if (inherits(opt, "try-error") || opt$convergence != 0 || !is.finite(opt$objective)) return(rep(NA, length(object$opt$par)))
+    opt <- refitopt(object, y, pars, ctrl)
+    if (is.null(opt) || opt$convergence != 0 || !is.finite(opt$objective)) return(rep(NA, length(object$opt$par)))
     opt$par
   }))
   pb$close()
@@ -73,6 +67,44 @@ confint.bootstrap.drmTMB <- function(object, parm=NULL, level=0.95, ...){
   if (any(is.na(parm))) stop("unknown parameters in parm.")
   ci <- t(apply(bootconverged(object)[, parm, drop=FALSE], 2, quantile, probs=c((1 - level)/2, (1 + level)/2), na.rm=TRUE, names=FALSE))
   natscale(ci, names(est)[parm], corr2names(object$fit), level)
+}
+
+# fit of the model to a simulated response y, starting at the parameters pars (as parList), with the
+# bounds of the fit and the iteration limits ctrl; NULL if the optimiser fails
+refitopt <- function(fit, y, pars, ctrl){
+  env <- fit$obj$env
+  rnd <- !is.null(env$random)
+  dat <- env$data
+  dat$y <- y
+  obj <- MakeADFun(dat, pars, map=env$map, random=if (rnd) "u", DLL=env$DLL, silent=TRUE)
+  opt <- suppressWarnings(try(nlminb(obj$par, obj$fn, obj$gr, if (!rnd) obj$he,
+                                     lower=fit$lower, upper=fit$upper, control=ctrl), silent=TRUE))
+  if (inherits(opt, "try-error")) NULL else opt
+}
+
+# minimum negative log-likelihood of the model for a simulated response y: the better of the fits
+# starting at the estimates and at the starting values of drmTMB for y, as parameters that are not
+# identified under a smaller model (e.g. b3 and b4 for a flat curve) often lead the fit from the
+# estimates to a worse local optimum; NA if neither fit gives a finite value
+refitnll <- function(fit, y, ctrl){
+  env <- fit$obj$env
+  dat <- env$data
+  pars <- env$parList(fit$opt$par)
+  dd <- list(y=y, x=dat$x, w=dat$w, bn=dat$bn, mod=dat$mod, lnk=dat$lnk, lnk4=dat$lnk4, Xs=fit$Xs,
+             npi=rep(1:5, vapply(fit$Xs, ncol, integer(1))), family=fit$family)
+  start <- fit$start
+  start[!fit$fix] <- NA
+  sv <- tryCatch(lmstart(dd, start, fit$fix), error=function(e) NULL)
+  pars2 <- pars
+  if (!is.null(sv)){
+    for (i in 1:5) pars2[[paste("b", i, sep="")]] <- sv[dd$npi == i]
+    pars2$u[] <- 0
+  }
+  nll <- vapply(list(pars, if (!is.null(sv)) pars2), function(p){
+    opt <- refitopt(fit, y, p, ctrl)
+    if (is.null(opt) || !is.finite(opt$objective)) NA else opt$objective
+  }, numeric(1))
+  if (all(is.na(nll))) NA else min(nll, na.rm=TRUE)
 }
 
 # bootstrap sample for confint: the given one, checked to belong to the fit, or a new one
