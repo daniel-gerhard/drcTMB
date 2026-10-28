@@ -121,3 +121,38 @@ test_that("the constant model agrees with glm and lme4", {
   expect_equal(as.numeric(logLik(r0)), as.numeric(logLik(l0)), tolerance=1e-5)
   expect_equal(unname(coef(r0)[1]), unname(lme4::fixef(l0)), tolerance=1e-4)
 })
+
+test_that("parametric bootstrap likelihood ratio tests", {
+  d <- simgauss("loglogistic", nrep=2)
+  f0 <- drmTMB(y ~ dose, data=d, model="constant")
+  f3 <- drmTMB(y ~ dose, data=d, model="loglogistic", start=c(b1=0, b5=0), fix=c(b1=TRUE, b5=TRUE))
+  f4 <- fit4(y ~ dose, data=d, model="loglogistic")
+  a <- anova(f3, f4, f0, test="boot", nsim=19, seed=1, progress=FALSE)
+  ac <- anova(f3, f4, f0)
+  expect_s3_class(a, "anova")
+  expect_equal(rownames(a), c("f0", "f3", "f4"))
+  expect_equal(a[names(ac)], ac, ignore_attr=TRUE)
+  expect_true(is.na(a[["Pr(boot)"]][1]))
+  lr <- attr(a, "boot")
+  expect_named(lr, c("f0 vs f3", "f3 vs f4"))
+  expect_true(all(vapply(lr, length, integer(1)) == 19))
+  expect_true(all(unlist(lr) >= 0))
+  # p-value from the simulated statistics; a strong dose effect exceeds all of them
+  expect_equal(a[["Pr(boot)"]][2:3], vapply(2:3, function(i) (1 + sum(lr[[i - 1]] >= a$Chisq[i]))/20, numeric(1)))
+  expect_equal(a[["Pr(boot)"]][2], 1/20)
+  # reproducible with a seed
+  expect_equal(anova(f3, f4, test="boot", nsim=5, seed=2, progress=FALSE)[["Pr(boot)"]],
+               anova(f3, f4, test="boot", nsim=5, seed=2, progress=FALSE)[["Pr(boot)"]])
+})
+
+test_that("bootstrap tests of a random effect on the boundary", {
+  d <- simgroups(ng=6, nrep=1, seed=4)
+  d$y <- drcmean("loglogistic", d$dose, c(1, 8, -1.5, 3, 0)) + rnorm(nrow(d), 0, 0.4)
+  r0 <- fit4(y ~ dose, data=d, model="loglogistic")
+  r1 <- fit4(y ~ dose, rform=b2 ~ 1 | grp, data=d, model="loglogistic")
+  a <- anova(r0, r1, test="boot", nsim=19, seed=1, progress=FALSE)
+  lr <- attr(a, "boot")[[1]]
+  # a point mass at zero: the standard deviation is estimated at zero for many simulations
+  expect_gt(sum(lr < 1e-6), 0)
+  expect_true(a[["Pr(boot)"]][2] >= 1/20 && a[["Pr(boot)"]][2] <= 1)
+})

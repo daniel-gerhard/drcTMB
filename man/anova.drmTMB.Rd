@@ -4,22 +4,37 @@
 \alias{anova.drmTMB}
 \title{Likelihood ratio tests for drmTMB models}
 \usage{
-\method{anova}{drmTMB}(object, ..., test = c("Chisq", "F"))
+\method{anova}{drmTMB}(
+  object,
+  ...,
+  test = c("Chisq", "F", "boot"),
+  nsim = 1000,
+  seed = NULL,
+  progress = interactive()
+)
 }
 \arguments{
 \item{object}{a drmTMB object}
 
 \item{...}{further drmTMB objects}
 
-\item{test}{"Chisq" (default) for likelihood ratio tests, or "F" for F-tests of gaussian models
-without random effects}
+\item{test}{"Chisq" (default) for likelihood ratio tests, "F" for F-tests of gaussian models
+without random effects, or "boot" for parametric bootstrap likelihood ratio tests}
+
+\item{nsim}{number of simulations for \code{test="boot"}}
+
+\item{seed}{an optional seed for the random number generator, for \code{test="boot"}}
+
+\item{progress}{logical, show a progress bar for \code{test="boot"}}
 }
 \value{
 a data frame of class anova with the number of parameters (npar), AIC, BIC, log-likelihood
 and deviance (minus twice the log-likelihood) of each model, and the likelihood ratio statistic
 (Chisq), its degrees of freedom (Df) and p-value (Pr(>Chisq)) for the comparison with the
 previous model. For \code{test="F"}, the residual degrees of freedom (Res.Df) and residual sum of
-squares (RSS) instead of the deviance, and the F statistic (F) and its p-value (Pr(>F)).
+squares (RSS) instead of the deviance, and the F statistic (F) and its p-value (Pr(>F)). For
+\code{test="boot"}, additionally the bootstrap p-value (Pr(boot)), with the simulated likelihood ratio
+statistics of each comparison in the attribute \code{"boot"}.
 }
 \description{
 Compares two or more models fitted to the same data by likelihood ratio tests, e.g. a model with
@@ -44,4 +59,17 @@ parameter, divided by the residual mean square of the largest model, with n - p 
 of freedom for p coefficients b1-b5. The F-test is exact for linear models and accounts for the
 estimation of the residual variance, which the likelihood ratio test does not, so it is usually
 preferable for small experiments.
+
+\code{test="boot"} gives parametric bootstrap likelihood ratio tests, as \code{PBmodcomp} of the
+package pbkrtest: for each comparison, \code{nsim} responses are simulated from the smaller model,
+with new random effects, both models are fitted to each of them, and the p-value \code{Pr(boot)} is
+the proportion of the simulated likelihood ratio statistics at least as large as the observed one,
+(1 + #\{LR* >= LR\}) / (1 + nsim). It does not rely on the chi-square distribution, which is only
+approximate in small samples, for parameters on the boundary (standard deviations of random effects
+of zero, the poisson model within the negative binomial), and for parameters that are not
+identified under the smaller model (e.g. the steepness and location of the curve compared with
+\code{model="constant"}). The chi-square p-value is shown for comparison. Each model is fitted
+twice to each simulated response, starting at its estimates and at the starting values of
+\code{\link{drmTMB}}, and the better fit is used; simulations without a finite log-likelihood of
+both models are left out.
 }
