@@ -222,6 +222,8 @@ profile.edTMB <- function(fitted, parm=NULL, level=0.99, maxit=100, progress=int
   if (anyNA(est[parm])) stop("the effective doses ", paste(names(est)[parm][is.na(est[parm])], collapse=", "), " are NA.")
   absolute <- identical(fitted$type, "absolute")
   peak <- identical(fitted$type, "peak")
+  pv0 <- fit$start
+  pv0[!fit$fix] <- fit$opt$par[seq_len(sum(!fit$fix))]
   if (peak && any(unlist(fitted$q[parm]) == 2)) stop("profiles are not available for the response at the peak.")
 
   obj <- fit$obj
@@ -241,17 +243,29 @@ profile.edTMB <- function(fitted, parm=NULL, level=0.99, maxit=100, progress=int
   nllmin <- fit$opt$objective
   cutoff <- profcutoff(level, fit)
   Hfull <- tryCatch(solve(fit$sdrl$cov.fixed), error=function(e) NULL)
+  # bounds of the fit
+  lo <- if (is.null(fit$lower)) rep(-Inf, length(par0)) else fit$lower
+  up <- if (is.null(fit$upper)) rep(Inf, length(par0)) else fit$upper
+  # free coefficients of the polynomial of the multistage model (b3-b5), in the parameter vector
+  msfree <- c(rep(1:5, sapply(fit$Xs, ncol))[free] %in% 3:5, rep(FALSE, length(par0) - nf))
 
   pb <- progressbar(length(parm), progress)
   prof <- lapply(parm, function(i){
     L <- fitted$linfct[[i]]
     q <- fitted$q[[i]]
-    # the coefficient of b4 computed from the effective dose: free, with the largest weight
-    w4 <- L[4, free]
-    if (all(w4 == 0)) stop("the effective dose ", names(est)[i], " does not depend on an estimated coefficient of b4.")
+    # the parameter computed from the effective dose: b4, or for the multistage model the coefficient
+    # of the polynomial with the largest term at the effective dose, which is away from its bound 0
+    ps <- 4
+    if (mod == 14){
+      lp0 <- as.vector(L %*% pv0)
+      ps <- 2 + which.max(lp0[3:5] * est[[i]]^(1:3) * sapply(3:5, function(j) any(L[j, free] != 0)))
+    }
+    # its coefficient computed from the effective dose: free, with the largest weight
+    w4 <- L[ps, free]
+    if (all(w4 == 0)) stop("the effective dose ", names(est)[i], " does not depend on an estimated coefficient of b", ps, ".")
     kp <- which.max(abs(w4))
     k <- free[kp]
-    if (L[3, k] != 0 || L[5, k] != 0) stop("the coefficient ", fit$coefnames[k], " of b4 must not enter b3 or b5 in linfct.")
+    if (any(L[setdiff(3:5, ps), k] != 0)) stop("the coefficient ", fit$coefnames[k], " of b", ps, " must not enter ", paste("b", setdiff(3:5, ps), sep="", collapse=" or "), " in linfct.")
     if ((absolute || mod %in% c(11, 12)) && (L[1, k] != 0 || L[2, k] != 0)) stop("the coefficient ", fit$coefnames[k], " of b4 must not enter b1 or b2 in linfct.")
 
     # full parameter vector from the reduced one (without coefficient k) at effective dose ed
@@ -263,6 +277,7 @@ profile.edTMB <- function(fitted, parm=NULL, level=0.99, maxit=100, progress=int
     # b4 on the scale of its coefficients, from b1, b2 (absolute effective doses, hormesis models), b3
     # and b5 in lpv; for peaks, ed is the dose of the peak
     b4fun <- function(ed, lpv){
+      if (mod == 14) return(msbeta(edq(fit, q, lpv, absolute), ed, lpv, ps))
       b4 <- if (peak) peakb4(mod, ed, lpv[3], hormc(fit, lpv), fit$alpha)
             else edb4(mod, edq(fit, q, lpv, absolute), ed, lpv[3], lpv[5], hormc(fit, lpv), fit$alpha)
       linkfun(lnk4, b4)
@@ -272,7 +287,7 @@ profile.edTMB <- function(fitted, parm=NULL, level=0.99, maxit=100, progress=int
       pv <- pvfull(par)
       lpv <- as.vector(L %*% pv)
       b4 <- b4fun(ed, lpv)
-      par[kp] <- (b4 - sum(L[4, -k] * pv[-k])) / L[4, k]
+      par[kp] <- (b4 - sum(L[ps, -k] * pv[-k])) / L[ps, k]
       list(par=par, lpv=lpv)
     }
     # derivatives of the full parameter vector w.r.t. the reduced one: coefficient k depends on the
@@ -280,12 +295,13 @@ profile.edTMB <- function(fitted, parm=NULL, level=0.99, maxit=100, progress=int
     # effective doses on b1 and b2
     jacobian <- function(e, ed){
       h <- 1e-6
-      d <- sapply(c(1, 2, 3, 5), function(j){
+      oth <- setdiff(1:5, ps)
+      d <- sapply(oth, function(j){
         hj <- replace(numeric(5), j, h)
         (b4fun(ed, e$lpv + hj) - b4fun(ed, e$lpv - hj)) / (2*h)
       })
       J <- diag(length(par0))[, -kp, drop=FALSE]
-      J[kp, seq_len(nf - 1)] <- ((colSums(d * L[c(1, 2, 3, 5), free, drop=FALSE]) - L[4, free]) / L[4, k])[-kp]
+      J[kp, seq_len(nf - 1)] <- ((colSums(d * L[oth, free, drop=FALSE]) - L[ps, free]) / L[ps, k])[-kp]
       J
     }
     # hormesis models: the effective dose is on the decreasing part of the curve, above the peak;
@@ -293,6 +309,8 @@ profile.edTMB <- function(fitted, parm=NULL, level=0.99, maxit=100, progress=int
     # for peaks, curves with a minimum at ed
     fn <- function(x, ed){
       e <- expand(x, ed)
+      # the computed coefficient within its bounds
+      if (!isTRUE(e$par[kp] >= lo[kp] && e$par[kp] <= up[kp])) return(Inf)
       if (mod %in% c(11, 12)){
         d <- hormderivs(fit, as.vector(L %*% pvfull(e$par)), ed)
         if (!isTRUE(if (peak) d[2] < 0 else d[1] < 0)) return(Inf)
@@ -321,9 +339,12 @@ profile.edTMB <- function(fitted, parm=NULL, level=0.99, maxit=100, progress=int
       out <- NULL
       for (it in seq_len(maxit)){
         ed <- itr(tr(e0) + dir*it*step)
+        # multistage: if the other coefficients of the polynomial make the computed one negative, start
+        # with them at 0, where it is positive
+        if (mod == 14 && !is.finite(fn(x, ed))) x[msfree[-kp]] <- 0
         # the profile ends where the parameterisation fails, e.g. an absolute effective dose whose
         # response approaches an asymptote
-        o <- tryCatch(suppressWarnings(nlminb(x, fn, gr, he, ed=ed)), error=function(e) NULL)
+        o <- tryCatch(suppressWarnings(nlminb(x, fn, gr, he, ed=ed, lower=lo[-kp], upper=up[-kp])), error=function(e) NULL)
         if (is.null(o)) break
         x <- o$par
         out <- rbind(out, data.frame(par=ed, deviance=2*(o$objective - nllmin)))
@@ -371,6 +392,13 @@ peakb4 <- function(mod, pk, b3, c5, alpha){
   edb4(2, 1 + c5*dg/(b3*(1 + c5*g)), pk, b3, 0)
 }
 
+# coefficient pb (3-5) of the polynomial of a multistage curve with effective dose ed at level q of
+# F, given the other coefficients in lpv (b1-b5)
+msbeta <- function(q, ed, lpv, pb){
+  oth <- setdiff(3:5, pb)
+  (-log(1 - q) - sum(lpv[oth] * ed^(oth - 2))) / ed^(pb - 2)
+}
+
 # effective dose, or dose or response at the peak, of entry i of the edTMB object for the curve
 # parameters lpv (b1-b5 on the scale of the linear predictors); NA if not defined
 edvalue <- function(object, i, lpv){
@@ -409,6 +437,7 @@ edh <- function(mod, q, b3, b5){
 # difference of the asymptotes, and alpha, found numerically
 edfun <- function(mod, q, b3, b4, b5, c5=0, alpha=NULL){
   if (mod %in% c(11, 12)) return(exp(hormroot(mod, q, b3, b4, c5, alpha)))
+  if (mod == 14) return(msroot(q, c(b3, b4, b5)))
   h <- edh(mod, q, b3, b5)
   if (mod %in% c(1, 9)) b4 + h else b4 * h
 }

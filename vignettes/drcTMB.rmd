@@ -400,6 +400,12 @@ As michaelismenten, with the distribution function of the gamma distribution wit
 
 $$ f(x) = b_1 + \left( b_2 - b_1 \right) P \left( \frac{x}{b_4}, b_3 \right) $$
 
+#### multistage
+
+The multistage model of BMDS, with the coefficients $\beta_1$ to $\beta_3$ of its polynomial in $b_3$ to $b_5$, bounded below by 0 by default; for quantal responses, $b_1$ is the background risk and $b_2$ is fixed at 1. Fixing $b_5$ at 0 gives the model of degree 2, and fixing $b_4$ and $b_5$ at 0 the model of degree 1, which is the asymptoticregression model with $b_4 = 1/\beta_1$.
+
+$$ f(x) = b_1 + \left( b_2 - b_1 \right) \left( 1 - \exp \left( -b_3 x - b_4 x^2 - b_5 x^3 \right) \right) $$
+
 #### asymptoticregression and exponentialdecay
 
 Both names refer to the same model; an increasing curve is an asymptotic regression and a decreasing curve an exponential decay.

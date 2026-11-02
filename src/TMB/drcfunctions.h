@@ -27,7 +27,7 @@ Type hormg(int mod, Type x, Type alpha){
 // dose-response mean function
 // mod: 1 = logistic, 2 = loglogistic, 3 = weibull1, 4 = weibull2, 5 = lognormal,
 //      6 = michaelismenten, 7 = asymptoticregression, 8 = exponentialdecay, 9 = gompertz,
-//      10 = constant, 11 = braincousens, 12 = cedergreen, 13 = gamma
+//      10 = constant, 11 = braincousens, 12 = cedergreen, 13 = gamma, 14 = multistage
 // f(x) = f1 + (f2 - f1) * F(x), with F increasing from 0 to 1 in its argument.
 // Models with steepness f3: F(f3 * z), z = x - f4 or log(x) - log(f4); f1 is the lower and
 // f2 the upper asymptote, f3 > 0 for an increasing and f3 < 0 for a decreasing curve.
@@ -35,6 +35,7 @@ Type hormg(int mod, Type x, Type alpha){
 // the asymptote at dose zero and f2 the asymptote at high doses.
 // constant: f(x) = f1 at all doses, a model without a dose effect.
 // gamma: F(x) = pgamma(x / f4, shape f3), f1 at dose zero and f2 at high doses as michaelismenten.
+// multistage: F(x) = 1 - exp(-(f3 x + f4 x^2 + f5 x^3)), f1 at dose zero and f2 at high doses.
 // braincousens, cedergreen (hormesis): f(x) = f1 + (f2 - f1 + f5 * g(x)) * F(x), with the
 // loglogistic F and the hormesis term g(x) = x or exp(-1/x^alpha); f5 = 0 is the loglogistic model.
 template<class Type>
@@ -78,6 +79,9 @@ Type drcmean(int mod, Type x, Type f1, Type f2, Type f3, Type f4, Type f5, Type 
     break;
   case 13:
     F = pgamma(Type(x / f4), f3);
+    break;
+  case 14:
+    F = 1 - exp(-(f3 * x + f4 * x * x + f5 * x * x * x));
     break;
   case 11:
   case 12:
@@ -142,6 +146,17 @@ Type hormed(int mod, Type q, Type f1, Type f2, Type f3, Type f4, Type f5, Type r
   Type G = F * (1 + c * g) - qr;
   Type dG = f3 * F * (1 - F) * (1 + c * g) + F * c * dg;
   return exp(s0 - G / dG);
+}
+
+// effective dose of the multistage model (14): the dose at which the polynomial
+// f3 x + f4 x^2 + f5 x^3 equals -log(1 - q), with no closed form for a cubic. x0 is the root found
+// in R; one Newton step from x0 keeps its value and gives the derivatives of the implicit function.
+template<class Type>
+Type msed(Type q, Type f1, Type f2, Type f3, Type f4, Type f5, Type r, Type x0){
+  Type qr = q - r / (f2 - f1);
+  Type G = f3 * x0 + f4 * x0 * x0 + f5 * x0 * x0 * x0 + log(1 - qr);
+  Type dG = f3 + 2 * f4 * x0 + 3 * f5 * x0 * x0;
+  return x0 - G / dG;
 }
 
 // log dose of the peak of the hormesis models (11, 12): the zero of the derivative of
