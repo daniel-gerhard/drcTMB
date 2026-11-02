@@ -29,7 +29,7 @@
 #' @param fix a binary vector with same length as start. If TRUE, a model coefficient is fixed to the starting value. Parameters not used by the model (b5 except for logistic, loglogistic, braincousens and cedergreen, b3 for michaelismenten, asymptoticregression and exponentialdecay, b2-b5 for constant) are always fixed, at 0 unless given in start.
 #' @param weights a vector of weights, one for each row of data.
 #' @param family Specify the distributional assumptions. One of "gaussian", "binomial", "betabinomial", "beta", "poisson", "nbinom2", and "nbinom1". The negative binomial families are for overdispersed counts, with variance mu (1 + mu/theta) for nbinom2 and mu (1 + phi) for nbinom1, and the beta-binomial family for overdispersed binomial counts, with variance n mu (1 - mu) (1 + (n - 1)/(phi + 1)) for n trials, as in glmmTMB.
-#' @param model Specify the nonlinear model. One of "logistic", "loglogistic", "weibull1", "weibull2", "lognormal", "michaelismenten", "asymptoticregression", "exponentialdecay", "gompertz", "braincousens", "cedergreen", "constant".
+#' @param model Specify the nonlinear model. One of "logistic", "loglogistic", "weibull1", "weibull2", "lognormal", "michaelismenten", "asymptoticregression", "exponentialdecay", "gompertz", "gamma", "braincousens", "cedergreen", "constant".
 #' @param alpha the exponent of the hormesis term of the cedergreen model, see \code{\link{drmTMB}}.
 #' @param link Specify the link function for estimating asymptote parameters. One of "identity", "log", "logit".
 #' @param b4link link function for b4, "identity" or "log". With "log", the coefficients of b4 are on the log scale (models with a positive b4 only, not logistic and gompertz), see \code{\link{drmTMB}}.
@@ -161,9 +161,9 @@ lmstart <- function(dd, start, fix){
   }
 
   # asymptotes on the mean scale: for the models with steepness b3, b1 is the lower and b2 the
-  # upper asymptote; for michaelismenten, asymptoticregression and exponentialdecay, b1 is
+  # upper asymptote; for michaelismenten, asymptoticregression, exponentialdecay and gamma, b1 is
   # approached at dose zero and b2 at high doses
-  hasb3 <- !(mod %in% c(6, 7, 8))
+  hasb3 <- !(mod %in% c(6, 7, 8, 13))
   f1 <- if (hasb3) min(ylow, yhigh) else ylow
   f2 <- if (hasb3) max(ylow, yhigh) else yhigh
   # an asymptote with a given starting value keeps it; the other one is the more distant end of the curve
@@ -214,15 +214,17 @@ lmstart <- function(dd, start, fix){
   }
   # fallback: unit slope in the direction of the curve (b3 > 0: increasing), dose at its midpoint
   if (!is.finite(b3)) b3 <- if (yhigh >= ylow) 1 else -1
-  if (!is.finite(b4) | (mod %in% c(2, 3, 4, 5, 6, 7, 8, 11, 12) & b4 <= 0)){
+  if (!is.finite(b4) | (mod %in% c(2, 3, 4, 5, 6, 7, 8, 11, 12, 13) & b4 <= 0)){
     xpos <- xd[xd > 0]
     b4 <- xpos[which.min(abs((yd[xd > 0] - f1) / (f2 - f1) - 0.5))]
   }
   if (mod %in% c(6, 7, 8)) b3 <- 0
 
-  # asymptoticregression, exponentialdecay: b2 is often not approached within the dose range;
-  # for given b4 the model is linear in the asymptotes, so profile the residual sum of squares over b4
-  if (mod %in% c(7, 8)){
+  # asymptoticregression, exponentialdecay, and gamma starting with shape 1, which is
+  # asymptoticregression: b2 is often not approached within the dose range; for given b4 the model
+  # is linear in the asymptotes, so profile the residual sum of squares over b4
+  if (mod == 13) b3 <- 1
+  if (mod %in% c(7, 8, 13)){
     xp <- xd[xd > 0]
     cols <- c(!known1, !known2)
     b4grid <- exp(seq(log(min(xp)/10), log(max(xp)*10), length.out=100))
@@ -314,7 +316,7 @@ gridrange <- function(dd, start){
 
   # b3: keep the sign of the starting value, steepness between 1/4 and 4 times
   i3 <- single(3)
-  if (!is.null(i3) & mod %in% c(1, 2, 3, 4, 5, 9, 11, 12)){
+  if (!is.null(i3) & mod %in% c(1, 2, 3, 4, 5, 9, 11, 12, 13)){
     b3 <- start[i3]
     if (b3 == 0) b3 <- 1
     rng[[i3]] <- list(lower=b3/4, upper=b3*4, log=TRUE)
@@ -508,7 +510,9 @@ drcmeanR <- function(mod, x, f1, f2, f3, f4, f5, alpha=NULL){
                1 / (1 + f4 / x),          # michaelismenten
                1 - exp(-x / f4),          # asymptoticregression
                1 - exp(-x / f4),          # exponentialdecay
-               exp(-exp(-t)))             # gompertz
+               exp(-exp(-t)),             # gompertz
+               NULL, NULL, NULL,          # constant, braincousens, cedergreen: above
+               pgamma(x / f4, f3))        # gamma
   f1 + (f2 - f1) * Fx
 }
 

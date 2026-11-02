@@ -10,7 +10,7 @@
 #' @param lower lower bounds for the model coefficients b1-b5, a single value or a vector with the same length as start. Bounds of fixed coefficients are ignored; variance parameters are unbounded.
 #' @param upper upper bounds for the model coefficients b1-b5, a single value or a vector with the same length as start.
 #' @param family Specify the distributional assumptions. One of "gaussian", "binomial", "betabinomial", "beta", "poisson", "nbinom2", and "nbinom1". The negative binomial families are for overdispersed counts, with variance mu (1 + mu/theta) for nbinom2 and mu (1 + phi) for nbinom1, and the beta-binomial family for overdispersed binomial counts, with variance n mu (1 - mu) (1 + (n - 1)/(phi + 1)) for n trials, as in glmmTMB.
-#' @param model Specify the nonlinear model. One of "logistic", "loglogistic", "weibull1", "weibull2", "lognormal", "michaelismenten", "asymptoticregression", "exponentialdecay", "gompertz", "braincousens", "cedergreen", "constant". The braincousens and cedergreen models describe hormesis, the constant model has no dose effect, see Details.
+#' @param model Specify the nonlinear model. One of "logistic", "loglogistic", "weibull1", "weibull2", "lognormal", "michaelismenten", "asymptoticregression", "exponentialdecay", "gompertz", "gamma", "braincousens", "cedergreen", "constant". The braincousens and cedergreen models describe hormesis, the constant model has no dose effect, see Details.
 #' @param alpha the exponent of the hormesis term of the cedergreen model, a positive number, e.g. 1, 0.5 or 0.25 as the models CRS.4a, CRS.4b and CRS.4c of drc (CRS.5a-c with b1 estimated); only for the cedergreen model. See Details.
 #' @param link Specify the link function for estimating asymptote parameters. One of "identity", "log", "logit". 
 #' @param b4link link function for b4, "identity" (default) or "log", see Details. Only for the models with a positive b4, not for logistic and gompertz.
@@ -26,6 +26,14 @@
 #' For michaelismenten, asymptoticregression and exponentialdecay (b3 and b5 are not used),
 #' b1 is the response at dose zero and b2 the asymptote at high doses. The asymmetry parameter b5
 #' of the logistic and loglogistic models is on the log scale. See the vignette for the model functions.
+#'
+#' The gamma model, F(x) = pgamma(x/b4, shape=b3), is the gamma model of the benchmark dose software
+#' of the US EPA (BMDS) and \code{gammadr} of drc (b3 = e, b4 = 1/b). As for michaelismenten, b1 is the
+#' response at dose zero and b2 the asymptote at high doses; for quantal responses, b1 is the
+#' background risk and b2 is fixed at 1, e.g. \code{start=c(b2=1), fix=c(b2=TRUE)}. The shape b3 is
+#' positive; with b3 = 1, the gamma model is the asymptoticregression model (the quantal-linear model
+#' of BMDS for quantal responses), so that \code{\link{anova.drmTMB}} tests the shape. BMDS restricts
+#' the shape to b3 >= 1 by default, which can be set by \code{lower}.
 #'
 #' The hormesis models braincousens (Brain and Cousens, 1989) and cedergreen (Cedergreen, Ritz and
 #' Streibig, 2005) describe a stimulation at low doses before a decreasing curve:

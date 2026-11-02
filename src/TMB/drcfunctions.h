@@ -27,13 +27,14 @@ Type hormg(int mod, Type x, Type alpha){
 // dose-response mean function
 // mod: 1 = logistic, 2 = loglogistic, 3 = weibull1, 4 = weibull2, 5 = lognormal,
 //      6 = michaelismenten, 7 = asymptoticregression, 8 = exponentialdecay, 9 = gompertz,
-//      10 = constant, 11 = braincousens, 12 = cedergreen
+//      10 = constant, 11 = braincousens, 12 = cedergreen, 13 = gamma
 // f(x) = f1 + (f2 - f1) * F(x), with F increasing from 0 to 1 in its argument.
 // Models with steepness f3: F(f3 * z), z = x - f4 or log(x) - log(f4); f1 is the lower and
 // f2 the upper asymptote, f3 > 0 for an increasing and f3 < 0 for a decreasing curve.
 // michaelismenten, asymptoticregression, exponentialdecay: F(x) increases with dose, f1 is
 // the asymptote at dose zero and f2 the asymptote at high doses.
 // constant: f(x) = f1 at all doses, a model without a dose effect.
+// gamma: F(x) = pgamma(x / f4, shape f3), f1 at dose zero and f2 at high doses as michaelismenten.
 // braincousens, cedergreen (hormesis): f(x) = f1 + (f2 - f1 + f5 * g(x)) * F(x), with the
 // loglogistic F and the hormesis term g(x) = x or exp(-1/x^alpha); f5 = 0 is the loglogistic model.
 template<class Type>
@@ -48,7 +49,7 @@ Type drcmean(int mod, Type x, Type f1, Type f2, Type f3, Type f4, Type f5, Type 
       return f2;
     }
   }
-  if (mod == 6 && x == 0) return f1;
+  if ((mod == 6 || mod == 13) && x == 0) return f1;
 
   Type t = f3 * (logdose ? Type(log(x) - log(f4)) : Type(x - f4));
   Type F = 0;
@@ -74,6 +75,9 @@ Type drcmean(int mod, Type x, Type f1, Type f2, Type f3, Type f4, Type f5, Type 
   case 7:
   case 8:
     F = 1 - exp(-x / f4);
+    break;
+  case 13:
+    F = pgamma(Type(x / f4), f3);
     break;
   case 11:
   case 12:
@@ -114,6 +118,9 @@ Type drced(int mod, Type q, Type f1, Type f2, Type f3, Type f4, Type f5, Type r)
     break;
   case 9:
     ed = f4 - log(-1*log(qr)) / f3;
+    break;
+  case 13:
+    ed = f4 * qgamma(qr, f3);
     break;
   }
   return ed;

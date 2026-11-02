@@ -72,7 +72,7 @@ summary.drmTMB <- function(object, ...){
   # direction of the curve from the sign of the steepness b3 at the observations
   npi <- rep(1:5, sapply(object$Xs, ncol))
   direction <- NULL
-  if (!(mod %in% c(6:8, 10))){
+  if (!(mod %in% c(6:8, 10, 13))){
     b <- object$start
     b[!object$fix] <- coefs[, 1]
     s3 <- sign(object$Xs[[3]] %*% b[npi == 3])
@@ -650,7 +650,7 @@ recov <- function(object){
 
 # index of the model, as in the TMB template
 modelindex <- function(model){
-  which(model == c("logistic", "loglogistic", "weibull1", "weibull2", "lognormal", "michaelismenten", "asymptoticregression", "exponentialdecay", "gompertz", "constant", "braincousens", "cedergreen"))
+  which(model == c("logistic", "loglogistic", "weibull1", "weibull2", "lognormal", "michaelismenten", "asymptoticregression", "exponentialdecay", "gompertz", "constant", "braincousens", "cedergreen", "gamma"))
 }
 
 # index of the link for b4, as in the TMB template: 1 = identity, 2 = log; identity for fits

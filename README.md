@@ -18,7 +18,7 @@ similarity to the `drm()` function from the drc package, with a
 simplified input of response and dose variables through a formula
 interface, and specifying a nonlinear model through the `model`
 argument. Available models include “logistic”, “loglogistic”,
-“weibull1”, “weibull2”, and “lognormal”, and the hormesis models
+“weibull1”, “weibull2”, “lognormal” and “gamma”, and the hormesis models
 “braincousens” and “cedergreen”.
 
 Each of these models has the same parameter names, b1 for the lower and

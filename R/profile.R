@@ -400,7 +400,9 @@ edh <- function(mod, q, b3, b5){
          q/(1 - q),                         # michaelismenten
          -log(1 - q),                       # asymptoticregression
          -log(1 - q),                       # exponentialdecay
-         -log(-log(q))/b3)                  # gompertz
+         -log(-log(q))/b3,                  # gompertz
+         NULL, NULL, NULL,                  # constant, braincousens, cedergreen: not used
+         qgamma(q, b3))                     # gamma
 }
 
 # effective dose from b3, b4 and b5; for the hormesis models also from c5, b5 relative to the
