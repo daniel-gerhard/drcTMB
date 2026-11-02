@@ -394,6 +394,12 @@ For the following models without steepness parameter, $b_1$ is the response at d
 
 $$ f(x) = b_1 + \frac{b_2 - b_1}{1 + \frac{b_4}{x}} $$
 
+#### gamma
+
+As michaelismenten, with the distribution function of the gamma distribution with shape $b_3 > 0$, $P(\cdot, b_3)$; the gamma model of BMDS for quantal responses, with $b_1$ the background risk and $b_2$ fixed at 1. With $b_3 = 1$, it is the asymptoticregression model.
+
+$$ f(x) = b_1 + \left( b_2 - b_1 \right) P \left( \frac{x}{b_4}, b_3 \right) $$
+
 #### asymptoticregression and exponentialdecay
 
 Both names refer to the same model; an increasing curve is an asymptotic regression and a decreasing curve an exponential decay.
