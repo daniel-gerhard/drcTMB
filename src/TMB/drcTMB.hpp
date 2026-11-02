@@ -9,6 +9,7 @@ Type drcTMB(objective_function<Type>* obj) {
   DATA_INTEGER(mod);
   DATA_INTEGER(lnk);
   DATA_INTEGER(lnk4);      // link for b4: 1 = identity, 2 = log
+  DATA_SCALAR(alpha);      // exponent of the hormesis term of the cedergreen model
   DATA_IVECTOR(tnp);       // random effect terms: number of random coefficients per term
   DATA_IVECTOR(tnl);       // number of levels per term
   DATA_IVECTOR(tpar);      // parameter indices (0-4) of the random coefficients of all terms, concatenated
@@ -126,7 +127,7 @@ Type drcTMB(objective_function<Type>* obj) {
                 linkinv(lnk, Type(Xb2(i) + Zu(i, 1))),
                 Type(Xb3(i) + Zu(i, 2)),
                 linkinv(lnk4, Type(Xb4(i) + Zu(i, 3))),
-                Type(Xb5(i) + Zu(i, 4)));
+                Type(Xb5(i) + Zu(i, 4)), alpha);
     nll += -w(i) * loglik(fam, y(i), f, bn(i), phi);
     SIMULATE {
       y(i) = simobs(fam, f, bn(i), phi);
@@ -165,7 +166,7 @@ Type drcTMB(objective_function<Type>* obj) {
                       linkinv(lnk, Type(Xpb2(i) + Zup(i, 1))),
                       Type(Xpb3(i) + Zup(i, 2)),
                       linkinv(lnk4, Type(Xpb4(i) + Zup(i, 3))),
-                      Type(Xpb5(i) + Zup(i, 4)));
+                      Type(Xpb5(i) + Zup(i, 4)), alpha);
     }
     ADREPORT(mu);
   }

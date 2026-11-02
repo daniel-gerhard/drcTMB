@@ -12,6 +12,8 @@ Type drcED(objective_function<Type>* obj) {
   DATA_INTEGER(lnk4);   // link for b4: 1 = identity, 2 = log
   DATA_INTEGER(absolute); // 0: q is the level of F in drcmean, 1: q is the response at the effective dose
   DATA_SCALAR(q);
+  DATA_SCALAR(alpha);   // exponent of the hormesis term of the cedergreen model
+  DATA_SCALAR(s0);      // hormesis models: log dose of the effective dose, found in R
   PARAMETER_VECTOR(b);  // b1-b5
   PARAMETER_VECTOR(u);  // random effects u1-u5, evaluated at zero
   PARAMETER(r);         // residual, evaluated at zero
@@ -21,7 +23,9 @@ Type drcED(objective_function<Type>* obj) {
   Type f2 = linkinv(lnk, f(1));
   // level of F at which the curve reaches the response q
   Type qf = absolute == 1 ? Type((q - f1) / (f2 - f1)) : q;
-  Type ed = drced(mod, qf, f1, f2, f(2), linkinv(lnk4, f(3)), f(4), r);
+  Type ed = (mod == 11 || mod == 12) ?
+    hormed(mod, qf, f1, f2, f(2), linkinv(lnk4, f(3)), f(4), r, alpha, s0) :
+    drced(mod, qf, f1, f2, f(2), linkinv(lnk4, f(3)), f(4), r);
   ADREPORT(ed);
   return 0;
 }

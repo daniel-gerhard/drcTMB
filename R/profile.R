@@ -255,7 +255,7 @@ profile.edTMB <- function(fitted, parm=NULL, level=0.99, maxit=100, progress=int
       pv
     }
     # b4 on the scale of its coefficients, from b1, b2 (absolute effective doses), b3 and b5 in lpv
-    b4fun <- function(ed, lpv) linkfun(lnk4, edb4(mod, edq(fit, q, lpv, absolute), ed, lpv[3], lpv[5]))
+    b4fun <- function(ed, lpv) linkfun(lnk4, edb4(mod, edq(fit, q, lpv, absolute), ed, lpv[3], lpv[5], hormc(fit, lpv), fit$alpha))
     expand <- function(x, ed){
       par <- append(x, 0, after=kp - 1)
       pv <- pvfull(par)
@@ -277,7 +277,13 @@ profile.edTMB <- function(fitted, parm=NULL, level=0.99, maxit=100, progress=int
       J[kp, seq_len(nf - 1)] <- ((colSums(d * L[c(1, 2, 3, 5), free, drop=FALSE]) - L[4, free]) / L[4, k])[-kp]
       J
     }
-    fn <- function(x, ed) obj$fn(expand(x, ed)$par)
+    # hormesis models: the effective dose is on the decreasing part of the curve, above the peak;
+    # curves that reach the level of the effective dose at ed before their peak are left out
+    fn <- function(x, ed){
+      e <- expand(x, ed)
+      if (mod %in% c(11, 12) && !hormdecreasing(fit, as.vector(L %*% pvfull(e$par)), ed)) return(Inf)
+      obj$fn(e$par)
+    }
     gr <- function(x, ed){
       e <- expand(x, ed)
       as.vector(obj$gr(e$par) %*% jacobian(e, ed))
@@ -300,7 +306,10 @@ profile.edTMB <- function(fitted, parm=NULL, level=0.99, maxit=100, progress=int
       out <- NULL
       for (it in seq_len(maxit)){
         ed <- itr(tr(e0) + dir*it*step)
-        o <- suppressWarnings(nlminb(x, fn, gr, he, ed=ed))
+        # the profile ends where the parameterisation fails, e.g. an absolute effective dose whose
+        # response approaches an asymptote
+        o <- tryCatch(suppressWarnings(nlminb(x, fn, gr, he, ed=ed)), error=function(e) NULL)
+        if (is.null(o)) break
         x <- o$par
         out <- rbind(out, data.frame(par=ed, deviance=2*(o$objective - nllmin)))
         if (out$deviance[nrow(out)] > cutoff) break
@@ -320,6 +329,19 @@ profile.edTMB <- function(fitted, parm=NULL, level=0.99, maxit=100, progress=int
   prof
 }
 
+# whether the curve of a hormesis model with parameters lpv (b1-b5 on the scale of the linear
+# predictors) is decreasing at dose ed: the derivative of F (1 + c5 g) w.r.t. the log dose is negative
+hormdecreasing <- function(fit, lpv, ed){
+  mod <- modelindex(fit$model)
+  b3 <- lpv[3]
+  b4 <- linkfun(b4linkindex(fit), lpv[4], inverse=TRUE)
+  c5 <- hormc(fit, lpv)
+  Fx <- plogis(b3*(log(ed) - log(b4)))
+  g <- hormg(mod, ed, fit$alpha)
+  dg <- if (mod == 11) ed else fit$alpha * ed^(-fit$alpha) * g
+  isTRUE(b3*Fx*(1 - Fx)*(1 + c5*g) + Fx*c5*dg < 0)
+}
+
 # effective doses at level q of F (residual zero), as drced in the TMB template: b4 times a function
 # h of q, b3 and b5, or b4 plus h for logistic and gompertz
 edh <- function(mod, q, b3, b5){
@@ -335,14 +357,18 @@ edh <- function(mod, q, b3, b5){
          -log(-log(q))/b3)                  # gompertz
 }
 
-# effective dose from b3, b4 and b5
-edfun <- function(mod, q, b3, b4, b5){
+# effective dose from b3, b4 and b5; for the hormesis models also from c5, b5 relative to the
+# difference of the asymptotes, and alpha, found numerically
+edfun <- function(mod, q, b3, b4, b5, c5=0, alpha=NULL){
+  if (mod %in% c(11, 12)) return(exp(hormroot(mod, q, b3, b4, c5, alpha)))
   h <- edh(mod, q, b3, b5)
   if (mod %in% c(1, 9)) b4 + h else b4 * h
 }
 
-# b4 of a curve with effective dose ed, given b3 and b5: the inverse of edfun
-edb4 <- function(mod, q, ed, b3, b5){
+# b4 of a curve with effective dose ed, given b3 and b5: the inverse of edfun; for the hormesis
+# models, F of the loglogistic model is q/(1 + c5 g(ed)) at the effective dose
+edb4 <- function(mod, q, ed, b3, b5, c5=0, alpha=NULL){
+  if (mod %in% c(11, 12)) return(edb4(2, q/(1 + c5*hormg(mod, ed, alpha)), ed, b3, 0))
   h <- edh(mod, q, b3, b5)
   if (mod %in% c(1, 9)) ed - h else ed / h
 }
@@ -448,7 +474,7 @@ confint.edTMB <- function(object, parm=NULL, level=0.95, method=c("profile", "wa
         if (isTRUE(object$conditional[[i]])) lpv <- lpv + as.vector(object$uweights[[i]] %*% par[r])
         q <- edq(fit, object$q[[i]], lpv, identical(object$type, "absolute"))
         if (!is.finite(q) || q <= 0 || q >= 1) return(NA)
-        edfun(mod, q, lpv[3], linkfun(b4linkindex(fit), lpv[4], inverse=TRUE), lpv[5])
+        edfun(mod, q, lpv[3], linkfun(b4linkindex(fit), lpv[4], inverse=TRUE), lpv[5], hormc(fit, lpv), fit$alpha)
       })
     })
     ci <- t(apply(matrix(eds, ncol=length(parm)), 2, quantile, probs=c((1 - level)/2, (1 + level)/2), na.rm=TRUE, names=FALSE))

@@ -16,6 +16,7 @@ drmTMB(
   upper = Inf,
   family = "gaussian",
   model = "logistic",
+  alpha = NULL,
   link = "identity",
   b4link = "identity",
   gsl = NULL,
@@ -35,7 +36,7 @@ drmTMB(
 
 \item{start}{a vector with starting values for each model coefficient. NA entries are replaced by the starting values of \code{\link{drmTMBstart}}. Alternatively, a vector named by parameter, e.g. c(b1=0, b5=0), gives the same starting value to all coefficients of each named parameter.}
 
-\item{fix}{a logical vector with one entry for each model coefficient. If TRUE, a model coefficient is fixed to its value in start. Alternatively, a vector named by parameter, e.g. c(b1=TRUE, b5=TRUE), fixes all coefficients of the named parameters; their values must then be given in start, e.g. start=c(b1=0, b5=0). Parameters not used by the model (b5 except for logistic and loglogistic, b3 for michaelismenten, asymptoticregression and exponentialdecay, b2-b5 for constant) are always fixed, at 0 unless given in start.}
+\item{fix}{a logical vector with one entry for each model coefficient. If TRUE, a model coefficient is fixed to its value in start. Alternatively, a vector named by parameter, e.g. c(b1=TRUE, b5=TRUE), fixes all coefficients of the named parameters; their values must then be given in start, e.g. start=c(b1=0, b5=0). Parameters not used by the model (b5 except for logistic, loglogistic, braincousens and cedergreen, b3 for michaelismenten, asymptoticregression and exponentialdecay, b2-b5 for constant) are always fixed, at 0 unless given in start.}
 
 \item{weights}{a vector of weights, one for each row of data.}
 
@@ -45,7 +46,9 @@ drmTMB(
 
 \item{family}{Specify the distributional assumptions. One of "gaussian", "binomial", "betabinomial", "beta", "poisson", "nbinom2", and "nbinom1". The negative binomial families are for overdispersed counts, with variance mu (1 + mu/theta) for nbinom2 and mu (1 + phi) for nbinom1, and the beta-binomial family for overdispersed binomial counts, with variance n mu (1 - mu) (1 + (n - 1)/(phi + 1)) for n trials, as in glmmTMB.}
 
-\item{model}{Specify the nonlinear model. One of "logistic", "loglogistic", "weibull1", "weibull2", "lognormal", "michaelismenten", "asymptoticregression", "exponentialdecay", "gompertz", "constant". The constant model has no dose effect, see Details.}
+\item{model}{Specify the nonlinear model. One of "logistic", "loglogistic", "weibull1", "weibull2", "lognormal", "michaelismenten", "asymptoticregression", "exponentialdecay", "gompertz", "braincousens", "cedergreen", "constant". The braincousens and cedergreen models describe hormesis, the constant model has no dose effect, see Details.}
+
+\item{alpha}{the exponent of the hormesis term of the cedergreen model, a positive number, e.g. 1, 0.5 or 0.25 as the models CRS.4a, CRS.4b and CRS.4c of drc (CRS.5a-c with b1 estimated); only for the cedergreen model. See Details.}
 
 \item{link}{Specify the link function for estimating asymptote parameters. One of "identity", "log", "logit".}
 
@@ -73,6 +76,18 @@ the upper asymptote, and b3 is positive for an increasing and negative for a dec
 For michaelismenten, asymptoticregression and exponentialdecay (b3 and b5 are not used),
 b1 is the response at dose zero and b2 the asymptote at high doses. The asymmetry parameter b5
 of the logistic and loglogistic models is on the log scale. See the vignette for the model functions.
+
+The hormesis models braincousens (Brain and Cousens, 1989) and cedergreen (Cedergreen, Ritz and
+Streibig, 2005) describe a stimulation at low doses before a decreasing curve:
+f(x) = b1 + (b2 - b1 + b5 g(x)) / (1 + exp(-b3 (log(x) - log(b4)))), with g(x) = x for
+braincousens and g(x) = exp(-1/x^alpha) for cedergreen. b2 is the response at dose zero (the
+control), b1 the lower asymptote at high doses, and b5 the size of the hormesis effect on the scale
+of the response; b5 = 0 gives the loglogistic model, so that \code{\link{anova.drmTMB}} tests for
+hormesis. They are the models BC.5 and CRS.5a-c of drc, with b3 = -b; with b1 fixed at 0, BC.4 and
+CRS.4a-c. The curve is decreasing at high doses for b3 < 0, and returns to b1 for the braincousens
+model only for b3 < -1. The models are meant for decreasing curves; a warning is given otherwise.
+The exponent alpha of the cedergreen model is not estimated, as it is hardly identifiable together
+with b5.
 
 The constant model, f(x) = b1, has the same mean at all doses; b2-b5 are not used. Compared with
 a dose-response model by \code{\link{anova.drmTMB}}, it tests for a dose effect, as

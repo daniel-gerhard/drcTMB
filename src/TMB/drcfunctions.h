@@ -18,20 +18,28 @@ Type linkinv(int lnk, Type eta){
   }
 }
 
+// hormesis term of the braincousens (11) and cedergreen (12) models
+template<class Type>
+Type hormg(int mod, Type x, Type alpha){
+  return mod == 11 ? x : Type(exp(-pow(x, -alpha)));
+}
+
 // dose-response mean function
 // mod: 1 = logistic, 2 = loglogistic, 3 = weibull1, 4 = weibull2, 5 = lognormal,
 //      6 = michaelismenten, 7 = asymptoticregression, 8 = exponentialdecay, 9 = gompertz,
-//      10 = constant
+//      10 = constant, 11 = braincousens, 12 = cedergreen
 // f(x) = f1 + (f2 - f1) * F(x), with F increasing from 0 to 1 in its argument.
 // Models with steepness f3: F(f3 * z), z = x - f4 or log(x) - log(f4); f1 is the lower and
 // f2 the upper asymptote, f3 > 0 for an increasing and f3 < 0 for a decreasing curve.
 // michaelismenten, asymptoticregression, exponentialdecay: F(x) increases with dose, f1 is
 // the asymptote at dose zero and f2 the asymptote at high doses.
 // constant: f(x) = f1 at all doses, a model without a dose effect.
+// braincousens, cedergreen (hormesis): f(x) = f1 + (f2 - f1 + f5 * g(x)) * F(x), with the
+// loglogistic F and the hormesis term g(x) = x or exp(-1/x^alpha); f5 = 0 is the loglogistic model.
 template<class Type>
-Type drcmean(int mod, Type x, Type f1, Type f2, Type f3, Type f4, Type f5){
+Type drcmean(int mod, Type x, Type f1, Type f2, Type f3, Type f4, Type f5, Type alpha){
   if (mod == 10) return f1;
-  bool logdose = (mod >= 2 && mod <= 5);
+  bool logdose = (mod >= 2 && mod <= 5) || mod == 11 || mod == 12;
   // log-dose models at dose zero: the asymptote approached at low doses
   if (logdose && x == 0){
     if (f3 > 0){
@@ -67,6 +75,10 @@ Type drcmean(int mod, Type x, Type f1, Type f2, Type f3, Type f4, Type f5){
   case 8:
     F = 1 - exp(-x / f4);
     break;
+  case 11:
+  case 12:
+    F = 1 / (1 + exp(-t));
+    return f1 + (f2 - f1 + f5 * hormg(mod, x, alpha)) * F;
   }
   return f1 + (f2 - f1) * F;
 }
@@ -105,6 +117,24 @@ Type drced(int mod, Type q, Type f1, Type f2, Type f3, Type f4, Type f5, Type r)
     break;
   }
   return ed;
+}
+
+// effective dose of the hormesis models (11, 12): the dose above the peak at which
+// F(x) (1 + f5 g(x) / (f2 - f1)) equals q, with no closed form. s0 is the log dose of the root,
+// found numerically in R; one Newton step on the log dose from s0 keeps its value and gives the
+// derivatives of the implicit function, so the delta method applies.
+template<class Type>
+Type hormed(int mod, Type q, Type f1, Type f2, Type f3, Type f4, Type f5, Type r, Type alpha, Type s0){
+  Type qr = q - r / (f2 - f1);
+  Type c = f5 / (f2 - f1);
+  Type x = exp(s0);
+  Type F = 1 / (1 + exp(-f3 * (s0 - log(f4))));
+  Type g = hormg(mod, x, alpha);
+  // derivative of g w.r.t. the log dose
+  Type dg = mod == 11 ? x : Type(alpha * pow(x, -alpha) * g);
+  Type G = F * (1 + c * g) - qr;
+  Type dG = f3 * F * (1 - F) * (1 + c * g) + F * c * dg;
+  return exp(s0 - G / dG);
 }
 
 // log-likelihood contribution of a single observation

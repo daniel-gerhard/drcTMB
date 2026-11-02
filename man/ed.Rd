@@ -17,7 +17,7 @@ ed(
 \arguments{
 \item{x}{a drmTMB object}
 
-\item{respLev}{effective dose level in percent, default is 50. The effective dose ED p is the dose at which the response has changed by p percent of the difference between the asymptote at low doses (the control) and the asymptote at high doses. For \code{type="absolute"}, values of the response.}
+\item{respLev}{effective dose level in percent, default is 50. The effective dose ED p is the dose at which the response has changed by p percent of the difference between the asymptote at low doses (the control) and the asymptote at high doses; for the hormesis models, the dose above the peak of the stimulation, see Details. For \code{type="absolute"}, values of the response.}
 
 \item{linfct}{a matrix of linear functions to identify the parameters of the dose-response curve, with 5 rows (b1-b5) and one column for each model coefficient, or a list of such matrices; default is the identity matrix, for models without covariates in fform. Each matrix is paired with an entry of respLev.}
 
@@ -49,4 +49,11 @@ effects and the prediction error of the random effects, from the joint precision
 \code{\link[TMB]{sdreport}}. Random effect terms without a grouping variable in newdata, or with a
 level that is not in the fitted data, are treated as above. Profile intervals are not available
 for the effective doses of fitted groups, see \code{\link{confint.edTMB}}.
+
+For the hormesis models braincousens and cedergreen, the effective dose ED p is the dose above the
+peak of the stimulation at which the response has decreased from the response at dose zero (b2) by
+p percent of the difference to the lower asymptote b1, as in drc; with \code{type="absolute"}, the
+dose above the peak at which the curve reaches the response. It has no closed form: it is found
+numerically, and its derivatives, for the standard errors, follow from the implicit function
+theorem. The models need a decreasing curve, with b3 < 0.
 }

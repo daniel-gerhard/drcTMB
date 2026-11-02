@@ -22,7 +22,7 @@ The package drcTMB provides functions to fit dose-response curves using the Temp
 
 The main function in the drcTMB package is `drmTMB()`. There is some similarity to the `drm()` function from the drc package, with a simplified input of response and dose variables through a formula interface, and specifying a nonlinear model through the `model` argument. A full list of available models and their corresponding functions can be found at the end of this vignette.
 
-Each of these models has the same parameter names, b1 for the lower and b2 for the upper asymptote, b3 for the steepness, b4 for the location of the inflection point on the dose scale, and b5 for an optional asymmetry parameter. The steepness b3 is positive for an increasing and negative for a decreasing curve. The asymmetry parameter b5 is estimated on a logarithmic scale. The models michaelismenten, asymptoticregression, and exponentialdecay have no steepness parameter; here b1 is the response at dose zero and b2 the asymptote at high doses.
+Each of these models has the same parameter names, b1 for the lower and b2 for the upper asymptote, b3 for the steepness, b4 for the location of the inflection point on the dose scale, and b5 for an optional asymmetry parameter. The steepness b3 is positive for an increasing and negative for a decreasing curve. The asymmetry parameter b5 is estimated on a logarithmic scale. The models michaelismenten, asymptoticregression, and exponentialdecay have no steepness parameter; here b1 is the response at dose zero and b2 the asymptote at high doses. For the hormesis models braincousens and cedergreen, b5 is the size of the stimulation at low doses, see [Hormesis](#hormesis).
 The `start` argument provides starting values for the parameters. The `fix` argument (TRUE/FALSE) allows to fix parameters at these starting values. Parameters that a model does not use, such as b5 for the Weibull models, are fixed automatically.
 
 ```{r}
@@ -130,6 +130,34 @@ confint(effdose_glht)
 With `type = "absolute"`, `respLev` gives values of the response instead, and `ed()` estimates the doses at which the curve reaches them, here a root length of 2, 4 and 6 cm. These depend on the asymptotes as well, which is included in the standard errors.
 ```{r}
 ed(mod, respLev = c(2, 4, 6), type = "absolute")
+```
+
+## Hormesis
+
+Some toxic substances stimulate growth at low doses before the response declines. The hormesis models of Brain and Cousens (`model = "braincousens"`) and of Cedergreen, Ritz and Streibig (`model = "cedergreen"`) add a term $b_5\,g(x)$ to the response at dose zero in a log-logistic curve, with $g(x) = x$ or $g(x) = \exp(-1/x^\alpha)$; b2 is the response of the control, b1 the lower asymptote, and b3 < 0 for the decreasing curve. The exponent alpha of the cedergreen model is set by the argument `alpha` (1, 0.5 and 0.25 for the models CRS.a, CRS.b and CRS.c of drc). The hormesis effect b5 is on the scale of the response, and b5 = 0 is the log-logistic model, so `anova()` tests for hormesis. In the lettuce data, the plant weight increases at low concentrations of isobutyl alcohol.
+```{r}
+data(lettuce)
+hmod <- drmTMB(weight ~ conc, data = lettuce, model = "braincousens")
+hmod0 <- drmTMB(weight ~ conc, data = lettuce, model = "loglogistic", start = c(b5 = 0), fix = c(b5 = TRUE))
+anova(hmod0, hmod, test = "F")
+```
+
+```{r}
+lettuce$cplot <- ifelse(lettuce$conc == 0, 0.1, lettuce$conc)
+hdata <- data.frame(conc = exp(seq(log(0.1), log(150), length.out = 100)))
+hdata <- cbind(hdata, predict(hmod, newdata = hdata, interval = "confidence"))
+ggplot(hdata, aes(x = conc)) +
+  geom_ribbon(aes(ymin = lwr, ymax = upr), fill = "steelblue", alpha = 0.3) +
+  geom_line(aes(y = fit), colour = "blue") +
+  geom_point(data = lettuce, aes(x = cplot, y = weight)) +
+  scale_x_log10(breaks = c(0.1, 1, 10, 100), labels = c("0", "1", "10", "100")) +
+  labs(x = "Concentration (log scale)", y = "Weight") +
+  theme_bw()
+```
+
+The effective dose ED p of a hormesis model is the dose above the peak at which the response has decreased from the control by p% of the difference to the lower asymptote, as in drc. It has no closed form and is found numerically; its standard errors follow from the implicit function theorem, also with random effects, and profile and bootstrap intervals are available as for the other models.
+```{r}
+ed(hmod, respLev = c(10, 50))
 ```
 
 ## Non-normal response distributions
@@ -340,6 +368,18 @@ where $\Phi (\cdot)$ is the cumulative distribution function of the standard nor
 #### gompertz
 
 $$ f(x) = b_1 + \left( b_2 - b_1 \right) \exp \left( -\exp \left( -b_3 \left( x - b_4 \right) \right) \right) $$
+
+#### braincousens
+
+A hormesis model; b2 is the response at dose zero, b1 the lower asymptote at high doses, and b5 the size of the stimulation at low doses. The curve returns to b1 at high doses for $b_3 < -1$.
+
+$$ f(x) = b_1 + \frac{b_2 - b_1 + b_5 x}{1 + \exp \left( -b_3 \left( \log(x) - \log(b_4) \right) \right)} $$
+
+#### cedergreen
+
+A hormesis model as braincousens, with a fixed exponent $\alpha$ (argument `alpha`).
+
+$$ f(x) = b_1 + \frac{b_2 - b_1 + b_5 \exp \left( -1/x^{\alpha} \right)}{1 + \exp \left( -b_3 \left( \log(x) - \log(b_4) \right) \right)} $$
 
 #### michaelismenten
 
