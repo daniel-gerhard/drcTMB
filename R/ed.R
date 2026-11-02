@@ -170,7 +170,7 @@ edcore <- function(x, respLev, linfct, newdata, random, residual, type){
       }
     } else {
       q <- respLev[i]/100
-      if (!(mod %in% c(6, 7, 8, 13)) && lpv[3] + u[3] < 0) q <- 1 - q
+      if (!(mod %in% c(6, 7, 8, 13, 14)) && lpv[3] + u[3] < 0) q <- 1 - q
     }
     ql[i] <- q
 
@@ -181,6 +181,15 @@ edcore <- function(x, respLev, linfct, newdata, random, residual, type){
       b4 <- linkfun(b4linkindex(x), lpv[4] + u[4], inverse=TRUE)
       s0 <- if (peak) hormpeak(mod, lpv[3] + u[3], b4, hormc(x, lpv + u), x$alpha)
             else hormroot(mod, edq(x, q, lpv + u, absolute), lpv[3] + u[3], b4, hormc(x, lpv + u), x$alpha)
+      if (is.na(s0)){
+        edl[i] <- NA
+        grad[i, ] <- NA
+        next
+      }
+    }
+    # multistage model: log of the smallest positive root of the polynomial
+    if (mod == 14){
+      s0 <- log(msroot(edq(x, q, lpv + u, absolute), (lpv + u)[3:5]))
       if (is.na(s0)){
         edl[i] <- NA
         grad[i, ] <- NA
@@ -253,6 +262,15 @@ hormroot <- function(mod, q, b3, b4, c5, alpha){
   if (length(i) == 0) return(NA)
   i <- max(i)
   uniroot(G, s[i + 0:1], tol=1e-12)$root
+}
+
+# effective dose of the multistage model at level q of F, for the coefficients beta of the polynomial:
+# the smallest positive root of beta1 x + beta2 x^2 + beta3 x^3 = -log(1 - q); NA without one
+msroot <- function(q, beta){
+  if (!is.finite(q) || q <= 0 || q >= 1 || any(!is.finite(beta))) return(NA)
+  r <- polyroot(c(log(1 - q), beta))
+  r <- Re(r)[abs(Im(r)) < 1e-6*pmax(1, abs(Re(r))) & Re(r) > 0]
+  if (length(r) == 0) NA else min(r)
 }
 
 # grid of 2001 log doses for a hormesis curve with b3 < 0 and b4, from where F is close to 1 to a dose

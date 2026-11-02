@@ -5,12 +5,12 @@
 #' @param rform random effects: a formula of the form b1 + b2 + b4 ~ 1 | cluster for random intercepts, or b4 ~ x | cluster for random intercepts and slopes in a covariate x, or a list of such formulas, e.g. list(b1 + b4 ~ 1 | exper, b1 ~ 1 | plate). The random effects within a formula are correlated across the listed parameters and their intercepts and slopes; different formulas, the levels of nested factors (1 | exper/plate), and intercepts and slopes with || (b4 ~ x || cluster) are independent terms. The random slopes of a parameter usually go with a fixed effect of the covariate in fform.
 #' @param data a data.frame object. Observations with missing values in the variables of the model or in the weights are left out.
 #' @param start a vector with starting values for each model coefficient. NA entries are replaced by the starting values of \code{\link{drmTMBstart}}. Alternatively, a vector named by parameter, e.g. c(b1=0, b5=0), gives the same starting value to all coefficients of each named parameter.
-#' @param fix a logical vector with one entry for each model coefficient. If TRUE, a model coefficient is fixed to its value in start. Alternatively, a vector named by parameter, e.g. c(b1=TRUE, b5=TRUE), fixes all coefficients of the named parameters; their values must then be given in start, e.g. start=c(b1=0, b5=0). Parameters not used by the model (b5 except for logistic, loglogistic, braincousens and cedergreen, b3 for michaelismenten, asymptoticregression and exponentialdecay, b2-b5 for constant) are always fixed, at 0 unless given in start.
+#' @param fix a logical vector with one entry for each model coefficient. If TRUE, a model coefficient is fixed to its value in start. Alternatively, a vector named by parameter, e.g. c(b1=TRUE, b5=TRUE), fixes all coefficients of the named parameters; their values must then be given in start, e.g. start=c(b1=0, b5=0). Parameters not used by the model (b5 except for logistic, loglogistic, braincousens, cedergreen and multistage, b3 for michaelismenten, asymptoticregression and exponentialdecay, b2-b5 for constant) are always fixed, at 0 unless given in start.
 #' @param weights a vector of weights, one for each row of data.
-#' @param lower lower bounds for the model coefficients b1-b5, a single value or a vector with the same length as start. Bounds of fixed coefficients are ignored; variance parameters are unbounded.
+#' @param lower lower bounds for the model coefficients b1-b5, a single value or a vector with the same length as start. Bounds of fixed coefficients are ignored; variance parameters are unbounded. For the multistage model, the default is 0 for the coefficients b3-b5 without covariates in fform, see Details.
 #' @param upper upper bounds for the model coefficients b1-b5, a single value or a vector with the same length as start.
 #' @param family Specify the distributional assumptions. One of "gaussian", "binomial", "betabinomial", "beta", "poisson", "nbinom2", and "nbinom1". The negative binomial families are for overdispersed counts, with variance mu (1 + mu/theta) for nbinom2 and mu (1 + phi) for nbinom1, and the beta-binomial family for overdispersed binomial counts, with variance n mu (1 - mu) (1 + (n - 1)/(phi + 1)) for n trials, as in glmmTMB.
-#' @param model Specify the nonlinear model. One of "logistic", "loglogistic", "weibull1", "weibull2", "lognormal", "michaelismenten", "asymptoticregression", "exponentialdecay", "gompertz", "gamma", "braincousens", "cedergreen", "constant". The braincousens and cedergreen models describe hormesis, the constant model has no dose effect, see Details.
+#' @param model Specify the nonlinear model. One of "logistic", "loglogistic", "weibull1", "weibull2", "lognormal", "michaelismenten", "asymptoticregression", "exponentialdecay", "gompertz", "gamma", "multistage", "braincousens", "cedergreen", "constant". The braincousens and cedergreen models describe hormesis, the constant model has no dose effect, see Details.
 #' @param alpha the exponent of the hormesis term of the cedergreen model, a positive number, e.g. 1, 0.5 or 0.25 as the models CRS.4a, CRS.4b and CRS.4c of drc (CRS.5a-c with b1 estimated); only for the cedergreen model. See Details.
 #' @param link Specify the link function for estimating asymptote parameters. One of "identity", "log", "logit". 
 #' @param b4link link function for b4, "identity" (default) or "log", see Details. Only for the models with a positive b4, not for logistic and gompertz.
@@ -34,6 +34,16 @@
 #' positive; with b3 = 1, the gamma model is the asymptoticregression model (the quantal-linear model
 #' of BMDS for quantal responses), so that \code{\link{anova.drmTMB}} tests the shape. BMDS restricts
 #' the shape to b3 >= 1 by default, which can be set by \code{lower}.
+#'
+#' The multistage model of BMDS, F(x) = 1 - exp(-(b3 x + b4 x^2 + b5 x^3)), has the coefficients
+#' beta1-beta3 of BMDS in b3-b5; as for the gamma model, b1 is the response at dose zero (the
+#' background risk) and b2 the asymptote at high doses, fixed at 1 for quantal responses. All three
+#' coefficients are estimated by default; the model of degree 2 fixes b5 at 0, and of degree 1 also
+#' b4, e.g. \code{start=c(b2=1, b5=0), fix=c(b2=TRUE, b5=TRUE)}. As in BMDS, b3-b5 are bounded
+#' below by 0 by default (if \code{lower} is not given, and for parameters without covariates in
+#' fform), so that the curve increases; estimates at the bound are common, and are listed by
+#' \code{summary}, as their standard errors and Wald intervals do not account for the bound. Profile
+#' intervals of the effective doses respect the bounds. b4link="log" is not available.
 #'
 #' The hormesis models braincousens (Brain and Cousens, 1989) and cedergreen (Cedergreen, Ritz and
 #' Streibig, 2005) describe a stimulation at low doses before a decreasing curve:
@@ -99,6 +109,11 @@ drmTMB <- function(form, fform=NULL, rform=NULL, data, start=NULL, fix=NULL, wei
     if (length(b) != length(start)) stop("lower and upper must be a single value or have the same length as start.")
     c(b[!fix], rep(inf, length(obj$par) - sum(!fix)))
   }
+  # multistage: coefficients b3-b5 of the polynomial bounded below by 0, as in BMDS
+  if (dd$mod == 14 && identical(lower, -Inf)){
+    lower <- rep(-Inf, length(start))
+    lower[dd$npi %in% which(dd$npars == 1) & dd$npi >= 3] <- 0
+  }
   lower <- bounds(lower, -Inf)
   upper <- bounds(upper, Inf)
 
@@ -137,7 +152,8 @@ drmTMB <- function(form, fform=NULL, rform=NULL, data, start=NULL, fix=NULL, wei
   res$control <- control
   res$obj <- obj
   res$sdrl <- sdreport(obj, par.fixed=opt$par)
-  res$ssdrl <- summary(res$sdrl)
+  # NaN standard errors of a Hessian that is not positive definite are reported by summary.drmTMB
+  res$ssdrl <- suppressWarnings(summary(res$sdrl))
   # residual degrees of freedom for small-sample inference of gaussian models without random effects:
   # observations with positive weights minus free coefficients
   if (isTRUE(control$smallsample) && family == "gaussian" && length(dd$re$terms) == 0){

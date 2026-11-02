@@ -26,10 +26,10 @@
 #' @param fform fixed effects for the model parameters: a formula of the form b2 + b4 ~ Stress, or a list of such formulas, e.g. list(b2 ~ Stress, b4 ~ Stress + Time). Parameters not listed have a single intercept (~ 1). A list of five right-hand side formulas, one for each of b1-b5 (X1 = ~ 1, ..., X5 = ~ 1), is also accepted.
 #' @param data a data.frame object. Observations with missing values in the variables of the model or in the weights are left out.
 #' @param start a vector with starting values for each model parameter. Only NA entries are replaced.
-#' @param fix a binary vector with same length as start. If TRUE, a model coefficient is fixed to the starting value. Parameters not used by the model (b5 except for logistic, loglogistic, braincousens and cedergreen, b3 for michaelismenten, asymptoticregression and exponentialdecay, b2-b5 for constant) are always fixed, at 0 unless given in start.
+#' @param fix a binary vector with same length as start. If TRUE, a model coefficient is fixed to the starting value. Parameters not used by the model (b5 except for logistic, loglogistic, braincousens, cedergreen and multistage, b3 for michaelismenten, asymptoticregression and exponentialdecay, b2-b5 for constant) are always fixed, at 0 unless given in start.
 #' @param weights a vector of weights, one for each row of data.
 #' @param family Specify the distributional assumptions. One of "gaussian", "binomial", "betabinomial", "beta", "poisson", "nbinom2", and "nbinom1". The negative binomial families are for overdispersed counts, with variance mu (1 + mu/theta) for nbinom2 and mu (1 + phi) for nbinom1, and the beta-binomial family for overdispersed binomial counts, with variance n mu (1 - mu) (1 + (n - 1)/(phi + 1)) for n trials, as in glmmTMB.
-#' @param model Specify the nonlinear model. One of "logistic", "loglogistic", "weibull1", "weibull2", "lognormal", "michaelismenten", "asymptoticregression", "exponentialdecay", "gompertz", "gamma", "braincousens", "cedergreen", "constant".
+#' @param model Specify the nonlinear model. One of "logistic", "loglogistic", "weibull1", "weibull2", "lognormal", "michaelismenten", "asymptoticregression", "exponentialdecay", "gompertz", "gamma", "multistage", "braincousens", "cedergreen", "constant".
 #' @param alpha the exponent of the hormesis term of the cedergreen model, see \code{\link{drmTMB}}.
 #' @param link Specify the link function for estimating asymptote parameters. One of "identity", "log", "logit".
 #' @param b4link link function for b4, "identity" or "log". With "log", the coefficients of b4 are on the log scale (models with a positive b4 only, not logistic and gompertz), see \code{\link{drmTMB}}.
@@ -86,6 +86,7 @@ drmTMBdata <- function(form, fform=NULL, rform=NULL, data, weights=NULL, family=
   lnk4 <- which(b4link == c("identity", "log"))
   if (length(lnk4) != 1) stop("Unknown b4link: ", b4link, "; one of identity, log.")
   if (lnk4 == 2 && mod %in% c(1, 9)) stop("b4link=\"log\" needs a positive b4; b4 of the ", model, " model is a location on the dose scale.")
+  if (lnk4 == 2 && mod == 14) stop("b4link=\"log\" is not available for the multistage model; b4 is a coefficient of its polynomial.")
   if (mod == 12){
     if (is.null(alpha)) stop("the cedergreen model needs the exponent alpha of its hormesis term, e.g. alpha=1, 0.5 or 0.25 as CRS.4a, CRS.4b and CRS.4c of drc.")
     if (!is.numeric(alpha) || length(alpha) != 1 || !is.finite(alpha) || alpha <= 0) stop("alpha must be a single positive number.")
@@ -163,7 +164,7 @@ lmstart <- function(dd, start, fix){
   # asymptotes on the mean scale: for the models with steepness b3, b1 is the lower and b2 the
   # upper asymptote; for michaelismenten, asymptoticregression, exponentialdecay and gamma, b1 is
   # approached at dose zero and b2 at high doses
-  hasb3 <- !(mod %in% c(6, 7, 8, 13))
+  hasb3 <- !(mod %in% c(6, 7, 8, 13, 14))
   f1 <- if (hasb3) min(ylow, yhigh) else ylow
   f2 <- if (hasb3) max(ylow, yhigh) else yhigh
   # an asymptote with a given starting value keeps it; the other one is the more distant end of the curve
@@ -180,6 +181,22 @@ lmstart <- function(dd, start, fix){
   # value of the increasing function F of the model; points at the asymptotes carry no information
   q <- (yd - f1) / (f2 - f1)
   ok <- is.finite(q) & q > 0.01 & q < 0.99
+
+  # multistage: -log(1 - F) is the polynomial b3 x + b4 x^2 + b5 x^3, by least squares for the free
+  # coefficients, with the fixed ones as offsets, and negative values set to 0
+  if (mod == 14){
+    X <- cbind(xd, xd^2, xd^3)
+    kn <- sapply(3:5, function(i) fix[npi == i][1] | !is.na(start[npi == i][1]))
+    bk <- sapply(3:5, function(i) if (kn[i - 2]) start[npi == i][1] else 0)
+    beta <- bk
+    if (sum(ok) > sum(!kn) & any(!kn)){
+      cf <- qr.coef(qr(X[ok, !kn, drop=FALSE]), -log(1 - q[ok]) - X[ok, kn, drop=FALSE] %*% bk[kn])
+      beta[!kn] <- pmax(ifelse(is.na(cf), 0, cf), 0)
+    }
+    # fallback: linear, F = 1/2 at the median positive dose
+    if (all(beta == 0)) beta[1] <- log(2)/stats::median(xd[xd > 0])
+    return(projectstart(dd, start, fix, c(linkfun(dd$lnk, f1), linkfun(dd$lnk, f2), beta)))
+  }
   if (mod %in% c(2, 3, 4, 5, 6, 11, 12)) ok <- ok & xd > 0
   q <- q[ok]
   xo <- xd[ok]
@@ -323,7 +340,7 @@ gridrange <- function(dd, start){
   }
   # b4: location within the dose range, extended at both ends
   i4 <- single(4)
-  if (!is.null(i4)){
+  if (!is.null(i4) & mod != 14){
     if (mod %in% c(1, 9)){
       ext <- 0.25*diff(range(x))
       rng[[i4]] <- list(lower=min(x) - ext, upper=max(x) + ext, log=FALSE)
@@ -512,7 +529,8 @@ drcmeanR <- function(mod, x, f1, f2, f3, f4, f5, alpha=NULL){
                1 - exp(-x / f4),          # exponentialdecay
                exp(-exp(-t)),             # gompertz
                NULL, NULL, NULL,          # constant, braincousens, cedergreen: above
-               pgamma(x / f4, f3))        # gamma
+               pgamma(x / f4, f3),        # gamma
+               1 - exp(-(f3*x + f4*x^2 + f5*x^3)))  # multistage
   f1 + (f2 - f1) * Fx
 }
 
@@ -536,7 +554,7 @@ parvector <- function(v, npi, default, arg){
 # all but b1 for the constant model
 unusedpars <- function(mod){
   if (mod == 10) return(2:5)
-  c(if (mod %in% c(6, 7, 8)) 3, if (!(mod %in% c(1, 2, 11, 12))) 5)
+  c(if (mod %in% c(6, 7, 8)) 3, if (!(mod %in% c(1, 2, 11, 12, 14))) 5)
 }
 
 # hormesis term g of the braincousens (11) and cedergreen (12) models, as hormg in the TMB template

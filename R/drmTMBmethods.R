@@ -67,12 +67,13 @@ summary.drmTMB <- function(object, ...){
   ests <- object$ssdrl
   coefs <- ests[rownames(ests) %in% paste("b", 1:5, sep=""), , drop=FALSE]
   rownames(coefs) <- object$coefnames[!object$fix]
-  coefs[, 2] <- sqrt(diag(fixedcov(object)))[seq_len(nrow(coefs))]
+  # NaN for a Hessian that is not positive definite, with a warning in the printed summary
+  coefs[, 2] <- suppressWarnings(sqrt(diag(fixedcov(object))))[seq_len(nrow(coefs))]
 
   # direction of the curve from the sign of the steepness b3 at the observations
   npi <- rep(1:5, sapply(object$Xs, ncol))
   direction <- NULL
-  if (!(mod %in% c(6:8, 10, 13))){
+  if (!(mod %in% c(6:8, 10, 13, 14))){
     b <- object$start
     b[!object$fix] <- coefs[, 1]
     s3 <- sign(object$Xs[[3]] %*% b[npi == 3])
@@ -111,13 +112,22 @@ summary.drmTMB <- function(object, ...){
   names(ngroups) <- sapply(object$reterms, function(tm) tm$group)
   ngroups <- ngroups[!duplicated(names(ngroups))]
 
-  gr <- object$obj$gr(object$opt$par)
+  # gradient projected on the bounds: zero for coefficients at a bound that the likelihood pushes
+  # against
+  gr <- as.vector(object$obj$gr(object$opt$par))
+  nb <- sum(!object$fix)
+  if (!is.null(object$lower)){
+    lo <- object$lower
+    up <- object$upper
+    gr[abs(object$opt$par - lo) < 1e-8 & gr > 0] <- 0
+    gr[abs(object$opt$par - up) < 1e-8 & gr < 0] <- 0
+  }
   res <- list(call=object$call, model=object$model, alpha=object$alpha, family=object$family, link=object$link, b4log=b4linkindex(object) == 2,
               direction=direction, b5=any(!object$fix[npi == 5]) && mod %in% c(1, 2),
               nobs=nobs(object), ntrials=if (object$family %in% c("binomial", "betabinomial")) sum(dat$bn), ngroups=ngroups,
               logLik=ll, AIC=AIC(object), BIC=BIC(object),
               coefficients=coefs, fixed=userfixed(object), varcor=vcs, residpar=residpar(object), rdf=object$rdf,
-              singular=singular, dispersion=dispersion,
+              singular=singular, dispersion=dispersion, atbound=atbound(object),
               convergence=object$opt$convergence, message=object$opt$message,
               maxgrad=max(abs(gr)), pdHess=object$sdrl$pdHess)
   class(res) <- "summary.drmTMB"
@@ -144,6 +154,8 @@ print.summary.drmTMB <- function(x, digits=max(3L, getOption("digits") - 3L), ..
 
   cat("\nCoefficients:\n")
   printCoefmat(x$coefficients, digits=digits)
+  if (length(x$atbound) > 0) cat("At a bound: ", paste(names(x$atbound), "=", format(x$atbound, digits=digits), collapse=", "),
+                                  "; the standard errors and Wald intervals do not account for the bound.\n", sep="")
   if (isTRUE(x$b4log)) cat("The coefficients of b4 are on the log scale.\n")
   if (x$b5) cat("The asymmetry parameter b5 is on the log scale.\n")
   printfixed(x$fixed, digits)
@@ -648,9 +660,19 @@ recov <- function(object){
 }
 
 
+# free coefficients b1-b5 at their lower or upper bound, named
+atbound <- function(object){
+  nb <- sum(!object$fix)
+  est <- object$opt$par[seq_len(nb)]
+  lo <- if (is.null(object$lower)) rep(-Inf, nb) else object$lower[seq_len(nb)]
+  up <- if (is.null(object$upper)) rep(Inf, nb) else object$upper[seq_len(nb)]
+  at <- abs(est - lo) < 1e-8 | abs(est - up) < 1e-8
+  setNames(est[at], object$coefnames[!object$fix][at])
+}
+
 # index of the model, as in the TMB template
 modelindex <- function(model){
-  which(model == c("logistic", "loglogistic", "weibull1", "weibull2", "lognormal", "michaelismenten", "asymptoticregression", "exponentialdecay", "gompertz", "constant", "braincousens", "cedergreen", "gamma"))
+  which(model == c("logistic", "loglogistic", "weibull1", "weibull2", "lognormal", "michaelismenten", "asymptoticregression", "exponentialdecay", "gompertz", "constant", "braincousens", "cedergreen", "gamma", "multistage"))
 }
 
 # index of the link for b4, as in the TMB template: 1 = identity, 2 = log; identity for fits
