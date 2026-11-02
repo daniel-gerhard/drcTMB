@@ -15,7 +15,7 @@ print.edTMB <- function(x, ...){
     vc <- x$variance
     std <- sqrt(diag(vc))
     rdat <- data.frame(Estimate=ests, Std.Error=std)
-    cat("Effective dose estimates:\n\n")
+    cat(if (identical(x$type, "peak")) "Peak of the hormesis curves, dose and response:\n\n" else "Effective dose estimates:\n\n")
     print(rdat, digits=3)
     invisible(x)
 }

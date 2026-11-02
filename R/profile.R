@@ -191,6 +191,10 @@ profcutoffs <- function(object, level){
 #' b4 and b5 that can be solved for b4, so one coefficient of b4 is computed from the effective dose
 #' and the other coefficients, which are re-optimised.
 #'
+#' The dose at the peak of a hormesis curve (\code{\link{peak}}) is profiled in the same way, as b4
+#' follows from the peak dose and the other parameters; profiles are not available for the response at
+#' the peak.
+#'
 #' The profiles are for the effective doses of the population curves, without the random effects;
 #' the variation between groups (\code{random=TRUE} in \code{\link{ed}}) and the residual variation are
 #' not included. For the models on the log-dose scale and the models without b3, the effective doses
@@ -217,6 +221,8 @@ profile.edTMB <- function(fitted, parm=NULL, level=0.99, maxit=100, progress=int
   if (any(edflag(fitted, "conditional")[parm])) stop("profiles are not available for effective doses of fitted groups.")
   if (anyNA(est[parm])) stop("the effective doses ", paste(names(est)[parm][is.na(est[parm])], collapse=", "), " are NA.")
   absolute <- identical(fitted$type, "absolute")
+  peak <- identical(fitted$type, "peak")
+  if (peak && any(unlist(fitted$q[parm]) == 2)) stop("profiles are not available for the response at the peak.")
 
   obj <- fit$obj
   # keep the state of the TMB object, as tmbprofile does
@@ -246,7 +252,7 @@ profile.edTMB <- function(fitted, parm=NULL, level=0.99, maxit=100, progress=int
     kp <- which.max(abs(w4))
     k <- free[kp]
     if (L[3, k] != 0 || L[5, k] != 0) stop("the coefficient ", fit$coefnames[k], " of b4 must not enter b3 or b5 in linfct.")
-    if (absolute && (L[1, k] != 0 || L[2, k] != 0)) stop("the coefficient ", fit$coefnames[k], " of b4 must not enter b1 or b2 in linfct.")
+    if ((absolute || mod %in% c(11, 12)) && (L[1, k] != 0 || L[2, k] != 0)) stop("the coefficient ", fit$coefnames[k], " of b4 must not enter b1 or b2 in linfct.")
 
     # full parameter vector from the reduced one (without coefficient k) at effective dose ed
     pvfull <- function(par){
@@ -254,8 +260,13 @@ profile.edTMB <- function(fitted, parm=NULL, level=0.99, maxit=100, progress=int
       pv[free] <- par[seq_len(nf)]
       pv
     }
-    # b4 on the scale of its coefficients, from b1, b2 (absolute effective doses), b3 and b5 in lpv
-    b4fun <- function(ed, lpv) linkfun(lnk4, edb4(mod, edq(fit, q, lpv, absolute), ed, lpv[3], lpv[5], hormc(fit, lpv), fit$alpha))
+    # b4 on the scale of its coefficients, from b1, b2 (absolute effective doses, hormesis models), b3
+    # and b5 in lpv; for peaks, ed is the dose of the peak
+    b4fun <- function(ed, lpv){
+      b4 <- if (peak) peakb4(mod, ed, lpv[3], hormc(fit, lpv), fit$alpha)
+            else edb4(mod, edq(fit, q, lpv, absolute), ed, lpv[3], lpv[5], hormc(fit, lpv), fit$alpha)
+      linkfun(lnk4, b4)
+    }
     expand <- function(x, ed){
       par <- append(x, 0, after=kp - 1)
       pv <- pvfull(par)
@@ -278,10 +289,14 @@ profile.edTMB <- function(fitted, parm=NULL, level=0.99, maxit=100, progress=int
       J
     }
     # hormesis models: the effective dose is on the decreasing part of the curve, above the peak;
-    # curves that reach the level of the effective dose at ed before their peak are left out
+    # curves that reach the level of the effective dose at ed before their peak are left out, and
+    # for peaks, curves with a minimum at ed
     fn <- function(x, ed){
       e <- expand(x, ed)
-      if (mod %in% c(11, 12) && !hormdecreasing(fit, as.vector(L %*% pvfull(e$par)), ed)) return(Inf)
+      if (mod %in% c(11, 12)){
+        d <- hormderivs(fit, as.vector(L %*% pvfull(e$par)), ed)
+        if (!isTRUE(if (peak) d[2] < 0 else d[1] < 0)) return(Inf)
+      }
       obj$fn(e$par)
     }
     gr <- function(x, ed){
@@ -329,17 +344,48 @@ profile.edTMB <- function(fitted, parm=NULL, level=0.99, maxit=100, progress=int
   prof
 }
 
-# whether the curve of a hormesis model with parameters lpv (b1-b5 on the scale of the linear
-# predictors) is decreasing at dose ed: the derivative of F (1 + c5 g) w.r.t. the log dose is negative
-hormdecreasing <- function(fit, lpv, ed){
+# first and second derivatives of F (1 + c5 g) w.r.t. the log dose at dose ed, for a hormesis curve
+# with parameters lpv (b1-b5 on the scale of the linear predictors), as in hormpeak of the template
+hormderivs <- function(fit, lpv, ed){
   mod <- modelindex(fit$model)
   b3 <- lpv[3]
   b4 <- linkfun(b4linkindex(fit), lpv[4], inverse=TRUE)
   c5 <- hormc(fit, lpv)
   Fx <- plogis(b3*(log(ed) - log(b4)))
   g <- hormg(mod, ed, fit$alpha)
-  dg <- if (mod == 11) ed else fit$alpha * ed^(-fit$alpha) * g
-  isTRUE(b3*Fx*(1 - Fx)*(1 + c5*g) + Fx*c5*dg < 0)
+  u <- if (mod == 11) 0 else ed^(-fit$alpha)
+  dg <- if (mod == 11) ed else fit$alpha * u * g
+  d2g <- if (mod == 11) ed else fit$alpha^2 * u * g * (u - 1)
+  dF <- b3*Fx*(1 - Fx)
+  d2F <- b3*dF*(1 - 2*Fx)
+  h <- 1 + c5*g
+  c(dF*h + Fx*c5*dg, d2F*h + 2*dF*c5*dg + Fx*c5*d2g)
+}
+
+# b4 of a hormesis curve with its peak at dose pk, given b3, c5 and alpha: the derivative of
+# F (1 + c5 g) w.r.t. the log dose is zero, b3 (1 - F) (1 + c5 g) + c5 g' = 0, which gives F of the
+# loglogistic model at the peak
+peakb4 <- function(mod, pk, b3, c5, alpha){
+  g <- hormg(mod, pk, alpha)
+  dg <- if (mod == 11) pk else alpha * pk^(-alpha) * g
+  edb4(2, 1 + c5*dg/(b3*(1 + c5*g)), pk, b3, 0)
+}
+
+# effective dose, or dose or response at the peak, of entry i of the edTMB object for the curve
+# parameters lpv (b1-b5 on the scale of the linear predictors); NA if not defined
+edvalue <- function(object, i, lpv){
+  fit <- object$fit
+  mod <- modelindex(fit$model)
+  b4 <- linkfun(b4linkindex(fit), lpv[4], inverse=TRUE)
+  if (identical(object$type, "peak")){
+    s <- hormpeak(mod, lpv[3], b4, hormc(fit, lpv), fit$alpha)
+    if (object$q[[i]] == 1) return(exp(s))
+    lnk <- which(fit$link == c("identity", "log", "logit"))
+    return(drcmeanR(mod, exp(s), linkfun(lnk, lpv[1], inverse=TRUE), linkfun(lnk, lpv[2], inverse=TRUE), lpv[3], b4, lpv[5], fit$alpha))
+  }
+  q <- edq(fit, object$q[[i]], lpv, identical(object$type, "absolute"))
+  if (!is.finite(q) || q <= 0 || q > 1 || (q == 1 && !(mod %in% c(11, 12)))) return(NA)
+  edfun(mod, q, lpv[3], b4, lpv[5], hormc(fit, lpv), fit$alpha)
 }
 
 # effective doses at level q of F (residual zero), as drced in the TMB template: b4 times a function
@@ -453,6 +499,14 @@ confint.edTMB <- function(object, parm=NULL, level=0.95, method=c("profile", "wa
       method <- "wald"
     }
   }
+  # the response at the peak has no profile: Wald intervals
+  if (method == "profile" && identical(object$type, "peak") && any(unlist(object$q[parm]) == 2)){
+    message("Wald intervals for the response at the peak: profile intervals are not available.")
+    resp <- unlist(object$q[parm]) == 2
+    ci <- confint(object, parm=parm, level=level, method="wald")
+    if (any(!resp)) ci[!resp, ] <- confint(object, parm=parm[!resp], level=level, method="profile", ...)
+    return(ci)
+  }
   if (method == "profile"){
     message("Computing profile confidence intervals ...")
     return(confint(profile(object, parm=parm, level=level, ...), level=level))
@@ -463,7 +517,6 @@ confint.edTMB <- function(object, parm=NULL, level=0.95, method=c("profile", "wa
     # conditional distribution at each fit for effective doses of fitted groups
     draws <- bootdraws(fit, getboot(fit, boot, nsim, seed, ...), any(edflag(object, "conditional")[parm]))
     r <- fit$obj$env$random
-    mod <- modelindex(fit$model)
     nb <- sum(!fit$fix)
     # effective doses of each bootstrap fit
     eds <- sapply(parm, function(i){
@@ -472,9 +525,7 @@ confint.edTMB <- function(object, parm=NULL, level=0.95, method=c("profile", "wa
         pv[!fit$fix] <- par[seq_len(nb)]
         lpv <- as.vector(object$linfct[[i]] %*% pv)
         if (isTRUE(object$conditional[[i]])) lpv <- lpv + as.vector(object$uweights[[i]] %*% par[r])
-        q <- edq(fit, object$q[[i]], lpv, identical(object$type, "absolute"))
-        if (!is.finite(q) || q <= 0 || q >= 1) return(NA)
-        edfun(mod, q, lpv[3], linkfun(b4linkindex(fit), lpv[4], inverse=TRUE), lpv[5], hormc(fit, lpv), fit$alpha)
+        edvalue(object, i, lpv)
       })
     })
     ci <- t(apply(matrix(eds, ncol=length(parm)), 2, quantile, probs=c((1 - level)/2, (1 + level)/2), na.rm=TRUE, names=FALSE))

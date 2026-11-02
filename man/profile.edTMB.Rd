@@ -37,6 +37,10 @@ b4 and b5 that can be solved for b4, so one coefficient of b4 is computed from t
 and the other coefficients, which are re-optimised.
 }
 \details{
+The dose at the peak of a hormesis curve (\code{\link{peak}}) is profiled in the same way, as b4
+follows from the peak dose and the other parameters; profiles are not available for the response at
+the peak.
+
 The profiles are for the effective doses of the population curves, without the random effects;
 the variation between groups (\code{random=TRUE} in \code{\link{ed}}) and the residual variation are
 not included. For the models on the log-dose scale and the models without b3, the effective doses

@@ -125,3 +125,82 @@ test_that("alpha is checked", {
   f <- suppressWarnings(drmTMB(weight ~ conc, data=lettuce, model="cedergreen", alpha=0.25))
   expect_output(print(f), "cedergreen \\(alpha = 0.25\\)")
 })
+
+# drcTMB fit of a hormesis model of drc, starting at the drc estimates
+drcstart <- function(f2, b1fix){
+  p <- coef(f2)
+  names(p) <- sub(":.*", "", names(p))
+  c(b1=if (b1fix) 0 else p[["c"]], b2=p[["d"]], b3=-p[["b"]], b4=p[["e"]], b5=p[["f"]])
+}
+
+test_that("the peak agrees with MAX of drc", {
+  f2 <- drc::drm(weight ~ conc, data=lettuce, fct=drc::BC.5(), control=drc::drmc(relTol=1e-12))
+  f1 <- drmTMB(weight ~ conc, data=lettuce, model="braincousens", start=drcstart(f2, FALSE))
+  pk <- peak(f1)
+  expect_equal(names(coef(pk)), c("dose:lf1", "response:lf1"))
+  expect_equal(unname(coef(pk)), unname(drc::MAX(f2)[1, ]), tolerance=1e-3)
+
+  # CRS.4a on lettuce: the stimulation does not lift the curve above the control, no peak
+  f2 <- drc::drm(weight ~ conc, data=lettuce, fct=drc::CRS.4a(), control=drc::drmc(relTol=1e-12))
+  f1 <- drmTMB(weight ~ conc, data=lettuce, model="cedergreen", alpha=1, start=drcstart(f2, TRUE), fix=c(b1=TRUE))
+  expect_warning(pk <- peak(f1), "no peak")
+  expect_true(all(is.na(coef(pk))))
+})
+
+test_that("the peak and the return to control have the delta method standard errors", {
+  skip_if_not_installed("numDeriv")
+  for (m in list(list("braincousens", NULL), list("cedergreen", 0.25))){
+    f <- suppressWarnings(drmTMB(weight ~ conc, data=lettuce, model=m[[1]], alpha=m[[2]]))
+    mod <- drcTMB:::modelindex(m[[1]])
+    b <- coef(f)[1:5]
+    mu <- function(x, b) drcTMB:::drcmeanR(mod, x, b[[1]], b[[2]], b[[3]], b[[4]], b[[5]], m[[2]])
+    pk <- peak(f)
+    # peak as the root of the analytic derivative of the curve on the log-dose scale
+    val <- function(b, j){
+      D <- function(s) drcTMB:::hormderivs(f, b, exp(s))[1]
+      s <- uniroot(D, log(coef(pk)[[1]]) + c(-0.5, 0.5), tol=1e-14)$root
+      if (j == 1) exp(s) else mu(exp(s), b)
+    }
+    g <- rbind(numDeriv::grad(val, b, j=1), numDeriv::grad(val, b, j=2))
+    expect_equal(unname(coef(pk)), c(val(b, 1), val(b, 2)), tolerance=1e-8)
+    expect_equal(unname(vcov(pk)), unname(g %*% vcov(f)[1:5, 1:5] %*% t(g)), tolerance=1e-5)
+    expect_gt(coef(pk)[[2]], b[[2]])
+    expect_equal(drcTMB:::peakb4(mod, coef(pk)[[1]], b[[3]], b[[5]]/(b[[2]] - b[[1]]), m[[2]]), b[[4]])
+
+    # return to control: the dose above the peak with the response of the control
+    e0 <- ed(f, 0)
+    x0 <- coef(e0)[[1]]
+    expect_gt(x0, coef(pk)[[1]])
+    expect_equal(mu(x0, b), b[[2]])
+    edR <- function(b) drcTMB:::edfun(mod, 1, b[3], b[4], b[5], b[5]/(b[2] - b[1]), m[[2]])
+    g0 <- numDeriv::grad(edR, b)
+    expect_equal(vcov(e0)[1, 1], as.numeric(g0 %*% vcov(f)[1:5, 1:5] %*% g0), tolerance=1e-5)
+  }
+})
+
+test_that("intervals of the peak", {
+  f <- drmTMB(weight ~ conc, data=lettuce, model="braincousens")
+  pk <- peak(f)
+  expect_message(ci <- confint(pk, progress=FALSE), "Wald intervals for the response")
+  expect_true(all(ci[, 1] < coef(pk) & coef(pk) < ci[, 2]))
+  expect_equal(ci[2, ], confint(pk, parm=2, method="wald")[1, ])
+  set.seed(1)
+  cb <- suppressMessages(confint(pk, method="boot", nsim=30, progress=FALSE))
+  expect_true(all(cb[, 1] < coef(pk) & coef(pk) < cb[, 2]))
+  expect_error(peak(drmTMB(weight ~ conc, data=lettuce, model="loglogistic", start=c(b5=0), fix=c(b5=TRUE))), "hormesis models")
+})
+
+test_that("peaks of fitted groups are the maxima of their predicted curves", {
+  set.seed(3)
+  d <- simgroups(dose=c(0, 0.1, 0.3, 1, 3, 10, 30), ng=12)
+  u2 <- rnorm(12, 0, 0.5)
+  u4 <- rnorm(12, 0, 0.3)
+  d$y <- drcTMB:::drcmeanR(11, d$dose, 1, 8 + u2[d$grp], -2, 3*exp(u4[d$grp]), 2) + rnorm(nrow(d), 0, 0.4)
+  f <- drmTMB(y ~ dose, rform=b2 + b4 ~ 1 | grp, data=d, model="braincousens", b4link="log")
+  pk <- peak(f, newdata=data.frame(grp=c("1", "2")))
+  for (g in 1:2){
+    o <- optimise(function(x) predict(f, newdata=data.frame(dose=x, grp=as.character(g))), c(0.1, 3), maximum=TRUE, tol=1e-10)
+    expect_equal(coef(pk)[[paste("dose:grp=", g, sep="")]], o$maximum, tolerance=1e-6)
+    expect_equal(coef(pk)[[paste("response:grp=", g, sep="")]], o$objective, tolerance=1e-8)
+  }
+})
