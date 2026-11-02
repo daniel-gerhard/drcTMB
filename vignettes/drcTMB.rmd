@@ -406,6 +406,12 @@ The multistage model of BMDS, with the coefficients $\beta_1$ to $\beta_3$ of it
 
 $$ f(x) = b_1 + \left( b_2 - b_1 \right) \left( 1 - \exp \left( -b_3 x - b_4 x^2 - b_5 x^3 \right) \right) $$
 
+#### nec
+
+The threshold model, with no effect up to the no-effect concentration $b_4$: $b_1$ is the response up to the threshold, $b_2$ the asymptote at high doses, $b_3 > 0$ the rate and $b_5$ the shape on the log scale, with $(x - b_4)_+ = \max(x - b_4, 0)$. With $b_5 = 0$, it is the NEC model of drc; with $b_5 > 0$, the curve is sigmoidal above the threshold.
+
+$$ f(x) = b_1 + \left( b_2 - b_1 \right) \left( 1 - \exp \left( -\left( b_3 (x - b_4)_+ \right)^{\exp(b_5)} \right) \right) $$
+
 #### asymptoticregression and exponentialdecay
 
 Both names refer to the same model; an increasing curve is an asymptotic regression and a decreasing curve an exponential decay.

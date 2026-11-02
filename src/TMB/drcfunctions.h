@@ -27,7 +27,7 @@ Type hormg(int mod, Type x, Type alpha){
 // dose-response mean function
 // mod: 1 = logistic, 2 = loglogistic, 3 = weibull1, 4 = weibull2, 5 = lognormal,
 //      6 = michaelismenten, 7 = asymptoticregression, 8 = exponentialdecay, 9 = gompertz,
-//      10 = constant, 11 = braincousens, 12 = cedergreen, 13 = gamma, 14 = multistage
+//      10 = constant, 11 = braincousens, 12 = cedergreen, 13 = gamma, 14 = multistage, 15 = nec
 // f(x) = f1 + (f2 - f1) * F(x), with F increasing from 0 to 1 in its argument.
 // Models with steepness f3: F(f3 * z), z = x - f4 or log(x) - log(f4); f1 is the lower and
 // f2 the upper asymptote, f3 > 0 for an increasing and f3 < 0 for a decreasing curve.
@@ -36,6 +36,8 @@ Type hormg(int mod, Type x, Type alpha){
 // constant: f(x) = f1 at all doses, a model without a dose effect.
 // gamma: F(x) = pgamma(x / f4, shape f3), f1 at dose zero and f2 at high doses as michaelismenten.
 // multistage: F(x) = 1 - exp(-(f3 x + f4 x^2 + f5 x^3)), f1 at dose zero and f2 at high doses.
+// nec (threshold): F(x) = 1 - exp(-(f3 (x - f4))^exp(f5)) above the threshold f4 and 0 below, f1 up to
+// the threshold and f2 at high doses; f5 = 0 is the exponential NEC model of drc.
 // braincousens, cedergreen (hormesis): f(x) = f1 + (f2 - f1 + f5 * g(x)) * F(x), with the
 // loglogistic F and the hormesis term g(x) = x or exp(-1/x^alpha); f5 = 0 is the loglogistic model.
 template<class Type>
@@ -83,6 +85,13 @@ Type drcmean(int mod, Type x, Type f1, Type f2, Type f3, Type f4, Type f5, Type 
   case 14:
     F = 1 - exp(-(f3 * x + f4 * x * x + f5 * x * x * x));
     break;
+  case 15: {
+    // below the threshold, the power is evaluated at 1, so that neither branch has infinite derivatives
+    Type d = x - f4;
+    Type dpos = CppAD::CondExpGt(d, Type(0), d, Type(1));
+    F = CppAD::CondExpGt(d, Type(0), Type(1 - exp(-pow(f3 * dpos, exp(f5)))), Type(0));
+    break;
+  }
   case 11:
   case 12:
     F = 1 / (1 + exp(-t));
@@ -125,6 +134,9 @@ Type drced(int mod, Type q, Type f1, Type f2, Type f3, Type f4, Type f5, Type r)
     break;
   case 13:
     ed = f4 * qgamma(qr, f3);
+    break;
+  case 15:
+    ed = f4 + pow(-1*log(1 - qr), exp(-f5)) / f3;
     break;
   }
   return ed;

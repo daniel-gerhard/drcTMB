@@ -17,7 +17,7 @@
 #' of the "lm" starting value, with 1/4 to 4 times its steepness, log-spaced), b4 (the dose
 #' range extended at both ends; log-spaced for models on the log-dose scale, and on the log scale
 #' with \code{b4link="log"}), and b5
-#' (-2 to 2, logistic and loglogistic; for braincousens and cedergreen, from 0 to four times the
+#' (-2 to 2, logistic, loglogistic and nec; for braincousens and cedergreen, from 0 to four times the
 #' hormesis effect that equals the difference of the asymptotes at dose b4). Default ranges are only used for parameters
 #' with a single coefficient in \code{fform}; the asymptotes b1 and b2 are only included
 #' in the grid with user-specified bounds.
@@ -26,10 +26,10 @@
 #' @param fform fixed effects for the model parameters: a formula of the form b2 + b4 ~ Stress, or a list of such formulas, e.g. list(b2 ~ Stress, b4 ~ Stress + Time). Parameters not listed have a single intercept (~ 1). A list of five right-hand side formulas, one for each of b1-b5 (X1 = ~ 1, ..., X5 = ~ 1), is also accepted.
 #' @param data a data.frame object. Observations with missing values in the variables of the model or in the weights are left out.
 #' @param start a vector with starting values for each model parameter. Only NA entries are replaced.
-#' @param fix a binary vector with same length as start. If TRUE, a model coefficient is fixed to the starting value. Parameters not used by the model (b5 except for logistic, loglogistic, braincousens, cedergreen and multistage, b3 for michaelismenten, asymptoticregression and exponentialdecay, b2-b5 for constant) are always fixed, at 0 unless given in start.
+#' @param fix a binary vector with same length as start. If TRUE, a model coefficient is fixed to the starting value. Parameters not used by the model (b5 except for logistic, loglogistic, braincousens, cedergreen, multistage and nec, b3 for michaelismenten, asymptoticregression and exponentialdecay, b2-b5 for constant) are always fixed, at 0 unless given in start.
 #' @param weights a vector of weights, one for each row of data.
 #' @param family Specify the distributional assumptions. One of "gaussian", "binomial", "betabinomial", "beta", "poisson", "nbinom2", and "nbinom1". The negative binomial families are for overdispersed counts, with variance mu (1 + mu/theta) for nbinom2 and mu (1 + phi) for nbinom1, and the beta-binomial family for overdispersed binomial counts, with variance n mu (1 - mu) (1 + (n - 1)/(phi + 1)) for n trials, as in glmmTMB.
-#' @param model Specify the nonlinear model. One of "logistic", "loglogistic", "weibull1", "weibull2", "lognormal", "michaelismenten", "asymptoticregression", "exponentialdecay", "gompertz", "gamma", "multistage", "braincousens", "cedergreen", "constant".
+#' @param model Specify the nonlinear model. One of "logistic", "loglogistic", "weibull1", "weibull2", "lognormal", "michaelismenten", "asymptoticregression", "exponentialdecay", "gompertz", "gamma", "multistage", "nec", "braincousens", "cedergreen", "constant".
 #' @param alpha the exponent of the hormesis term of the cedergreen model, see \code{\link{drmTMB}}.
 #' @param link Specify the link function for estimating asymptote parameters. One of "identity", "log", "logit".
 #' @param b4link link function for b4, "identity" or "log". With "log", the coefficients of b4 are on the log scale (models with a positive b4 only, not logistic and gompertz), see \code{\link{drmTMB}}.
@@ -162,9 +162,9 @@ lmstart <- function(dd, start, fix){
   }
 
   # asymptotes on the mean scale: for the models with steepness b3, b1 is the lower and b2 the
-  # upper asymptote; for michaelismenten, asymptoticregression, exponentialdecay and gamma, b1 is
-  # approached at dose zero and b2 at high doses
-  hasb3 <- !(mod %in% c(6, 7, 8, 13, 14))
+  # upper asymptote; for michaelismenten, asymptoticregression, exponentialdecay, gamma, multistage and
+  # nec, b1 is approached at dose zero and b2 at high doses
+  hasb3 <- !(mod %in% c(6, 7, 8, 13, 14, 15))
   f1 <- if (hasb3) min(ylow, yhigh) else ylow
   f2 <- if (hasb3) max(ylow, yhigh) else yhigh
   # an asymptote with a given starting value keeps it; the other one is the more distant end of the curve
@@ -197,6 +197,34 @@ lmstart <- function(dd, start, fix){
     if (all(beta == 0)) beta[1] <- log(2)/stats::median(xd[xd > 0])
     return(projectstart(dd, start, fix, c(linkfun(dd$lnk, f1), linkfun(dd$lnk, f2), beta)))
   }
+
+  # nec: the likelihood has local optima in the threshold b4, and is smooth between dose levels; for
+  # given b4, b3 and b5 the model is linear in the asymptotes, so profile the residual sum of squares
+  # over thresholds at dose zero and within each interval between doses, and over rates b3, with the
+  # shape b5 at 0 unless given
+  if (mod == 15){
+    kn <- sapply(3:5, function(i) fix[npi == i][1] | !is.na(start[npi == i][1]))
+    b5 <- if (kn[3]) start[npi == 5][1] else 0
+    if (kn[2]){
+      b4grid <- linkfun(dd$lnk4, start[npi == 4][1], inverse=TRUE)
+    } else {
+      b4grid <- c(0, xd[-length(xd)] + outer(diff(xd), c(0.25, 0.5, 0.75)))
+      if (dd$lnk4 == 2) b4grid <- b4grid[b4grid > 0]
+    }
+    cand <- do.call(rbind, lapply(b4grid, function(b4){
+      dr <- max(xd) - b4
+      b3grid <- if (kn[1]) start[npi == 3][1] else exp(seq(log(0.1/dr), log(100/dr), length.out=50))
+      do.call(rbind, lapply(b3grid, function(b3){
+        a <- asymfit(yd, drcmeanR(15, xd, 0, 1, b3, b4, b5), f1, f2, known1, known2)
+        data.frame(b3=b3, b4=b4, rss=a$rss, f1=a$f[1], f2=a$f[2])
+      }))
+    }))
+    best <- cand[which.min(cand$rss), ]
+    f1 <- linkrange(dd$lnk, best$f1, dd$family)
+    f2 <- linkrange(dd$lnk, best$f2, dd$family)
+    return(projectstart(dd, start, fix, c(linkfun(dd$lnk, f1), linkfun(dd$lnk, f2), best$b3, linkfun(dd$lnk4, best$b4), b5)))
+  }
+
   if (mod %in% c(2, 3, 4, 5, 6, 11, 12)) ok <- ok & xd > 0
   q <- q[ok]
   xo <- xd[ok]
@@ -243,25 +271,28 @@ lmstart <- function(dd, start, fix){
   if (mod == 13) b3 <- 1
   if (mod %in% c(7, 8, 13)){
     xp <- xd[xd > 0]
-    cols <- c(!known1, !known2)
     b4grid <- exp(seq(log(min(xp)/10), log(max(xp)*10), length.out=100))
-    pfit <- lapply(b4grid, function(b4){
-      g <- 1 - exp(-xd/b4)
-      off <- (if (known1) f1*(1 - g) else 0) + (if (known2) f2*g else 0)
-      if (!any(cols)) return(list(rss=sum((yd - off)^2)))
-      fit <- lm.fit(cbind(1 - g, g)[, cols, drop=FALSE], yd - off)
-      list(rss=sum(fit$residuals^2), coef=fit$coefficients)
-    })
+    pfit <- lapply(b4grid, function(b4) asymfit(yd, 1 - exp(-xd/b4), f1, f2, known1, known2))
     best <- which.min(sapply(pfit, function(p) p$rss))
     b4 <- b4grid[best]
-    fa <- c(f1, f2)
-    fa[cols] <- pfit[[best]]$coef
-    f1 <- linkrange(dd$lnk, fa[1], dd$family)
-    f2 <- linkrange(dd$lnk, fa[2], dd$family)
+    f1 <- linkrange(dd$lnk, pfit[[best]]$f[1], dd$family)
+    f2 <- linkrange(dd$lnk, pfit[[best]]$f[2], dd$family)
   }
 
   pooled <- c(linkfun(dd$lnk, f1), linkfun(dd$lnk, f2), b3, linkfun(dd$lnk4, b4), 0)
   projectstart(dd, start, fix, pooled)
+}
+
+# asymptotes f1 and f2 of the mean responses yd at the values g of F, by least squares; given
+# asymptotes (known1, known2) are kept. Returns the residual sum of squares and both asymptotes.
+asymfit <- function(yd, g, f1, f2, known1, known2){
+  cols <- c(!known1, !known2)
+  off <- (if (known1) f1*(1 - g) else 0) + (if (known2) f2*g else 0)
+  f <- c(f1, f2)
+  if (!any(cols)) return(list(rss=sum((yd - off)^2), f=f))
+  fit <- lm.fit(cbind(1 - g, g)[, cols, drop=FALSE], yd - off)
+  f[cols] <- ifelse(is.na(fit$coefficients), f[cols], fit$coefficients)
+  list(rss=sum(fit$residuals^2), f=f)
 }
 
 # starting values from pooled values of b1-b5: projected onto each design matrix, for the NA
@@ -333,7 +364,7 @@ gridrange <- function(dd, start){
 
   # b3: keep the sign of the starting value, steepness between 1/4 and 4 times
   i3 <- single(3)
-  if (!is.null(i3) & mod %in% c(1, 2, 3, 4, 5, 9, 11, 12, 13)){
+  if (!is.null(i3) & mod %in% c(1, 2, 3, 4, 5, 9, 11, 12, 13, 15)){
     b3 <- start[i3]
     if (b3 == 0) b3 <- 1
     rng[[i3]] <- list(lower=b3/4, upper=b3*4, log=TRUE)
@@ -350,11 +381,11 @@ gridrange <- function(dd, start){
       rng[[i4]] <- list(lower=min(xp)/2, upper=max(xp)*2, log=TRUE)
     }
   }
-  # b5: asymmetry on the log scale for logistic and loglogistic; hormesis effect for braincousens
-  # and cedergreen, from no hormesis to four times the effect that equals the difference of the
-  # asymptotes at dose b4
+  # b5: asymmetry on the log scale for logistic and loglogistic, shape on the log scale for nec;
+  # hormesis effect for braincousens and cedergreen, from no hormesis to four times the effect that
+  # equals the difference of the asymptotes at dose b4
   i5 <- single(5)
-  if (!is.null(i5) & mod %in% c(1, 2)){
+  if (!is.null(i5) & mod %in% c(1, 2, 15)){
     rng[[i5]] <- list(lower=-2, upper=2, log=FALSE)
   }
   if (!is.null(i5) & mod %in% c(11, 12) & dd$npars[1] == 1 & dd$npars[2] == 1 & dd$npars[4] == 1){
@@ -530,7 +561,8 @@ drcmeanR <- function(mod, x, f1, f2, f3, f4, f5, alpha=NULL){
                exp(-exp(-t)),             # gompertz
                NULL, NULL, NULL,          # constant, braincousens, cedergreen: above
                pgamma(x / f4, f3),        # gamma
-               1 - exp(-(f3*x + f4*x^2 + f5*x^3)))  # multistage
+               1 - exp(-(f3*x + f4*x^2 + f5*x^3)),  # multistage
+               1 - exp(-(f3*pmax(x - f4, 0))^exp(f5)))  # nec
   f1 + (f2 - f1) * Fx
 }
 
@@ -550,11 +582,11 @@ parvector <- function(v, npi, default, arg){
 }
 
 # parameters not used by the model, which cannot be estimated: b3 without steepness
-# (michaelismenten, asymptoticregression, exponentialdecay), b5 without asymmetry or hormesis, and
+# (michaelismenten, asymptoticregression, exponentialdecay), b5 without asymmetry, hormesis or shape, and
 # all but b1 for the constant model
 unusedpars <- function(mod){
   if (mod == 10) return(2:5)
-  c(if (mod %in% c(6, 7, 8)) 3, if (!(mod %in% c(1, 2, 11, 12, 14))) 5)
+  c(if (mod %in% c(6, 7, 8)) 3, if (!(mod %in% c(1, 2, 11, 12, 14, 15))) 5)
 }
 
 # hormesis term g of the braincousens (11) and cedergreen (12) models, as hormg in the TMB template

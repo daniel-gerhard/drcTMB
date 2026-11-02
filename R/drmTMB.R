@@ -5,12 +5,12 @@
 #' @param rform random effects: a formula of the form b1 + b2 + b4 ~ 1 | cluster for random intercepts, or b4 ~ x | cluster for random intercepts and slopes in a covariate x, or a list of such formulas, e.g. list(b1 + b4 ~ 1 | exper, b1 ~ 1 | plate). The random effects within a formula are correlated across the listed parameters and their intercepts and slopes; different formulas, the levels of nested factors (1 | exper/plate), and intercepts and slopes with || (b4 ~ x || cluster) are independent terms. The random slopes of a parameter usually go with a fixed effect of the covariate in fform.
 #' @param data a data.frame object. Observations with missing values in the variables of the model or in the weights are left out.
 #' @param start a vector with starting values for each model coefficient. NA entries are replaced by the starting values of \code{\link{drmTMBstart}}. Alternatively, a vector named by parameter, e.g. c(b1=0, b5=0), gives the same starting value to all coefficients of each named parameter.
-#' @param fix a logical vector with one entry for each model coefficient. If TRUE, a model coefficient is fixed to its value in start. Alternatively, a vector named by parameter, e.g. c(b1=TRUE, b5=TRUE), fixes all coefficients of the named parameters; their values must then be given in start, e.g. start=c(b1=0, b5=0). Parameters not used by the model (b5 except for logistic, loglogistic, braincousens, cedergreen and multistage, b3 for michaelismenten, asymptoticregression and exponentialdecay, b2-b5 for constant) are always fixed, at 0 unless given in start.
+#' @param fix a logical vector with one entry for each model coefficient. If TRUE, a model coefficient is fixed to its value in start. Alternatively, a vector named by parameter, e.g. c(b1=TRUE, b5=TRUE), fixes all coefficients of the named parameters; their values must then be given in start, e.g. start=c(b1=0, b5=0). Parameters not used by the model (b5 except for logistic, loglogistic, braincousens, cedergreen, multistage and nec, b3 for michaelismenten, asymptoticregression and exponentialdecay, b2-b5 for constant) are always fixed, at 0 unless given in start.
 #' @param weights a vector of weights, one for each row of data.
-#' @param lower lower bounds for the model coefficients b1-b5, a single value or a vector with the same length as start. Bounds of fixed coefficients are ignored; variance parameters are unbounded. For the multistage model, the default is 0 for the coefficients b3-b5 without covariates in fform, see Details.
+#' @param lower lower bounds for the model coefficients b1-b5, a single value or a vector with the same length as start. Bounds of fixed coefficients are ignored; variance parameters are unbounded. For the multistage model, the default is 0 for the coefficients b3-b5 without covariates in fform, and for the nec model 0 for the rate b3 and, with b4link="identity", the threshold b4 without covariates, see Details.
 #' @param upper upper bounds for the model coefficients b1-b5, a single value or a vector with the same length as start.
 #' @param family Specify the distributional assumptions. One of "gaussian", "binomial", "betabinomial", "beta", "poisson", "nbinom2", and "nbinom1". The negative binomial families are for overdispersed counts, with variance mu (1 + mu/theta) for nbinom2 and mu (1 + phi) for nbinom1, and the beta-binomial family for overdispersed binomial counts, with variance n mu (1 - mu) (1 + (n - 1)/(phi + 1)) for n trials, as in glmmTMB.
-#' @param model Specify the nonlinear model. One of "logistic", "loglogistic", "weibull1", "weibull2", "lognormal", "michaelismenten", "asymptoticregression", "exponentialdecay", "gompertz", "gamma", "multistage", "braincousens", "cedergreen", "constant". The braincousens and cedergreen models describe hormesis, the constant model has no dose effect, see Details.
+#' @param model Specify the nonlinear model. One of "logistic", "loglogistic", "weibull1", "weibull2", "lognormal", "michaelismenten", "asymptoticregression", "exponentialdecay", "gompertz", "gamma", "multistage", "nec", "braincousens", "cedergreen", "constant". The nec model has a threshold, the braincousens and cedergreen models describe hormesis, the constant model has no dose effect, see Details.
 #' @param alpha the exponent of the hormesis term of the cedergreen model, a positive number, e.g. 1, 0.5 or 0.25 as the models CRS.4a, CRS.4b and CRS.4c of drc (CRS.5a-c with b1 estimated); only for the cedergreen model. See Details.
 #' @param link Specify the link function for estimating asymptote parameters. One of "identity", "log", "logit". 
 #' @param b4link link function for b4, "identity" (default) or "log", see Details. Only for the models with a positive b4, not for logistic and gompertz.
@@ -44,6 +44,27 @@
 #' fform), so that the curve increases; estimates at the bound are common, and are listed by
 #' \code{summary}, as their standard errors and Wald intervals do not account for the bound. Profile
 #' intervals of the effective doses respect the bounds. b4link="log" is not available.
+#'
+#' The threshold model nec has no effect up to a threshold b4, the no-effect concentration (NEC), and
+#' F(x) = 1 - exp(-(b3 (x - b4))^exp(b5)) above it: b1 is the response up to the threshold and b2 the
+#' asymptote at high doses, b3 > 0 the rate and b5 the shape on the log scale; b3 and b4 are bounded
+#' below by 0 by default (if \code{lower} is not given, for parameters without covariates in fform,
+#' and for b4 with b4link="identity"). With b5 = 0, it is the NEC model of drc, NEC.4 (b1 = d,
+#' b2 = c, b3 = b, b4 = e); with b2 fixed at 0, NEC.3, e.g. \code{start=c(b2=0, b5=0),
+#' fix=c(b2=TRUE, b5=TRUE)}, and with b1 also fixed at 1, NEC.2. With b5 estimated, the curve is
+#' sigmoidal above the threshold for b5 > 0, as the necsigm model of bayesnec (with the rate inside
+#' the power), and \code{\link{anova.drmTMB}} tests the shape. Effective doses are
+#' b4 + (-log(1 - p))^exp(-b5) / b3, above the threshold. The likelihood is smooth in b4 between the
+#' doses, has a kink where b4 equals a dose, and often has several local maxima; the starting values
+#' therefore come from thresholds within each interval between the doses. A warning is given for a
+#' threshold estimated at a dose, where the standard errors are not valid (profile or bootstrap
+#' intervals remain available), or at or above the highest dose, where it is not identified. With
+#' b5 > 0, the curve starts flat above the threshold, and b4 and b5 are often hard to separate. With
+#' random effects on b4, the likelihood of each group has kinks at the doses, so that the Laplace
+#' approximation can be poor and its inner optimisation can have several modes; with b5 < 0, the
+#' curve has an infinite slope at the threshold, and fits with random effects on b4 and an estimated
+#' b5 often fail. Fix b5 with random effects on b4, and check such fits, e.g. by
+#' \code{\link{bootstrap}}.
 #'
 #' The hormesis models braincousens (Brain and Cousens, 1989) and cedergreen (Cedergreen, Ritz and
 #' Streibig, 2005) describe a stimulation at low doses before a decreasing curve:
@@ -109,10 +130,12 @@ drmTMB <- function(form, fform=NULL, rform=NULL, data, start=NULL, fix=NULL, wei
     if (length(b) != length(start)) stop("lower and upper must be a single value or have the same length as start.")
     c(b[!fix], rep(inf, length(obj$par) - sum(!fix)))
   }
-  # multistage: coefficients b3-b5 of the polynomial bounded below by 0, as in BMDS
-  if (dd$mod == 14 && identical(lower, -Inf)){
+  # multistage: coefficients b3-b5 of the polynomial bounded below by 0, as in BMDS; nec: rate b3
+  # and threshold b4 (identity link) bounded below by 0
+  if (dd$mod %in% c(14, 15) && identical(lower, -Inf)){
     lower <- rep(-Inf, length(start))
-    lower[dd$npi %in% which(dd$npars == 1) & dd$npi >= 3] <- 0
+    bpars <- if (dd$mod == 14) 3:5 else c(3, if (dd$lnk4 == 1) 4)
+    lower[dd$npi %in% which(dd$npars == 1) & dd$npi %in% bpars] <- 0
   }
   lower <- bounds(lower, -Inf)
   upper <- bounds(upper, Inf)
@@ -173,5 +196,28 @@ drmTMB <- function(form, fform=NULL, rform=NULL, data, start=NULL, fix=NULL, wei
               "; the estimate of b3 is ", if (dd$mod == 11) "-1 or larger" else "not negative", ".", call.=FALSE)
     }
   }
+  # nec: the likelihood has a kink where the threshold equals a dose, and is flat in a threshold above
+  # the highest dose
+  if (dd$mod == 15 && any(!fix[dd$npi == 4])) necwarn(res)
   return(res)
+}
+
+# warnings for thresholds b4 of a nec fit at a dose, where the Hessian and Wald standard errors are
+# not valid, and above the highest dose, where b4 is not identified
+necwarn <- function(fit){
+  pv <- fit$start
+  pv[!fit$fix] <- fit$opt$par[seq_len(sum(!fit$fix))]
+  npi <- rep(1:5, sapply(fit$Xs, ncol))
+  b4 <- unique(linkfun(b4linkindex(fit), as.vector(fit$Xs[[4]] %*% pv[npi == 4]), inverse=TRUE))
+  x <- fit$obj$env$data$x
+  xd <- unique(x)
+  tol <- 1e-6 * diff(range(x))
+  atdose <- b4[sapply(b4, function(b) any(abs(b - xd[xd > 0]) < tol))]
+  if (length(atdose) > 0){
+    warning("the threshold b4 is at the dose ", paste(signif(atdose, 4), collapse=", "), ", where the likelihood has a kink; ",
+            "the standard errors are not reliable, use profile or bootstrap intervals.", call.=FALSE)
+  }
+  if (any(b4 >= max(x) - tol)){
+    warning("the threshold b4 is at or above the highest dose; it is not identified by the data.", call.=FALSE)
+  }
 }
