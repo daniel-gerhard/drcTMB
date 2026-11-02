@@ -44,7 +44,7 @@ print.drmTMB <- function(x, digits=max(3L, getOption("digits") - 3L), ...){
     print(x$call)
     cat("\n")
   }
-  cat("Model:  ", x$model, "\n", sep="")
+  cat("Model:  ", x$model, if (!is.null(x$alpha)) paste(" (alpha = ", x$alpha, ")", sep=""), "\n", sep="")
   cat("Family: ", x$family, ", ", x$link, " link for the asymptotes", if (b4linkindex(x) == 2) ", log link for b4", "\n", sep="")
 
   cat("\nCoefficients:\n")
@@ -112,8 +112,8 @@ summary.drmTMB <- function(object, ...){
   ngroups <- ngroups[!duplicated(names(ngroups))]
 
   gr <- object$obj$gr(object$opt$par)
-  res <- list(call=object$call, model=object$model, family=object$family, link=object$link, b4log=b4linkindex(object) == 2,
-              direction=direction, b5=any(!object$fix[npi == 5]),
+  res <- list(call=object$call, model=object$model, alpha=object$alpha, family=object$family, link=object$link, b4log=b4linkindex(object) == 2,
+              direction=direction, b5=any(!object$fix[npi == 5]) && mod %in% c(1, 2),
               nobs=nobs(object), ntrials=if (object$family %in% c("binomial", "betabinomial")) sum(dat$bn), ngroups=ngroups,
               logLik=ll, AIC=AIC(object), BIC=BIC(object),
               coefficients=coefs, fixed=userfixed(object), varcor=vcs, residpar=residpar(object), rdf=object$rdf,
@@ -132,7 +132,7 @@ print.summary.drmTMB <- function(x, digits=max(3L, getOption("digits") - 3L), ..
     print(x$call)
     cat("\n")
   }
-  cat("Model:  ", x$model, if (!is.null(x$direction)) paste(",", x$direction, "curve"), "\n", sep="")
+  cat("Model:  ", x$model, if (!is.null(x$alpha)) paste(" (alpha = ", x$alpha, ")", sep=""), if (!is.null(x$direction)) paste(",", x$direction, "curve"), "\n", sep="")
   cat("Family: ", x$family, ", ", x$link, " link for the asymptotes", if (isTRUE(x$b4log)) ", log link for b4", "\n", sep="")
 
   cat("\nNumber of observations: ", x$nobs, sep="")
@@ -314,7 +314,7 @@ preddata <- function(object, newdata, random, covs=FALSE){
   }
   Zp <- if (length(Zl) > 0) do.call(cbind, unlist(Zl, recursive=FALSE)) else Matrix::sparseMatrix(i=integer(0), j=integer(0), x=numeric(0), dims=c(n, 0))
   list(x=x, Xs=Xs, eta=eta, Zp=Zp, Zl=Zl, X=rl$X, newgroup=newgroup,
-       mod=modelindex(object$model), lnk=which(object$link == c("identity", "log", "logit")), lnk4=b4linkindex(object))
+       mod=modelindex(object$model), alpha=object$alpha, lnk=which(object$link == c("identity", "log", "logit")), lnk4=b4linkindex(object))
 }
 
 # design of the random effects of the fitted levels in newdata. For each term: Zl, a design block for
@@ -382,7 +382,7 @@ reloads <- function(tm, X){
 # mean function at the linear predictors eta of b1-b5
 predmean <- function(pd, eta){
   as.vector(drcmeanR(pd$mod, pd$x, linkfun(pd$lnk, eta[, 1], inverse=TRUE), linkfun(pd$lnk, eta[, 2], inverse=TRUE),
-                     eta[, 3], linkfun(pd$lnk4, eta[, 4], inverse=TRUE), eta[, 5]))
+                     eta[, 3], linkfun(pd$lnk4, eta[, 4], inverse=TRUE), eta[, 5], pd$alpha))
 }
 
 # standard errors of the predicted means by the delta method of TMB: the mean at the new doses is
@@ -650,7 +650,7 @@ recov <- function(object){
 
 # index of the model, as in the TMB template
 modelindex <- function(model){
-  which(model == c("logistic", "loglogistic", "weibull1", "weibull2", "lognormal", "michaelismenten", "asymptoticregression", "exponentialdecay", "gompertz", "constant"))
+  which(model == c("logistic", "loglogistic", "weibull1", "weibull2", "lognormal", "michaelismenten", "asymptoticregression", "exponentialdecay", "gompertz", "constant", "braincousens", "cedergreen"))
 }
 
 # index of the link for b4, as in the TMB template: 1 = identity, 2 = log; identity for fits

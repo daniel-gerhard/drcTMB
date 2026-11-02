@@ -43,7 +43,7 @@ plot.drmTMB <- function(x, which=1:3, type=c("quantile", "pearson", "response"),
     if (length(which) == 1) stop("the model has no random effects.")
     which <- setdiff(which, 4)
   }
-  if (is.null(logdose)) logdose <- modelindex(x$model) %in% 2:5
+  if (is.null(logdose)) logdose <- modelindex(x$model) %in% c(2:5, 11, 12)
   if (!is.null(seed)) set.seed(seed)
 
   res <- residuals(x, type=type, random=random)

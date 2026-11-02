@@ -1,7 +1,7 @@
 #' Effective dose estimation
 #'
 #' @param x a drmTMB object
-#' @param respLev effective dose level in percent, default is 50. The effective dose ED p is the dose at which the response has changed by p percent of the difference between the asymptote at low doses (the control) and the asymptote at high doses. For \code{type="absolute"}, values of the response.
+#' @param respLev effective dose level in percent, default is 50. The effective dose ED p is the dose at which the response has changed by p percent of the difference between the asymptote at low doses (the control) and the asymptote at high doses; for the hormesis models, the dose above the peak of the stimulation, see Details. For \code{type="absolute"}, values of the response.
 #' @param linfct a matrix of linear functions to identify the parameters of the dose-response curve, with 5 rows (b1-b5) and one column for each model coefficient, or a list of such matrices; default is the identity matrix, for models without covariates in fform. Each matrix is paired with an entry of respLev.
 #' @param newdata a data frame with the values of the covariates in fform, one row for each dose-response curve, as an alternative to linfct; the dose is not needed. With grouping variables of the random effects, the curves of fitted groups, see Details. The effective doses are computed at each level of respLev for each row, named by the covariate and group values (or by the row names of newdata, if set).
 #' @param random logical, if TRUE, the effective doses of rows of newdata with fitted groups are conditional on their random effects, and for the other random effect terms, the variance-covariance matrix of the random effects is included in the standard error estimation. If FALSE, the effective doses are for the population curves.
@@ -21,6 +21,13 @@
 #' \code{\link[TMB]{sdreport}}. Random effect terms without a grouping variable in newdata, or with a
 #' level that is not in the fitted data, are treated as above. Profile intervals are not available
 #' for the effective doses of fitted groups, see \code{\link{confint.edTMB}}.
+#'
+#' For the hormesis models braincousens and cedergreen, the effective dose ED p is the dose above the
+#' peak of the stimulation at which the response has decreased from the response at dose zero (b2) by
+#' p percent of the difference to the lower asymptote b1, as in drc; with \code{type="absolute"}, the
+#' dose above the peak at which the curve reaches the response. It has no closed form: it is found
+#' numerically, and its derivatives, for the standard errors, follow from the implicit function
+#' theorem. The models need a decreasing curve, with b3 < 0.
 #'
 #' @return a edTMB object
 #' @export
@@ -122,8 +129,22 @@ ed <- function(x, respLev=50, linfct=NULL, newdata=NULL, random=TRUE, residual=F
     }
     ql[i] <- q
 
+    # hormesis models: log dose of the effective dose above the peak, found numerically
+    s0 <- 0
+    if (mod %in% c(11, 12)){
+      if (lpv[3] + u[3] >= 0) stop("the effective doses of the ", x$model, " model need a decreasing curve, with b3 < 0.")
+      s0 <- hormroot(mod, edq(x, q, lpv + u, absolute), lpv[3] + u[3], linkfun(b4linkindex(x), lpv[4] + u[4], inverse=TRUE),
+                     hormc(x, lpv + u), x$alpha)
+      if (is.na(s0)){
+        edl[i] <- NA
+        grad[i, ] <- NA
+        next
+      }
+    }
+
     # ED and its gradient w.r.t. (b1-b5, u1-u5, r) from the drcED TMB template
-    eobj <- MakeADFun(list(model="drcED", mod=mod, lnk=lnk, lnk4=b4linkindex(x), absolute=as.integer(absolute), q=q),
+    eobj <- MakeADFun(list(model="drcED", mod=mod, lnk=lnk, lnk4=b4linkindex(x), absolute=as.integer(absolute), q=q,
+                           alpha=alphavalue(x$alpha), s0=s0),
                       list(b=lpv, u=u, r=0),
                       ADreport=TRUE, DLL="drcTMB_TMBExports", silent=TRUE)
     edl[i] <- eobj$fn()
@@ -159,6 +180,36 @@ edq <- function(fit, q, lpv, absolute){
   f1 <- linkfun(lnk, lpv[1], inverse=TRUE)
   f2 <- linkfun(lnk, lpv[2], inverse=TRUE)
   (q - f1) / (f2 - f1)
+}
+
+# hormesis models: the size of the hormesis effect b5 relative to the difference of the asymptotes,
+# for the parameters lpv (b1-b5 on the scale of the linear predictors) of the curve
+hormc <- function(fit, lpv){
+  lnk <- which(fit$link == c("identity", "log", "logit"))
+  lpv[5] / (linkfun(lnk, lpv[2], inverse=TRUE) - linkfun(lnk, lpv[1], inverse=TRUE))
+}
+
+# log dose of the effective dose of a hormesis model (mod 11 or 12) with steepness b3 < 0, b4,
+# relative hormesis effect c5 (see hormc) and alpha: the dose above the peak at which
+# F(x) (1 + c5 g(x)) equals q, with the loglogistic F. The last sign change on a grid of log doses,
+# from where F is close to 1 up to a dose at which the curve is below q, is refined by uniroot. NA
+# if the curve does not reach q.
+hormroot <- function(mod, q, b3, b4, c5, alpha){
+  if (!is.finite(b3) || b3 >= 0 || !is.finite(q) || !is.finite(c5) || !is.finite(b4) || b4 <= 0) return(NA)
+  G <- function(s) plogis(b3*(s - log(b4))) * (1 + c5*hormg(mod, exp(s), alpha)) - q
+  s4 <- log(b4)
+  w <- 1/abs(b3)
+  # upper end: doubling the distance from b4 until the curve is below q, at most exp(700)
+  d <- 5*w
+  while (isTRUE(G(s4 + d) >= 0) && s4 + d < 700) d <- 2*d
+  su <- min(s4 + d, 700)
+  if (!isTRUE(G(su) < 0)) return(NA)
+  s <- seq(s4 - 30*w, su, length.out=2001)
+  gs <- G(s)
+  i <- which(gs[-length(gs)] >= 0 & gs[-1] < 0)
+  if (length(i) == 0) return(NA)
+  i <- max(i)
+  uniroot(G, s[i + 0:1], tol=1e-12)$root
 }
 
 # weights of the fitted random effects u on b1-b5 for row r of the random effect design rl of newdata

@@ -5,12 +5,13 @@
 #' @param rform random effects: a formula of the form b1 + b2 + b4 ~ 1 | cluster for random intercepts, or b4 ~ x | cluster for random intercepts and slopes in a covariate x, or a list of such formulas, e.g. list(b1 + b4 ~ 1 | exper, b1 ~ 1 | plate). The random effects within a formula are correlated across the listed parameters and their intercepts and slopes; different formulas, the levels of nested factors (1 | exper/plate), and intercepts and slopes with || (b4 ~ x || cluster) are independent terms. The random slopes of a parameter usually go with a fixed effect of the covariate in fform.
 #' @param data a data.frame object. Observations with missing values in the variables of the model or in the weights are left out.
 #' @param start a vector with starting values for each model coefficient. NA entries are replaced by the starting values of \code{\link{drmTMBstart}}. Alternatively, a vector named by parameter, e.g. c(b1=0, b5=0), gives the same starting value to all coefficients of each named parameter.
-#' @param fix a logical vector with one entry for each model coefficient. If TRUE, a model coefficient is fixed to its value in start. Alternatively, a vector named by parameter, e.g. c(b1=TRUE, b5=TRUE), fixes all coefficients of the named parameters; their values must then be given in start, e.g. start=c(b1=0, b5=0). Parameters not used by the model (b5 except for logistic and loglogistic, b3 for michaelismenten, asymptoticregression and exponentialdecay, b2-b5 for constant) are always fixed, at 0 unless given in start.
+#' @param fix a logical vector with one entry for each model coefficient. If TRUE, a model coefficient is fixed to its value in start. Alternatively, a vector named by parameter, e.g. c(b1=TRUE, b5=TRUE), fixes all coefficients of the named parameters; their values must then be given in start, e.g. start=c(b1=0, b5=0). Parameters not used by the model (b5 except for logistic, loglogistic, braincousens and cedergreen, b3 for michaelismenten, asymptoticregression and exponentialdecay, b2-b5 for constant) are always fixed, at 0 unless given in start.
 #' @param weights a vector of weights, one for each row of data.
 #' @param lower lower bounds for the model coefficients b1-b5, a single value or a vector with the same length as start. Bounds of fixed coefficients are ignored; variance parameters are unbounded.
 #' @param upper upper bounds for the model coefficients b1-b5, a single value or a vector with the same length as start.
 #' @param family Specify the distributional assumptions. One of "gaussian", "binomial", "betabinomial", "beta", "poisson", "nbinom2", and "nbinom1". The negative binomial families are for overdispersed counts, with variance mu (1 + mu/theta) for nbinom2 and mu (1 + phi) for nbinom1, and the beta-binomial family for overdispersed binomial counts, with variance n mu (1 - mu) (1 + (n - 1)/(phi + 1)) for n trials, as in glmmTMB.
-#' @param model Specify the nonlinear model. One of "logistic", "loglogistic", "weibull1", "weibull2", "lognormal", "michaelismenten", "asymptoticregression", "exponentialdecay", "gompertz", "constant". The constant model has no dose effect, see Details.
+#' @param model Specify the nonlinear model. One of "logistic", "loglogistic", "weibull1", "weibull2", "lognormal", "michaelismenten", "asymptoticregression", "exponentialdecay", "gompertz", "braincousens", "cedergreen", "constant". The braincousens and cedergreen models describe hormesis, the constant model has no dose effect, see Details.
+#' @param alpha the exponent of the hormesis term of the cedergreen model, a positive number, e.g. 1, 0.5 or 0.25 as the models CRS.4a, CRS.4b and CRS.4c of drc (CRS.5a-c with b1 estimated); only for the cedergreen model. See Details.
 #' @param link Specify the link function for estimating asymptote parameters. One of "identity", "log", "logit". 
 #' @param b4link link function for b4, "identity" (default) or "log", see Details. Only for the models with a positive b4, not for logistic and gompertz.
 #' @param gsl a vector of lower bounds for a grid search, same length as start; NA for the default range. If gsl, gsu and gsn are all NULL, no grid search is performed. See \code{\link{drmTMBstart}}.
@@ -25,6 +26,18 @@
 #' For michaelismenten, asymptoticregression and exponentialdecay (b3 and b5 are not used),
 #' b1 is the response at dose zero and b2 the asymptote at high doses. The asymmetry parameter b5
 #' of the logistic and loglogistic models is on the log scale. See the vignette for the model functions.
+#'
+#' The hormesis models braincousens (Brain and Cousens, 1989) and cedergreen (Cedergreen, Ritz and
+#' Streibig, 2005) describe a stimulation at low doses before a decreasing curve:
+#' f(x) = b1 + (b2 - b1 + b5 g(x)) / (1 + exp(-b3 (log(x) - log(b4)))), with g(x) = x for
+#' braincousens and g(x) = exp(-1/x^alpha) for cedergreen. b2 is the response at dose zero (the
+#' control), b1 the lower asymptote at high doses, and b5 the size of the hormesis effect on the scale
+#' of the response; b5 = 0 gives the loglogistic model, so that \code{\link{anova.drmTMB}} tests for
+#' hormesis. They are the models BC.5 and CRS.5a-c of drc, with b3 = -b; with b1 fixed at 0, BC.4 and
+#' CRS.4a-c. The curve is decreasing at high doses for b3 < 0, and returns to b1 for the braincousens
+#' model only for b3 < -1. The models are meant for decreasing curves; a warning is given otherwise.
+#' The exponent alpha of the cedergreen model is not estimated, as it is hardly identifiable together
+#' with b5.
 #'
 #' The constant model, f(x) = b1, has the same mean at all doses; b2-b5 are not used. Compared with
 #' a dose-response model by \code{\link{anova.drmTMB}}, it tests for a dose effect, as
@@ -54,10 +67,10 @@
 #' @return A drmTMB object
 #' @export
 
-drmTMB <- function(form, fform=NULL, rform=NULL, data, start=NULL, fix=NULL, weights=NULL, lower=-Inf, upper=Inf, family="gaussian", model="logistic", link="identity", b4link="identity", gsl=NULL, gsu=NULL, gsn=NULL, control=list()){
+drmTMB <- function(form, fform=NULL, rform=NULL, data, start=NULL, fix=NULL, weights=NULL, lower=-Inf, upper=Inf, family="gaussian", model="logistic", alpha=NULL, link="identity", b4link="identity", gsl=NULL, gsu=NULL, gsn=NULL, control=list()){
   # control list
   control <- do.call(drmTMBcontrol, control)
-  dd <- drmTMBdata(form, fform=fform, rform=rform, data=data, weights=weights, family=family, model=model, link=link, b4link=b4link)
+  dd <- drmTMBdata(form, fform=fform, rform=rform, data=data, weights=weights, family=family, model=model, alpha=alpha, link=link, b4link=b4link)
   fixnamed <- !is.null(names(fix))
   start <- parvector(start, dd$npi, NA, "start")
   fix <- parvector(fix, dd$npi, FALSE, "fix")
@@ -98,6 +111,7 @@ drmTMB <- function(form, fform=NULL, rform=NULL, data, start=NULL, fix=NULL, wei
   res$formula <- form
   res$family <- family
   res$model <- model
+  res$alpha <- alpha
   res$link <- link
   res$b4link <- b4link
   res$start <- start
@@ -123,5 +137,15 @@ drmTMB <- function(form, fform=NULL, rform=NULL, data, start=NULL, fix=NULL, wei
     if (rdf > 0) res$rdf <- rdf else warning("no residual degrees of freedom; the standard errors use the maximum likelihood estimate of the residual variance.", call.=FALSE)
   }
   class(res) <- "drmTMB"
+  # hormesis models: a decreasing curve, which returns to b1 at high doses for braincousens
+  if (dd$mod %in% c(11, 12)){
+    pv <- start
+    pv[!fix] <- opt$par[seq_len(sum(!fix))]
+    b3 <- as.vector(dd$Xs[[3]] %*% pv[dd$npi == 3])
+    if (any(b3 >= if (dd$mod == 11) -1 else 0)){
+      warning("the ", model, " model is meant for decreasing curves, with b3 < ", if (dd$mod == 11) "-1" else "0",
+              "; the estimate of b3 is ", if (dd$mod == 11) "-1 or larger" else "not negative", ".", call.=FALSE)
+    }
+  }
   return(res)
 }

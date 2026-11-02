@@ -17,7 +17,8 @@
 #' of the "lm" starting value, with 1/4 to 4 times its steepness, log-spaced), b4 (the dose
 #' range extended at both ends; log-spaced for models on the log-dose scale, and on the log scale
 #' with \code{b4link="log"}), and b5
-#' (-2 to 2, logistic and loglogistic only). Default ranges are only used for parameters
+#' (-2 to 2, logistic and loglogistic; for braincousens and cedergreen, from 0 to four times the
+#' hormesis effect that equals the difference of the asymptotes at dose b4). Default ranges are only used for parameters
 #' with a single coefficient in \code{fform}; the asymptotes b1 and b2 are only included
 #' in the grid with user-specified bounds.
 #'
@@ -25,10 +26,11 @@
 #' @param fform fixed effects for the model parameters: a formula of the form b2 + b4 ~ Stress, or a list of such formulas, e.g. list(b2 ~ Stress, b4 ~ Stress + Time). Parameters not listed have a single intercept (~ 1). A list of five right-hand side formulas, one for each of b1-b5 (X1 = ~ 1, ..., X5 = ~ 1), is also accepted.
 #' @param data a data.frame object. Observations with missing values in the variables of the model or in the weights are left out.
 #' @param start a vector with starting values for each model parameter. Only NA entries are replaced.
-#' @param fix a binary vector with same length as start. If TRUE, a model coefficient is fixed to the starting value. Parameters not used by the model (b5 except for logistic and loglogistic, b3 for michaelismenten, asymptoticregression and exponentialdecay, b2-b5 for constant) are always fixed, at 0 unless given in start.
+#' @param fix a binary vector with same length as start. If TRUE, a model coefficient is fixed to the starting value. Parameters not used by the model (b5 except for logistic, loglogistic, braincousens and cedergreen, b3 for michaelismenten, asymptoticregression and exponentialdecay, b2-b5 for constant) are always fixed, at 0 unless given in start.
 #' @param weights a vector of weights, one for each row of data.
 #' @param family Specify the distributional assumptions. One of "gaussian", "binomial", "betabinomial", "beta", "poisson", "nbinom2", and "nbinom1". The negative binomial families are for overdispersed counts, with variance mu (1 + mu/theta) for nbinom2 and mu (1 + phi) for nbinom1, and the beta-binomial family for overdispersed binomial counts, with variance n mu (1 - mu) (1 + (n - 1)/(phi + 1)) for n trials, as in glmmTMB.
-#' @param model Specify the nonlinear model. One of "logistic", "loglogistic", "weibull1", "weibull2", "lognormal", "michaelismenten", "asymptoticregression", "exponentialdecay", "gompertz", "constant".
+#' @param model Specify the nonlinear model. One of "logistic", "loglogistic", "weibull1", "weibull2", "lognormal", "michaelismenten", "asymptoticregression", "exponentialdecay", "gompertz", "braincousens", "cedergreen", "constant".
+#' @param alpha the exponent of the hormesis term of the cedergreen model, see \code{\link{drmTMB}}.
 #' @param link Specify the link function for estimating asymptote parameters. One of "identity", "log", "logit".
 #' @param b4link link function for b4, "identity" or "log". With "log", the coefficients of b4 are on the log scale (models with a positive b4 only, not logistic and gompertz), see \code{\link{drmTMB}}.
 #' @param method one of "lm" or "grid".
@@ -39,8 +41,8 @@
 #' @return a named vector of starting values
 #' @export
 #'
-drmTMBstart <- function(form, fform=NULL, data, start=NULL, fix=NULL, weights=NULL, family="gaussian", model="logistic", link="identity", b4link="identity", method="lm", gsl=NULL, gsu=NULL, gsn=NULL){
-  dd <- drmTMBdata(form, fform=fform, data=data, weights=weights, family=family, model=model, link=link, b4link=b4link)
+drmTMBstart <- function(form, fform=NULL, data, start=NULL, fix=NULL, weights=NULL, family="gaussian", model="logistic", alpha=NULL, link="identity", b4link="identity", method="lm", gsl=NULL, gsu=NULL, gsn=NULL){
+  dd <- drmTMBdata(form, fform=fform, data=data, weights=weights, family=family, model=model, alpha=alpha, link=link, b4link=b4link)
   if (is.null(start)) start <- rep(NA, sum(dd$npars))
   if (is.null(fix)) fix <- rep(FALSE, sum(dd$npars))
   fix[dd$npi %in% unusedpars(dd$mod)] <- TRUE
@@ -51,7 +53,7 @@ drmTMBstart <- function(form, fform=NULL, data, start=NULL, fix=NULL, weights=NU
 
 
 # model data shared by drmTMB and drmTMBstart
-drmTMBdata <- function(form, fform=NULL, rform=NULL, data, weights=NULL, family="gaussian", model="logistic", link="identity", b4link="identity"){
+drmTMBdata <- function(form, fform=NULL, rform=NULL, data, weights=NULL, family="gaussian", model="logistic", alpha=NULL, link="identity", b4link="identity"){
   fform <- fforms(fform)
   if (is.null(weights)) weights <- rep(1, nrow(data))
   if (length(weights) != nrow(data)) stop("weights must have one entry for each row of data.")
@@ -84,6 +86,12 @@ drmTMBdata <- function(form, fform=NULL, rform=NULL, data, weights=NULL, family=
   lnk4 <- which(b4link == c("identity", "log"))
   if (length(lnk4) != 1) stop("Unknown b4link: ", b4link, "; one of identity, log.")
   if (lnk4 == 2 && mod %in% c(1, 9)) stop("b4link=\"log\" needs a positive b4; b4 of the ", model, " model is a location on the dose scale.")
+  if (mod == 12){
+    if (is.null(alpha)) stop("the cedergreen model needs the exponent alpha of its hormesis term, e.g. alpha=1, 0.5 or 0.25 as CRS.4a, CRS.4b and CRS.4c of drc.")
+    if (!is.numeric(alpha) || length(alpha) != 1 || !is.finite(alpha) || alpha <= 0) stop("alpha must be a single positive number.")
+  } else if (!is.null(alpha)){
+    stop("alpha is only used by the cedergreen model.")
+  }
 
   # response
   y <- mr <- model.response(mf, "any")
@@ -105,7 +113,7 @@ drmTMBdata <- function(form, fform=NULL, rform=NULL, data, weights=NULL, family=
   unused <- intersect(unusedpars(mod), rpars)
   if (length(unused) > 0) stop("The ", model, " model does not use ", paste("b", unused, sep="", collapse=", "), "; remove it from rform.")
 
-  list(y=y, x=mf[,2], w=weights, bn=bn, fam=fam, mod=mod, lnk=lnk, lnk4=lnk4, re=re,
+  list(y=y, x=mf[,2], w=weights, bn=bn, fam=fam, mod=mod, alpha=alpha, lnk=lnk, lnk4=lnk4, re=re,
        Xs=Xs, fform=fform, fterms=fterms, npars=npars, npi=rep(1:5, npars),
        family=family, model=model, link=link, b4link=b4link, data=data)
 }
@@ -172,14 +180,16 @@ lmstart <- function(dd, start, fix){
   # value of the increasing function F of the model; points at the asymptotes carry no information
   q <- (yd - f1) / (f2 - f1)
   ok <- is.finite(q) & q > 0.01 & q < 0.99
-  if (mod %in% c(2, 3, 4, 5, 6)) ok <- ok & xd > 0
+  if (mod %in% c(2, 3, 4, 5, 6, 11, 12)) ok <- ok & xd > 0
   q <- q[ok]
   xo <- xd[ok]
 
-  # linearised model functions: inverse of F, linear in the dose (or log dose) with slope b3
+  # linearised model functions: inverse of F, linear in the dose (or log dose) with slope b3; the
+  # hormesis models start from the loglogistic model, without hormesis (b5 = 0)
   b3 <- b4 <- NA
+  lmod <- if (mod %in% c(11, 12)) 2 else mod
   if (length(unique(xo)) >= 2){
-    lf <- switch(mod,
+    lf <- switch(lmod,
                  lm(qlogis(q) ~ xo),                # logistic
                  lm(qlogis(q) ~ log(xo)),           # loglogistic
                  lm(I(-log(-log(q))) ~ log(xo)),    # weibull1
@@ -191,20 +201,20 @@ lmstart <- function(dd, start, fix){
                  lm(I(-log(-log(q))) ~ xo))         # gompertz
     if (!is.null(lf)){
       cf <- coefficients(lf)
-      if (mod %in% c(1, 9)){
+      if (lmod %in% c(1, 9)){
         b3 <- cf[2]
         b4 <- -cf[1]/cf[2]
       }
-      if (mod %in% c(2, 3, 4, 5)){
+      if (lmod %in% c(2, 3, 4, 5)){
         b3 <- cf[2]
         b4 <- exp(-cf[1]/cf[2])
       }
-      if (mod == 6) b4 <- cf[1]
+      if (lmod == 6) b4 <- cf[1]
     }
   }
   # fallback: unit slope in the direction of the curve (b3 > 0: increasing), dose at its midpoint
   if (!is.finite(b3)) b3 <- if (yhigh >= ylow) 1 else -1
-  if (!is.finite(b4) | (mod %in% c(2, 3, 4, 5, 6, 7, 8) & b4 <= 0)){
+  if (!is.finite(b4) | (mod %in% c(2, 3, 4, 5, 6, 7, 8, 11, 12) & b4 <= 0)){
     xpos <- xd[xd > 0]
     b4 <- xpos[which.min(abs((yd[xd > 0] - f1) / (f2 - f1) - 0.5))]
   }
@@ -304,7 +314,7 @@ gridrange <- function(dd, start){
 
   # b3: keep the sign of the starting value, steepness between 1/4 and 4 times
   i3 <- single(3)
-  if (!is.null(i3) & mod %in% c(1, 2, 3, 4, 5, 9)){
+  if (!is.null(i3) & mod %in% c(1, 2, 3, 4, 5, 9, 11, 12)){
     b3 <- start[i3]
     if (b3 == 0) b3 <- 1
     rng[[i3]] <- list(lower=b3/4, upper=b3*4, log=TRUE)
@@ -321,10 +331,17 @@ gridrange <- function(dd, start){
       rng[[i4]] <- list(lower=min(xp)/2, upper=max(xp)*2, log=TRUE)
     }
   }
-  # b5: asymmetry on the log scale, only used by logistic and loglogistic
+  # b5: asymmetry on the log scale for logistic and loglogistic; hormesis effect for braincousens
+  # and cedergreen, from no hormesis to four times the effect that equals the difference of the
+  # asymptotes at dose b4
   i5 <- single(5)
   if (!is.null(i5) & mod %in% c(1, 2)){
     rng[[i5]] <- list(lower=-2, upper=2, log=FALSE)
+  }
+  if (!is.null(i5) & mod %in% c(11, 12) & dd$npars[1] == 1 & dd$npars[2] == 1 & dd$npars[4] == 1){
+    f12 <- linkfun(dd$lnk, start[npi %in% 1:2], inverse=TRUE)
+    b4 <- linkfun(dd$lnk4, start[npi == 4], inverse=TRUE)
+    rng[[i5]] <- list(lower=0, upper=4*abs(f12[2] - f12[1])/hormg(mod, b4, dd$alpha), log=FALSE)
   }
   rng
 }
@@ -340,7 +357,7 @@ drmTMBobj <- function(dd, start, fix, rform=NULL){
   # log standard deviations and transformed correlations for each term; random effects at zero
   stheta <- unlist(lapply(tnp, function(np) c(rep(0.001, np), rep(0, np*(np-1)/2))))
   up <- rep(0, sum(tnp*tnl))
-  dlist <- list(model="drcTMB", y=dd$y, x=dd$x, w=dd$w, bn=dd$bn, fam=dd$fam, mod=dd$mod, lnk=dd$lnk, lnk4=dd$lnk4,
+  dlist <- list(model="drcTMB", y=dd$y, x=dd$x, w=dd$w, bn=dd$bn, fam=dd$fam, mod=dd$mod, alpha=alphavalue(dd$alpha), lnk=dd$lnk, lnk4=dd$lnk4,
                 tnp=tnp, tnl=tnl, tpar=as.integer(unlist(lapply(re$terms, function(tm) tm$pars)) - 1),
                 tzb=if (length(re$terms) > 0) tzbvec(re$terms) else integer(0),
                 simre=1L, Z=re$Z)
@@ -477,10 +494,11 @@ relabels <- function(tm){
 # dose-response mean function, same as drcmean in the TMB template: f1 + (f2 - f1) * F,
 # with F increasing from 0 to 1; f1 is the lower and f2 the upper asymptote for the models with
 # steepness f3, and the asymptotes at dose zero and at high doses for models 6 to 8; f1 at all
-# doses for the constant model
-drcmeanR <- function(mod, x, f1, f2, f3, f4, f5){
+# doses for the constant model; f1 + (f2 - f1 + f5 g) * F for the hormesis models 11 and 12
+drcmeanR <- function(mod, x, f1, f2, f3, f4, f5, alpha=NULL){
   if (mod == 10) return(f1 + 0*x)
-  t <- f3 * (if (mod %in% c(2, 3, 4, 5)) log(x) - log(f4) else x - f4)
+  t <- f3 * (if (mod %in% c(2, 3, 4, 5, 11, 12)) log(x) - log(f4) else x - f4)
+  if (mod %in% c(11, 12)) return(f1 + (f2 - f1 + f5 * hormg(mod, x, alpha)) * plogis(t))
   Fx <- switch(mod,
                (1 + exp(-t))^(-exp(f5)),  # logistic
                (1 + exp(-t))^(-exp(f5)),  # loglogistic
@@ -510,11 +528,21 @@ parvector <- function(v, npi, default, arg){
 }
 
 # parameters not used by the model, which cannot be estimated: b3 without steepness
-# (michaelismenten, asymptoticregression, exponentialdecay), b5 without asymmetry, and all but b1
-# for the constant model
+# (michaelismenten, asymptoticregression, exponentialdecay), b5 without asymmetry or hormesis, and
+# all but b1 for the constant model
 unusedpars <- function(mod){
   if (mod == 10) return(2:5)
-  c(if (mod %in% c(6, 7, 8)) 3, if (!(mod %in% c(1, 2))) 5)
+  c(if (mod %in% c(6, 7, 8)) 3, if (!(mod %in% c(1, 2, 11, 12))) 5)
+}
+
+# hormesis term g of the braincousens (11) and cedergreen (12) models, as hormg in the TMB template
+hormg <- function(mod, x, alpha){
+  if (mod == 11) x else exp(-x^(-alpha))
+}
+
+# alpha as data of the TMB templates: 0 for the models without it
+alphavalue <- function(alpha){
+  if (is.null(alpha)) 0 else as.numeric(alpha)
 }
 
 # link function (inverse=FALSE) or inverse link for the asymptote parameters and b4
