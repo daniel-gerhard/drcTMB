@@ -160,6 +160,13 @@ The effective dose ED p of a hormesis model is the dose above the peak at which 
 ed(hmod, respLev = c(10, 50))
 ```
 
+`peak()` estimates the dose at the peak of the stimulation and the maximal response, as `MAX()` in drc, with their joint covariance matrix, and `respLev = 0` gives the dose at which the response returns to the level of the control, the limit of the stimulation. Both are found numerically, with standard errors from the implicit function theorem as for the effective doses. Profile intervals are not available for the maximal response, and Wald intervals are given for it.
+```{r}
+(hpeak <- peak(hmod))
+confint(hpeak)
+ed(hmod, respLev = 0)
+```
+
 ## Non-normal response distributions
 
 The `family` argument allows to specify the distribution of the response as "gaussian", "poisson", "binomial", "beta", or, for overdispersed counts, the negative binomial "nbinom2" (variance mu (1 + mu/theta)) or "nbinom1" (variance mu (1 + phi)), and, for overdispersed binomial counts, the beta-binomial "betabinomial" with precision phi, as in glmmTMB.

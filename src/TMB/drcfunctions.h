@@ -137,6 +137,27 @@ Type hormed(int mod, Type q, Type f1, Type f2, Type f3, Type f4, Type f5, Type r
   return exp(s0 - G / dG);
 }
 
+// log dose of the peak of the hormesis models (11, 12): the zero of the derivative of
+// F(x) (1 + f5 g(x) / (f2 - f1)) w.r.t. the log dose s. s0 is the peak found numerically in R;
+// one Newton step from s0 keeps its value and gives the derivatives of the implicit function.
+template<class Type>
+Type hormpeak(int mod, Type f1, Type f2, Type f3, Type f4, Type f5, Type alpha, Type s0){
+  Type c = f5 / (f2 - f1);
+  Type x = exp(s0);
+  Type F = 1 / (1 + exp(-f3 * (s0 - log(f4))));
+  Type g = hormg(mod, x, alpha);
+  // first and second derivatives of g and F w.r.t. the log dose
+  Type u = mod == 11 ? Type(0) : Type(pow(x, -alpha));
+  Type dg = mod == 11 ? x : Type(alpha * u * g);
+  Type d2g = mod == 11 ? x : Type(alpha * alpha * u * g * (u - 1));
+  Type dF = f3 * F * (1 - F);
+  Type d2F = f3 * dF * (1 - 2 * F);
+  Type h = 1 + c * g;
+  Type D = dF * h + F * c * dg;
+  Type dD = d2F * h + 2 * dF * c * dg + F * c * d2g;
+  return s0 - D / dD;
+}
+
 // log-likelihood contribution of a single observation
 // fam: 1 = gaussian (phi = sd), 2 = poisson, 3 = binomial (bn = number of trials),
 //      4 = beta (phi = precision), 5 = nbinom2 (variance f (1 + f/phi), phi = size),

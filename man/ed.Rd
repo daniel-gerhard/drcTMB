@@ -55,5 +55,7 @@ peak of the stimulation at which the response has decreased from the response at
 p percent of the difference to the lower asymptote b1, as in drc; with \code{type="absolute"}, the
 dose above the peak at which the curve reaches the response. It has no closed form: it is found
 numerically, and its derivatives, for the standard errors, follow from the implicit function
-theorem. The models need a decreasing curve, with b3 < 0.
+theorem. The models need a decreasing curve, with b3 < 0. With \code{respLev=0}, the effective
+dose is the dose above the peak at which the response returns to the response at dose zero, the
+limit of the stimulation (the zero equivalent point); see \code{\link{peak}} for the peak itself.
 }
