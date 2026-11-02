@@ -73,7 +73,7 @@ summary.drmTMB <- function(object, ...){
   # direction of the curve from the sign of the steepness b3 at the observations
   npi <- rep(1:5, sapply(object$Xs, ncol))
   direction <- NULL
-  if (!(mod %in% c(6:8, 10, 13, 14))){
+  if (!(mod %in% c(6:8, 10, 13, 14, 15))){
     b <- object$start
     b[!object$fix] <- coefs[, 1]
     s3 <- sign(object$Xs[[3]] %*% b[npi == 3])
@@ -123,7 +123,7 @@ summary.drmTMB <- function(object, ...){
     gr[object$opt$par >= up & gr < 0] <- 0
   }
   res <- list(call=object$call, model=object$model, alpha=object$alpha, family=object$family, link=object$link, b4log=b4linkindex(object) == 2,
-              direction=direction, b5=any(!object$fix[npi == 5]) && mod %in% c(1, 2),
+              direction=direction, b5=if (any(!object$fix[npi == 5]) && mod %in% c(1, 2, 15)) c("asymmetry", "shape")[1 + (mod == 15)],
               nobs=nobs(object), ntrials=if (object$family %in% c("binomial", "betabinomial")) sum(dat$bn), ngroups=ngroups,
               logLik=ll, AIC=AIC(object), BIC=BIC(object),
               coefficients=coefs, fixed=userfixed(object), varcor=vcs, residpar=residpar(object), rdf=object$rdf,
@@ -157,7 +157,7 @@ print.summary.drmTMB <- function(x, digits=max(3L, getOption("digits") - 3L), ..
   if (length(x$atbound) > 0) cat("At a bound: ", paste(names(x$atbound), "=", format(x$atbound, digits=digits), collapse=", "),
                                   "; the standard errors and Wald intervals do not account for the bound.\n", sep="")
   if (isTRUE(x$b4log)) cat("The coefficients of b4 are on the log scale.\n")
-  if (x$b5) cat("The asymmetry parameter b5 is on the log scale.\n")
+  if (!is.null(x$b5)) cat("The ", x$b5, " parameter b5 is on the log scale.\n", sep="")
   printfixed(x$fixed, digits)
   printre(x$varcor, digits)
   if (length(x$singular) > 0){
@@ -673,7 +673,7 @@ atbound <- function(object){
 
 # index of the model, as in the TMB template
 modelindex <- function(model){
-  which(model == c("logistic", "loglogistic", "weibull1", "weibull2", "lognormal", "michaelismenten", "asymptoticregression", "exponentialdecay", "gompertz", "constant", "braincousens", "cedergreen", "gamma", "multistage"))
+  which(model == c("logistic", "loglogistic", "weibull1", "weibull2", "lognormal", "michaelismenten", "asymptoticregression", "exponentialdecay", "gompertz", "constant", "braincousens", "cedergreen", "gamma", "multistage", "nec"))
 }
 
 # index of the link for b4, as in the TMB template: 1 = identity, 2 = log; identity for fits

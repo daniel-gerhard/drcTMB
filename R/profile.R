@@ -248,6 +248,8 @@ profile.edTMB <- function(fitted, parm=NULL, level=0.99, maxit=100, progress=int
   up <- if (is.null(fit$upper)) rep(Inf, length(par0)) else fit$upper
   # free coefficients of the polynomial of the multistage model (b3-b5), in the parameter vector
   msfree <- c(rep(1:5, sapply(fit$Xs, ncol))[free] %in% 3:5, rep(FALSE, length(par0) - nf))
+  # free coefficients of the rate b3 of the nec model
+  b3free <- c(rep(1:5, sapply(fit$Xs, ncol))[free] == 3, rep(FALSE, length(par0) - nf))
 
   pb <- progressbar(length(parm), progress)
   prof <- lapply(parm, function(i){
@@ -342,6 +344,12 @@ profile.edTMB <- function(fitted, parm=NULL, level=0.99, maxit=100, progress=int
         # multistage: if the other coefficients of the polynomial make the computed one negative, start
         # with them at 0, where it is positive
         if (mod == 14 && !is.finite(fn(x, ed))) x[msfree[-kp]] <- 0
+        # nec: if the threshold computed from a small effective dose is below its bound, increase the
+        # rate b3, which moves the threshold towards the effective dose
+        if (mod == 15) for (j in 1:30){
+          if (is.finite(fn(x, ed))) break
+          x[b3free[-kp]] <- 2*x[b3free[-kp]]
+        }
         # the profile ends where the parameterisation fails, e.g. an absolute effective dose whose
         # response approaches an asymptote
         o <- tryCatch(suppressWarnings(nlminb(x, fn, gr, he, ed=ed, lower=lo[-kp], upper=up[-kp])), error=function(e) NULL)
@@ -417,7 +425,7 @@ edvalue <- function(object, i, lpv){
 }
 
 # effective doses at level q of F (residual zero), as drced in the TMB template: b4 times a function
-# h of q, b3 and b5, or b4 plus h for logistic and gompertz
+# h of q, b3 and b5, or b4 plus h for logistic, gompertz and nec
 edh <- function(mod, q, b3, b5){
   switch(mod,
          -log(q^(-1/exp(b5)) - 1)/b3,       # logistic: ed = b4 + h
@@ -430,7 +438,9 @@ edh <- function(mod, q, b3, b5){
          -log(1 - q),                       # exponentialdecay
          -log(-log(q))/b3,                  # gompertz
          NULL, NULL, NULL,                  # constant, braincousens, cedergreen: not used
-         qgamma(q, b3))                     # gamma
+         qgamma(q, b3),                     # gamma
+         NULL,                              # multistage: not used
+         (-log(1 - q))^exp(-b5)/b3)         # nec: ed = b4 + h
 }
 
 # effective dose from b3, b4 and b5; for the hormesis models also from c5, b5 relative to the
@@ -439,7 +449,7 @@ edfun <- function(mod, q, b3, b4, b5, c5=0, alpha=NULL){
   if (mod %in% c(11, 12)) return(exp(hormroot(mod, q, b3, b4, c5, alpha)))
   if (mod == 14) return(msroot(q, c(b3, b4, b5)))
   h <- edh(mod, q, b3, b5)
-  if (mod %in% c(1, 9)) b4 + h else b4 * h
+  if (mod %in% c(1, 9, 15)) b4 + h else b4 * h
 }
 
 # b4 of a curve with effective dose ed, given b3 and b5: the inverse of edfun; for the hormesis
@@ -447,7 +457,7 @@ edfun <- function(mod, q, b3, b4, b5, c5=0, alpha=NULL){
 edb4 <- function(mod, q, ed, b3, b5, c5=0, alpha=NULL){
   if (mod %in% c(11, 12)) return(edb4(2, q/(1 + c5*hormg(mod, ed, alpha)), ed, b3, 0))
   h <- edh(mod, q, b3, b5)
-  if (mod %in% c(1, 9)) ed - h else ed / h
+  if (mod %in% c(1, 9, 15)) ed - h else ed / h
 }
 
 #' Confidence intervals for drmTMB models and effective doses

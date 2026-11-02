@@ -18,8 +18,9 @@ similarity to the `drm()` function from the drc package, with a
 simplified input of response and dose variables through a formula
 interface, and specifying a nonlinear model through the `model`
 argument. Available models include “logistic”, “loglogistic”,
-“weibull1”, “weibull2”, “lognormal”, “gamma” and “multistage”, and the
-hormesis models “braincousens” and “cedergreen”.
+“weibull1”, “weibull2”, “lognormal”, “gamma” and “multistage”, the
+threshold model “nec”, and the hormesis models “braincousens” and
+“cedergreen”.
 
 Each of these models has the same parameter names, b1 for the lower and
 b2 for the upper asymptote, b3 for the steepness, b4 for the location of
@@ -27,8 +28,11 @@ the inflection point on the dose scale, and b5 for an optional asymmetry
 parameter. The steepness b3 is positive for an increasing and negative
 for a decreasing curve. The asymmetry parameter b5 is estimated on a
 logarithmic scale. The models michaelismenten, asymptoticregression, and
-exponentialdecay have no steepness parameter; here b1 is the response at
-dose zero and b2 the asymptote at high doses. Starting values are found
+exponentialdecay have no steepness parameter, and in the models gamma
+(shape b3), multistage (polynomial coefficients b3 to b5), and nec (rate
+b3, threshold b4, shape b5) b3 is not a signed steepness; for all of
+these, b1 is the response at dose zero (for nec, up to the threshold)
+and b2 the asymptote at high doses. Starting values are found
 automatically from the data. The `start` argument can provide starting
 values for some or all of the parameters, and the `fix` argument
 (TRUE/FALSE) allows to fix parameters at these starting values.

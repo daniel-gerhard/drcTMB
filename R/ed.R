@@ -170,7 +170,7 @@ edcore <- function(x, respLev, linfct, newdata, random, residual, type){
       }
     } else {
       q <- respLev[i]/100
-      if (!(mod %in% c(6, 7, 8, 13, 14)) && lpv[3] + u[3] < 0) q <- 1 - q
+      if (!(mod %in% c(6, 7, 8, 13, 14, 15)) && lpv[3] + u[3] < 0) q <- 1 - q
     }
     ql[i] <- q
 
