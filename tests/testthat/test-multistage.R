@@ -115,3 +115,21 @@ test_that("multistage bounds and options", {
   nd <- data.frame(dose=c(0, 3, 10))
   expect_equal(predict(f, newdata=nd), drcTMB:::drcmeanR(14, nd$dose, b[1], b[2], b[3], b[4], b[5]))
 })
+
+test_that("standard errors of coefficients on a small scale are finite", {
+  # selenium, type 1: b4 of the quadratic model is about 2.5e-6, smaller than the absolute steps of
+  # the finite-difference Hessian of sdreport
+  skip_if_not_installed("drcData")
+  data(selenium, package="drcData")
+  se1 <- subset(selenium, type == 1)
+  f <- drmTMB(cbind(dead, total - dead) ~ conc, data=se1, family="binomial", model="multistage",
+              start=c(b2=1, b5=0), fix=c(b2=TRUE, b5=TRUE))
+  expect_true(all(is.finite(sqrt(diag(vcov(f))))))
+  expect_equal(unname(vcov(f)), unname(solve(f$obj$he(f$opt$par))), tolerance=1e-6)
+  e <- ed(f, 10)
+  expect_true(all(is.finite(confint(e, method="wald"))))
+  # b5 of the cubic model is about 5e-9 but not at its bound: only b4 is
+  f3 <- drmTMB(cbind(dead, total - dead) ~ conc, data=se1, family="binomial", model="multistage",
+               start=c(b2=1), fix=c(b2=TRUE))
+  expect_equal(names(summary(f3)$atbound), "b4:(Intercept)")
+})

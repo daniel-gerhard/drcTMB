@@ -119,8 +119,8 @@ summary.drmTMB <- function(object, ...){
   if (!is.null(object$lower)){
     lo <- object$lower
     up <- object$upper
-    gr[abs(object$opt$par - lo) < 1e-8 & gr > 0] <- 0
-    gr[abs(object$opt$par - up) < 1e-8 & gr < 0] <- 0
+    gr[object$opt$par <= lo & gr > 0] <- 0
+    gr[object$opt$par >= up & gr < 0] <- 0
   }
   res <- list(call=object$call, model=object$model, alpha=object$alpha, family=object$family, link=object$link, b4log=b4linkindex(object) == 2,
               direction=direction, b5=any(!object$fix[npi == 5]) && mod %in% c(1, 2),
@@ -666,7 +666,8 @@ atbound <- function(object){
   est <- object$opt$par[seq_len(nb)]
   lo <- if (is.null(object$lower)) rep(-Inf, nb) else object$lower[seq_len(nb)]
   up <- if (is.null(object$upper)) rep(Inf, nb) else object$upper[seq_len(nb)]
-  at <- abs(est - lo) < 1e-8 | abs(est - up) < 1e-8
+  # nlminb returns active bounds exactly
+  at <- est <= lo | est >= up
   setNames(est[at], object$coefnames[!object$fix][at])
 }
 

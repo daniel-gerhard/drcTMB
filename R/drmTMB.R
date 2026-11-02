@@ -151,7 +151,9 @@ drmTMB <- function(form, fform=NULL, rform=NULL, data, start=NULL, fix=NULL, wei
   res$opt <- opt
   res$control <- control
   res$obj <- obj
-  res$sdrl <- sdreport(obj, par.fixed=opt$par)
+  # without random effects, the Hessian by automatic differentiation: the default finite differences of
+  # sdreport use absolute steps, which fail for coefficients on a small scale, e.g. of a multistage model
+  res$sdrl <- sdreport(obj, par.fixed=opt$par, hessian.fixed=if (is.null(rform)) obj$he(opt$par))
   # NaN standard errors of a Hessian that is not positive definite are reported by summary.drmTMB
   res$ssdrl <- suppressWarnings(summary(res$sdrl))
   # residual degrees of freedom for small-sample inference of gaussian models without random effects:
