@@ -14,6 +14,7 @@ drmTMBstart(
   family = "gaussian",
   model = "logistic",
   alpha = NULL,
+  smooth = NULL,
   link = "identity",
   b4link = "identity",
   method = "lm",
@@ -40,6 +41,8 @@ drmTMBstart(
 \item{model}{Specify the nonlinear model. One of "logistic", "loglogistic", "weibull1", "weibull2", "lognormal", "michaelismenten", "asymptoticregression", "exponentialdecay", "gompertz", "gamma", "multistage", "nec", "braincousens", "cedergreen", "constant".}
 
 \item{alpha}{the exponent of the hormesis term of the cedergreen model, see \code{\link{drmTMB}}.}
+
+\item{smooth}{smoothing of the threshold of the nec model, relative to the smallest interval between doses, see \code{\link{drmTMB}}; without random effects, the default is 0, an exact threshold.}
 
 \item{link}{Specify the link function for estimating asymptote parameters. One of "identity", "log", "logit".}
 

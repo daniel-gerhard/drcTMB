@@ -199,7 +199,7 @@ edcore <- function(x, respLev, linfct, newdata, random, residual, type){
 
     # ED and its gradient w.r.t. (b1-b5, u1-u5, r) from the drcED TMB template
     eobj <- MakeADFun(list(model="drcED", mod=mod, lnk=lnk, lnk4=b4linkindex(x), absolute=as.integer(absolute), q=q,
-                           alpha=alphavalue(x$alpha), s0=s0, target=as.integer(if (peak) q else 0)),
+                           alpha=alphavalue(x$alpha), smooth=smoothwidth(x$smooth), s0=s0, target=as.integer(if (peak) q else 0)),
                       list(b=lpv, u=u, r=0),
                       ADreport=TRUE, DLL="drcTMB_TMBExports", silent=TRUE)
     edl[i] <- eobj$fn()

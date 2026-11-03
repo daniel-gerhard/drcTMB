@@ -31,6 +31,7 @@
 #' @param family Specify the distributional assumptions. One of "gaussian", "binomial", "betabinomial", "beta", "poisson", "nbinom2", and "nbinom1". The negative binomial families are for overdispersed counts, with variance mu (1 + mu/theta) for nbinom2 and mu (1 + phi) for nbinom1, and the beta-binomial family for overdispersed binomial counts, with variance n mu (1 - mu) (1 + (n - 1)/(phi + 1)) for n trials, as in glmmTMB.
 #' @param model Specify the nonlinear model. One of "logistic", "loglogistic", "weibull1", "weibull2", "lognormal", "michaelismenten", "asymptoticregression", "exponentialdecay", "gompertz", "gamma", "multistage", "nec", "braincousens", "cedergreen", "constant".
 #' @param alpha the exponent of the hormesis term of the cedergreen model, see \code{\link{drmTMB}}.
+#' @param smooth smoothing of the threshold of the nec model, relative to the smallest interval between doses, see \code{\link{drmTMB}}; without random effects, the default is 0, an exact threshold.
 #' @param link Specify the link function for estimating asymptote parameters. One of "identity", "log", "logit".
 #' @param b4link link function for b4, "identity" or "log". With "log", the coefficients of b4 are on the log scale (models with a positive b4 only, not logistic and gompertz), see \code{\link{drmTMB}}.
 #' @param method one of "lm" or "grid".
@@ -41,8 +42,8 @@
 #' @return a named vector of starting values
 #' @export
 #'
-drmTMBstart <- function(form, fform=NULL, data, start=NULL, fix=NULL, weights=NULL, family="gaussian", model="logistic", alpha=NULL, link="identity", b4link="identity", method="lm", gsl=NULL, gsu=NULL, gsn=NULL){
-  dd <- drmTMBdata(form, fform=fform, data=data, weights=weights, family=family, model=model, alpha=alpha, link=link, b4link=b4link)
+drmTMBstart <- function(form, fform=NULL, data, start=NULL, fix=NULL, weights=NULL, family="gaussian", model="logistic", alpha=NULL, smooth=NULL, link="identity", b4link="identity", method="lm", gsl=NULL, gsu=NULL, gsn=NULL){
+  dd <- drmTMBdata(form, fform=fform, data=data, weights=weights, family=family, model=model, alpha=alpha, smooth=smooth, link=link, b4link=b4link)
   if (is.null(start)) start <- rep(NA, sum(dd$npars))
   if (is.null(fix)) fix <- rep(FALSE, sum(dd$npars))
   fix[dd$npi %in% unusedpars(dd$mod)] <- TRUE
@@ -53,7 +54,7 @@ drmTMBstart <- function(form, fform=NULL, data, start=NULL, fix=NULL, weights=NU
 
 
 # model data shared by drmTMB and drmTMBstart
-drmTMBdata <- function(form, fform=NULL, rform=NULL, data, weights=NULL, family="gaussian", model="logistic", alpha=NULL, link="identity", b4link="identity"){
+drmTMBdata <- function(form, fform=NULL, rform=NULL, data, weights=NULL, family="gaussian", model="logistic", alpha=NULL, smooth=NULL, link="identity", b4link="identity"){
   fform <- fforms(fform)
   if (is.null(weights)) weights <- rep(1, nrow(data))
   if (length(weights) != nrow(data)) stop("weights must have one entry for each row of data.")
@@ -114,7 +115,19 @@ drmTMBdata <- function(form, fform=NULL, rform=NULL, data, weights=NULL, family=
   unused <- intersect(unusedpars(mod), rpars)
   if (length(unused) > 0) stop("The ", model, " model does not use ", paste("b", unused, sep="", collapse=", "), "; remove it from rform.")
 
-  list(y=y, x=mf[,2], w=weights, bn=bn, fam=fam, mod=mod, alpha=alpha, lnk=lnk, lnk4=lnk4, re=re,
+  # nec: smoothing width of the threshold, relative to the smallest interval between doses; by default
+  # smoothed with random effects on b4 only
+  if (mod == 15){
+    if (is.null(smooth)) smooth <- if (4 %in% rpars) 0.1 else 0
+    if (!is.numeric(smooth) || length(smooth) != 1 || !is.finite(smooth) || smooth < 0) stop("smooth must be a single number of at least 0.")
+    xd <- sort(unique(mf[,2]))
+    width <- if (smooth > 0 && length(xd) > 1) smooth * min(diff(xd)) else 0
+    smooth <- c(relative=smooth, width=width)
+  } else if (!is.null(smooth)){
+    stop("smooth is only used by the nec model.")
+  }
+
+  list(y=y, x=mf[,2], w=weights, bn=bn, fam=fam, mod=mod, alpha=alpha, smooth=smooth, lnk=lnk, lnk4=lnk4, re=re,
        Xs=Xs, fform=fform, fterms=fterms, npars=npars, npi=rep(1:5, npars),
        family=family, model=model, link=link, b4link=b4link, data=data)
 }
@@ -215,7 +228,7 @@ lmstart <- function(dd, start, fix){
       dr <- max(xd) - b4
       b3grid <- if (kn[1]) start[npi == 3][1] else exp(seq(log(0.1/dr), log(100/dr), length.out=50))
       do.call(rbind, lapply(b3grid, function(b3){
-        a <- asymfit(yd, drcmeanR(15, xd, 0, 1, b3, b4, b5), f1, f2, known1, known2)
+        a <- asymfit(yd, drcmeanR(15, xd, 0, 1, b3, b4, b5, smooth=smoothwidth(dd$smooth)), f1, f2, known1, known2)
         data.frame(b3=b3, b4=b4, rss=a$rss, f1=a$f[1], f2=a$f[2])
       }))
     }))
@@ -407,7 +420,7 @@ drmTMBobj <- function(dd, start, fix, rform=NULL){
   # log standard deviations and transformed correlations for each term; random effects at zero
   stheta <- unlist(lapply(tnp, function(np) c(rep(0.001, np), rep(0, np*(np-1)/2))))
   up <- rep(0, sum(tnp*tnl))
-  dlist <- list(model="drcTMB", y=dd$y, x=dd$x, w=dd$w, bn=dd$bn, fam=dd$fam, mod=dd$mod, alpha=alphavalue(dd$alpha), lnk=dd$lnk, lnk4=dd$lnk4,
+  dlist <- list(model="drcTMB", y=dd$y, x=dd$x, w=dd$w, bn=dd$bn, fam=dd$fam, mod=dd$mod, alpha=alphavalue(dd$alpha), smooth=smoothwidth(dd$smooth), lnk=dd$lnk, lnk4=dd$lnk4,
                 tnp=tnp, tnl=tnl, tpar=as.integer(unlist(lapply(re$terms, function(tm) tm$pars)) - 1),
                 tzb=if (length(re$terms) > 0) tzbvec(re$terms) else integer(0),
                 simre=1L, Z=re$Z)
@@ -544,8 +557,9 @@ relabels <- function(tm){
 # dose-response mean function, same as drcmean in the TMB template: f1 + (f2 - f1) * F,
 # with F increasing from 0 to 1; f1 is the lower and f2 the upper asymptote for the models with
 # steepness f3, and the asymptotes at dose zero and at high doses for models 6 to 8; f1 at all
-# doses for the constant model; f1 + (f2 - f1 + f5 g) * F for the hormesis models 11 and 12
-drcmeanR <- function(mod, x, f1, f2, f3, f4, f5, alpha=NULL){
+# doses for the constant model; f1 + (f2 - f1 + f5 g) * F for the hormesis models 11 and 12; smooth: the
+# smoothing width of the threshold of nec
+drcmeanR <- function(mod, x, f1, f2, f3, f4, f5, alpha=NULL, smooth=0){
   if (mod == 10) return(f1 + 0*x)
   t <- f3 * (if (mod %in% c(2, 3, 4, 5, 11, 12)) log(x) - log(f4) else x - f4)
   if (mod %in% c(11, 12)) return(f1 + (f2 - f1 + f5 * hormg(mod, x, alpha)) * plogis(t))
@@ -562,7 +576,7 @@ drcmeanR <- function(mod, x, f1, f2, f3, f4, f5, alpha=NULL){
                NULL, NULL, NULL,          # constant, braincousens, cedergreen: above
                pgamma(x / f4, f3),        # gamma
                1 - exp(-(f3*x + f4*x^2 + f5*x^3)),  # multistage
-               1 - exp(-(f3*pmax(x - f4, 0))^exp(f5)))  # nec
+               1 - exp(-(f3*necdose(x - f4, smooth))^exp(f5)))  # nec
   f1 + (f2 - f1) * Fx
 }
 
@@ -592,6 +606,17 @@ unusedpars <- function(mod){
 # hormesis term g of the braincousens (11) and cedergreen (12) models, as hormg in the TMB template
 hormg <- function(mod, x, alpha){
   if (mod == 11) x else exp(-x^(-alpha))
+}
+
+# dose above the threshold of nec, max(d, 0) for d = x - b4, or with smoothing width s > 0 the
+# softplus s log(1 + exp(d/s)), as in drcmean of the TMB template
+necdose <- function(d, s){
+  if (is.null(s) || s == 0) pmax(d, 0) else pmax(d, 0) + s*log1p(exp(-abs(d)/s))
+}
+
+# smoothing width of nec as data of the TMB templates: 0 for an exact threshold and the other models
+smoothwidth <- function(smooth){
+  if (is.null(smooth)) 0 else unname(smooth[["width"]])
 }
 
 # alpha as data of the TMB templates: 0 for the models without it

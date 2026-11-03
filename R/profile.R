@@ -281,7 +281,7 @@ profile.edTMB <- function(fitted, parm=NULL, level=0.99, maxit=100, progress=int
     b4fun <- function(ed, lpv){
       if (mod == 14) return(msbeta(edq(fit, q, lpv, absolute), ed, lpv, ps))
       b4 <- if (peak) peakb4(mod, ed, lpv[3], hormc(fit, lpv), fit$alpha)
-            else edb4(mod, edq(fit, q, lpv, absolute), ed, lpv[3], lpv[5], hormc(fit, lpv), fit$alpha)
+            else edb4(mod, edq(fit, q, lpv, absolute), ed, lpv[3], lpv[5], hormc(fit, lpv), fit$alpha, smoothwidth(fit$smooth))
       linkfun(lnk4, b4)
     }
     expand <- function(x, ed){
@@ -421,12 +421,17 @@ edvalue <- function(object, i, lpv){
   }
   q <- edq(fit, object$q[[i]], lpv, identical(object$type, "absolute"))
   if (!is.finite(q) || q <= 0 || q > 1 || (q == 1 && !(mod %in% c(11, 12)))) return(NA)
-  edfun(mod, q, lpv[3], b4, lpv[5], hormc(fit, lpv), fit$alpha)
+  edfun(mod, q, lpv[3], b4, lpv[5], hormc(fit, lpv), fit$alpha, smoothwidth(fit$smooth))
 }
 
 # effective doses at level q of F (residual zero), as drced in the TMB template: b4 times a function
-# h of q, b3 and b5, or b4 plus h for logistic, gompertz and nec
-edh <- function(mod, q, b3, b5){
+# h of q, b3 and b5, or b4 plus h for logistic, gompertz and nec; for nec with smoothing width
+# smooth > 0, the inverse of the smoothing of the dose above the threshold
+edh <- function(mod, q, b3, b5, smooth=0){
+  if (mod == 15 && smooth > 0){
+    h <- (-log(1 - q))^exp(-b5)/b3
+    return(h + smooth*log(-expm1(-h/smooth)))
+  }
   switch(mod,
          -log(q^(-1/exp(b5)) - 1)/b3,       # logistic: ed = b4 + h
          (q^(-1/exp(b5)) - 1)^(-1/b3),      # loglogistic: ed = b4 h
@@ -445,18 +450,18 @@ edh <- function(mod, q, b3, b5){
 
 # effective dose from b3, b4 and b5; for the hormesis models also from c5, b5 relative to the
 # difference of the asymptotes, and alpha, found numerically
-edfun <- function(mod, q, b3, b4, b5, c5=0, alpha=NULL){
+edfun <- function(mod, q, b3, b4, b5, c5=0, alpha=NULL, smooth=0){
   if (mod %in% c(11, 12)) return(exp(hormroot(mod, q, b3, b4, c5, alpha)))
   if (mod == 14) return(msroot(q, c(b3, b4, b5)))
-  h <- edh(mod, q, b3, b5)
+  h <- edh(mod, q, b3, b5, smooth)
   if (mod %in% c(1, 9, 15)) b4 + h else b4 * h
 }
 
 # b4 of a curve with effective dose ed, given b3 and b5: the inverse of edfun; for the hormesis
 # models, F of the loglogistic model is q/(1 + c5 g(ed)) at the effective dose
-edb4 <- function(mod, q, ed, b3, b5, c5=0, alpha=NULL){
+edb4 <- function(mod, q, ed, b3, b5, c5=0, alpha=NULL, smooth=0){
   if (mod %in% c(11, 12)) return(edb4(2, q/(1 + c5*hormg(mod, ed, alpha)), ed, b3, 0))
-  h <- edh(mod, q, b3, b5)
+  h <- edh(mod, q, b3, b5, smooth)
   if (mod %in% c(1, 9, 15)) ed - h else ed / h
 }
 

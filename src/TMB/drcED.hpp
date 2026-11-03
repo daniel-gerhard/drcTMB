@@ -13,6 +13,7 @@ Type drcED(objective_function<Type>* obj) {
   DATA_INTEGER(absolute); // 0: q is the level of F in drcmean, 1: q is the response at the effective dose
   DATA_SCALAR(q);
   DATA_SCALAR(alpha);   // exponent of the hormesis term of the cedergreen model
+  DATA_SCALAR(smooth);  // smoothing width of the threshold of the nec model
   DATA_SCALAR(s0);      // hormesis and multistage models: log dose of the effective dose or of the peak, found in R
   DATA_INTEGER(target); // 0: effective dose, hormesis models: 1 = dose of the peak, 2 = response at the peak
   PARAMETER_VECTOR(b);  // b1-b5
@@ -28,13 +29,13 @@ Type drcED(objective_function<Type>* obj) {
   Type ed;
   if (target > 0){
     Type x = exp(hormpeak(mod, f1, f2, f(2), f4, f(4), alpha, s0));
-    ed = target == 1 ? x : drcmean(mod, x, f1, f2, f(2), f4, f(4), alpha);
+    ed = target == 1 ? x : drcmean(mod, x, f1, f2, f(2), f4, f(4), alpha, smooth);
   } else if (mod == 11 || mod == 12){
     ed = hormed(mod, qf, f1, f2, f(2), f4, f(4), r, alpha, s0);
   } else if (mod == 14){
     ed = msed(qf, f1, f2, f(2), f4, f(4), r, Type(exp(s0)));
   } else {
-    ed = drced(mod, qf, f1, f2, f(2), f4, f(4), r);
+    ed = drced(mod, qf, f1, f2, f(2), f4, f(4), r, smooth);
   }
   ADREPORT(ed);
   return 0;

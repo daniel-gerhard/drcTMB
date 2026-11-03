@@ -17,6 +17,7 @@ drmTMB(
   family = "gaussian",
   model = "logistic",
   alpha = NULL,
+  smooth = NULL,
   link = "identity",
   b4link = "identity",
   gsl = NULL,
@@ -49,6 +50,8 @@ drmTMB(
 \item{model}{Specify the nonlinear model. One of "logistic", "loglogistic", "weibull1", "weibull2", "lognormal", "michaelismenten", "asymptoticregression", "exponentialdecay", "gompertz", "gamma", "multistage", "nec", "braincousens", "cedergreen", "constant". The nec model has a threshold, the braincousens and cedergreen models describe hormesis, the constant model has no dose effect, see Details.}
 
 \item{alpha}{the exponent of the hormesis term of the cedergreen model, a positive number, e.g. 1, 0.5 or 0.25 as the models CRS.4a, CRS.4b and CRS.4c of drc (CRS.5a-c with b1 estimated); only for the cedergreen model. See Details.}
+
+\item{smooth}{smoothing of the threshold of the nec model: the width of the smoothed threshold relative to the smallest interval between doses, a number of at least 0; 0 is an exact threshold. The default is 0.1 with random effects on b4, and 0 otherwise. Only for the nec model, see Details.}
 
 \item{link}{Specify the link function for estimating asymptote parameters. One of "identity", "log", "logit".}
 
@@ -109,12 +112,18 @@ doses, has a kink where b4 equals a dose, and often has several local maxima; th
 therefore come from thresholds within each interval between the doses. A warning is given for a
 threshold estimated at a dose, where the standard errors are not valid (profile or bootstrap
 intervals remain available), or at or above the highest dose, where it is not identified. With
-b5 > 0, the curve starts flat above the threshold, and b4 and b5 are often hard to separate. With
-random effects on b4, the likelihood of each group has kinks at the doses, so that the Laplace
-approximation can be poor and its inner optimisation can have several modes; with b5 < 0, the
-curve has an infinite slope at the threshold, and fits with random effects on b4 and an estimated
-b5 often fail. Fix b5 with random effects on b4, and check such fits, e.g. by
-\code{\link{bootstrap}}.
+b5 > 0, the curve starts flat above the threshold, and b4 and b5 are often hard to separate.
+
+With random effects on b4, the likelihood of each group with an exact threshold has kinks at the
+doses, so that the Laplace approximation is unreliable and its inner optimisation has several modes. The
+threshold is therefore smoothed by default with random effects on b4: the dose above the
+threshold, max(x - b4, 0), is replaced by s log(1 + exp((x - b4)/s)), with a width s of
+\code{smooth} (default 0.1) times the smallest interval between the doses. The curve then leaves
+b1 within a few widths s around b4, and effective doses are b4 + h + s log(1 - exp(-h/s)), with h
+the term above. In simulations with random thresholds, fits with an exact threshold mostly failed,
+and smoothed fits converged with little bias. \code{smooth=0} gives an exact threshold also with
+random effects, and \code{smooth} > 0 a smoothed threshold without them; the width is not
+estimated. \code{summary} reports the width.
 
 The hormesis models braincousens (Brain and Cousens, 1989) and cedergreen (Cedergreen, Ritz and
 Streibig, 2005) describe a stimulation at low doses before a decreasing curve:
