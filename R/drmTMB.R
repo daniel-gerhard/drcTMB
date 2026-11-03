@@ -12,6 +12,7 @@
 #' @param family Specify the distributional assumptions. One of "gaussian", "binomial", "betabinomial", "beta", "poisson", "nbinom2", and "nbinom1". The negative binomial families are for overdispersed counts, with variance mu (1 + mu/theta) for nbinom2 and mu (1 + phi) for nbinom1, and the beta-binomial family for overdispersed binomial counts, with variance n mu (1 - mu) (1 + (n - 1)/(phi + 1)) for n trials, as in glmmTMB.
 #' @param model Specify the nonlinear model. One of "logistic", "loglogistic", "weibull1", "weibull2", "lognormal", "michaelismenten", "asymptoticregression", "exponentialdecay", "gompertz", "gamma", "multistage", "nec", "braincousens", "cedergreen", "constant". The nec model has a threshold, the braincousens and cedergreen models describe hormesis, the constant model has no dose effect, see Details.
 #' @param alpha the exponent of the hormesis term of the cedergreen model, a positive number, e.g. 1, 0.5 or 0.25 as the models CRS.4a, CRS.4b and CRS.4c of drc (CRS.5a-c with b1 estimated); only for the cedergreen model. See Details.
+#' @param smooth smoothing of the threshold of the nec model: the width of the smoothed threshold relative to the smallest interval between doses, a number of at least 0; 0 is an exact threshold. The default is 0.1 with random effects on b4, and 0 otherwise. Only for the nec model, see Details.
 #' @param link Specify the link function for estimating asymptote parameters. One of "identity", "log", "logit". 
 #' @param b4link link function for b4, "identity" (default) or "log", see Details. Only for the models with a positive b4, not for logistic and gompertz.
 #' @param gsl a vector of lower bounds for a grid search, same length as start; NA for the default range. If gsl, gsu and gsn are all NULL, no grid search is performed. See \code{\link{drmTMBstart}}.
@@ -59,12 +60,18 @@
 #' therefore come from thresholds within each interval between the doses. A warning is given for a
 #' threshold estimated at a dose, where the standard errors are not valid (profile or bootstrap
 #' intervals remain available), or at or above the highest dose, where it is not identified. With
-#' b5 > 0, the curve starts flat above the threshold, and b4 and b5 are often hard to separate. With
-#' random effects on b4, the likelihood of each group has kinks at the doses, so that the Laplace
-#' approximation can be poor and its inner optimisation can have several modes; with b5 < 0, the
-#' curve has an infinite slope at the threshold, and fits with random effects on b4 and an estimated
-#' b5 often fail. Fix b5 with random effects on b4, and check such fits, e.g. by
-#' \code{\link{bootstrap}}.
+#' b5 > 0, the curve starts flat above the threshold, and b4 and b5 are often hard to separate.
+#'
+#' With random effects on b4, the likelihood of each group with an exact threshold has kinks at the
+#' doses, so that the Laplace approximation is unreliable and its inner optimisation has several modes. The
+#' threshold is therefore smoothed by default with random effects on b4: the dose above the
+#' threshold, max(x - b4, 0), is replaced by s log(1 + exp((x - b4)/s)), with a width s of
+#' \code{smooth} (default 0.1) times the smallest interval between the doses. The curve then leaves
+#' b1 within a few widths s around b4, and effective doses are b4 + h + s log(1 - exp(-h/s)), with h
+#' the term above. In simulations with random thresholds, fits with an exact threshold mostly failed,
+#' and smoothed fits converged with little bias. \code{smooth=0} gives an exact threshold also with
+#' random effects, and \code{smooth} > 0 a smoothed threshold without them; the width is not
+#' estimated. \code{summary} reports the width.
 #'
 #' The hormesis models braincousens (Brain and Cousens, 1989) and cedergreen (Cedergreen, Ritz and
 #' Streibig, 2005) describe a stimulation at low doses before a decreasing curve:
@@ -106,10 +113,10 @@
 #' @return A drmTMB object
 #' @export
 
-drmTMB <- function(form, fform=NULL, rform=NULL, data, start=NULL, fix=NULL, weights=NULL, lower=-Inf, upper=Inf, family="gaussian", model="logistic", alpha=NULL, link="identity", b4link="identity", gsl=NULL, gsu=NULL, gsn=NULL, control=list()){
+drmTMB <- function(form, fform=NULL, rform=NULL, data, start=NULL, fix=NULL, weights=NULL, lower=-Inf, upper=Inf, family="gaussian", model="logistic", alpha=NULL, smooth=NULL, link="identity", b4link="identity", gsl=NULL, gsu=NULL, gsn=NULL, control=list()){
   # control list
   control <- do.call(drmTMBcontrol, control)
-  dd <- drmTMBdata(form, fform=fform, rform=rform, data=data, weights=weights, family=family, model=model, alpha=alpha, link=link, b4link=b4link)
+  dd <- drmTMBdata(form, fform=fform, rform=rform, data=data, weights=weights, family=family, model=model, alpha=alpha, smooth=smooth, link=link, b4link=b4link)
   fixnamed <- !is.null(names(fix))
   start <- parvector(start, dd$npi, NA, "start")
   fix <- parvector(fix, dd$npi, FALSE, "fix")
@@ -158,6 +165,7 @@ drmTMB <- function(form, fform=NULL, rform=NULL, data, start=NULL, fix=NULL, wei
   res$family <- family
   res$model <- model
   res$alpha <- alpha
+  res$smooth <- dd$smooth
   res$link <- link
   res$b4link <- b4link
   res$start <- start
@@ -202,8 +210,8 @@ drmTMB <- function(form, fform=NULL, rform=NULL, data, start=NULL, fix=NULL, wei
   return(res)
 }
 
-# warnings for thresholds b4 of a nec fit at a dose, where the Hessian and Wald standard errors are
-# not valid, and above the highest dose, where b4 is not identified
+# warnings for exact thresholds b4 of a nec fit at a dose, where the Hessian and Wald standard errors
+# are not valid, and for thresholds above the highest dose, where b4 is not identified
 necwarn <- function(fit){
   pv <- fit$start
   pv[!fit$fix] <- fit$opt$par[seq_len(sum(!fit$fix))]
@@ -212,7 +220,8 @@ necwarn <- function(fit){
   x <- fit$obj$env$data$x
   xd <- unique(x)
   tol <- 1e-6 * diff(range(x))
-  atdose <- b4[sapply(b4, function(b) any(abs(b - xd[xd > 0]) < tol))]
+  # a smoothed threshold has no kink
+  atdose <- if (smoothwidth(fit$smooth) == 0) b4[sapply(b4, function(b) any(abs(b - xd[xd > 0]) < tol))]
   if (length(atdose) > 0){
     warning("the threshold b4 is at the dose ", paste(signif(atdose, 4), collapse=", "), ", where the likelihood has a kink; ",
             "the standard errors are not reliable, use profile or bootstrap intervals.", call.=FALSE)

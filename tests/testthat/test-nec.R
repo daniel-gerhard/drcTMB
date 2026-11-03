@@ -130,3 +130,49 @@ test_that("starting values of the nec model keep given values", {
   sv <- drmTMBstart(rootl ~ conc, data=ryegrass, model="nec", b4link="log")
   expect_true(is.finite(sv[[4]]))
 })
+
+test_that("the threshold is smoothed with random effects on b4, and exact otherwise", {
+  set.seed(5)
+  d <- expand.grid(rep=1:2, dose=c(0, 0.5, 1, 1.5, 2, 3, 4, 6, 8, 16), grp=factor(1:30))
+  u4 <- rnorm(30, 0, 0.3)
+  # thresholds 2 exp(u4) of the groups
+  d$y <- necmean(d$dose - 2*exp(u4[d$grp]) + 2, c(8, 1, 0.4, 2, 0)) + rnorm(nrow(d), 0, 0.3)
+  # the optimiser meets non-finite values at trial steps far from the estimates
+  f <- suppressWarnings(drmTMB(y ~ dose, rform=b4 ~ 1 | grp, data=d, model="nec", b4link="log", start=c(b5=0), fix=c(b5=TRUE)))
+  expect_equal(f$opt$convergence, 0)
+  # width 0.1 times the smallest interval between doses
+  expect_equal(unname(f$smooth), c(0.1, 0.05))
+  expect_output(print(f), "threshold smoothed over width 0.05")
+  expect_true(f$sdrl$pdHess)
+  expect_equal(unname(exp(bcoef(f)[4])), 2, tolerance=0.05)
+  expect_equal(unname(exp(coef(f)["log_sd:b4|grp"])), 0.3, tolerance=0.3)
+  # smooth=0 keeps an exact threshold, without random effects the default
+  f0 <- drmTMB(rootl ~ conc, data=ryegrass, model="nec", start=c(b5=0), fix=c(b5=TRUE))
+  expect_equal(unname(f0$smooth), c(0, 0))
+  expect_error(drmTMB(rootl ~ conc, data=ryegrass, model="loglogistic", smooth=0.1), "only used by the nec model")
+  expect_error(drmTMB(rootl ~ conc, data=ryegrass, model="nec", smooth=-1), "at least 0")
+  # a very small width gives the exact fit
+  f1 <- drmTMB(rootl ~ conc, data=ryegrass, model="nec", start=c(b5=0), fix=c(b5=TRUE), smooth=1e-6)
+  expect_equal(coef(f1), coef(f0), tolerance=1e-4)
+})
+
+test_that("effective doses of a smoothed threshold are on the smoothed curve, with delta method standard errors", {
+  skip_if_not_installed("numDeriv")
+  f <- drmTMB(y ~ dose, data=simnec(b5=0.3), model="nec", smooth=0.5)
+  s <- f$smooth[["width"]]
+  expect_equal(s, 0.25)
+  b <- bfull(f)
+  e <- ed(f, c(10, 50, 90))
+  smean <- function(x, b) drcTMB:::drcmeanR(15, x, b[1], b[2], b[3], b[4], b[5], smooth=s)
+  expect_equal(unname(smean(coef(e), b)), b[1] + (b[2] - b[1]) * c(0.1, 0.5, 0.9))
+  # the fitted values of the template and of the R mean function agree
+  expect_equal(unname(predict(f)), smean(simnec()$dose, b))
+  edR <- function(b, p){
+    h <- (-log(1 - p/100))^exp(-b[5]) / b[3]
+    b[4] + h + s*log(-expm1(-h/s))
+  }
+  g <- t(sapply(c(10, 50, 90), function(p) numDeriv::grad(edR, b, p=p)))
+  expect_equal(unname(vcov(e)), unname(g %*% vcov(f)[1:5, 1:5] %*% t(g)), tolerance=1e-6)
+  ci <- confint(e, parm=2)
+  expect_true(ci[1, 1] < coef(e)[2] && ci[1, 2] > coef(e)[2])
+})

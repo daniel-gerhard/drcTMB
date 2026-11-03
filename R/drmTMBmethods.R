@@ -44,7 +44,7 @@ print.drmTMB <- function(x, digits=max(3L, getOption("digits") - 3L), ...){
     print(x$call)
     cat("\n")
   }
-  cat("Model:  ", x$model, if (!is.null(x$alpha)) paste(" (alpha = ", x$alpha, ")", sep=""), "\n", sep="")
+  cat("Model:  ", x$model, if (!is.null(x$alpha)) paste(" (alpha = ", x$alpha, ")", sep=""), smoothtext(x$smooth), "\n", sep="")
   cat("Family: ", x$family, ", ", x$link, " link for the asymptotes", if (b4linkindex(x) == 2) ", log link for b4", "\n", sep="")
 
   cat("\nCoefficients:\n")
@@ -122,7 +122,7 @@ summary.drmTMB <- function(object, ...){
     gr[object$opt$par <= lo & gr > 0] <- 0
     gr[object$opt$par >= up & gr < 0] <- 0
   }
-  res <- list(call=object$call, model=object$model, alpha=object$alpha, family=object$family, link=object$link, b4log=b4linkindex(object) == 2,
+  res <- list(call=object$call, model=object$model, alpha=object$alpha, smooth=object$smooth, family=object$family, link=object$link, b4log=b4linkindex(object) == 2,
               direction=direction, b5=if (any(!object$fix[npi == 5]) && mod %in% c(1, 2, 15)) c("asymmetry", "shape")[1 + (mod == 15)],
               nobs=nobs(object), ntrials=if (object$family %in% c("binomial", "betabinomial")) sum(dat$bn), ngroups=ngroups,
               logLik=ll, AIC=AIC(object), BIC=BIC(object),
@@ -142,7 +142,7 @@ print.summary.drmTMB <- function(x, digits=max(3L, getOption("digits") - 3L), ..
     print(x$call)
     cat("\n")
   }
-  cat("Model:  ", x$model, if (!is.null(x$alpha)) paste(" (alpha = ", x$alpha, ")", sep=""), if (!is.null(x$direction)) paste(",", x$direction, "curve"), "\n", sep="")
+  cat("Model:  ", x$model, if (!is.null(x$alpha)) paste(" (alpha = ", x$alpha, ")", sep=""), smoothtext(x$smooth), if (!is.null(x$direction)) paste(",", x$direction, "curve"), "\n", sep="")
   cat("Family: ", x$family, ", ", x$link, " link for the asymptotes", if (isTRUE(x$b4log)) ", log link for b4", "\n", sep="")
 
   cat("\nNumber of observations: ", x$nobs, sep="")
@@ -326,7 +326,7 @@ preddata <- function(object, newdata, random, covs=FALSE){
   }
   Zp <- if (length(Zl) > 0) do.call(cbind, unlist(Zl, recursive=FALSE)) else Matrix::sparseMatrix(i=integer(0), j=integer(0), x=numeric(0), dims=c(n, 0))
   list(x=x, Xs=Xs, eta=eta, Zp=Zp, Zl=Zl, X=rl$X, newgroup=newgroup,
-       mod=modelindex(object$model), alpha=object$alpha, lnk=which(object$link == c("identity", "log", "logit")), lnk4=b4linkindex(object))
+       mod=modelindex(object$model), alpha=object$alpha, smooth=smoothwidth(object$smooth), lnk=which(object$link == c("identity", "log", "logit")), lnk4=b4linkindex(object))
 }
 
 # design of the random effects of the fitted levels in newdata. For each term: Zl, a design block for
@@ -394,7 +394,7 @@ reloads <- function(tm, X){
 # mean function at the linear predictors eta of b1-b5
 predmean <- function(pd, eta){
   as.vector(drcmeanR(pd$mod, pd$x, linkfun(pd$lnk, eta[, 1], inverse=TRUE), linkfun(pd$lnk, eta[, 2], inverse=TRUE),
-                     eta[, 3], linkfun(pd$lnk4, eta[, 4], inverse=TRUE), eta[, 5], pd$alpha))
+                     eta[, 3], linkfun(pd$lnk4, eta[, 4], inverse=TRUE), eta[, 5], pd$alpha, pd$smooth))
 }
 
 # standard errors of the predicted means by the delta method of TMB: the mean at the new doses is
@@ -669,6 +669,13 @@ atbound <- function(object){
   # nlminb returns active bounds exactly
   at <- est <= lo | est >= up
   setNames(est[at], object$coefnames[!object$fix][at])
+}
+
+# description of the smoothing of the threshold of nec for print and summary; NULL for an exact threshold
+smoothtext <- function(smooth){
+  if (smoothwidth(smooth) == 0) return(NULL)
+  paste(", threshold smoothed over width ", format(smooth[["width"]], digits=3), " (", format(smooth[["relative"]], digits=3),
+        " times the smallest interval between doses)", sep="")
 }
 
 # index of the model, as in the TMB template

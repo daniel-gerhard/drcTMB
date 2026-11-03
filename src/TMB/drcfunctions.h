@@ -37,11 +37,12 @@ Type hormg(int mod, Type x, Type alpha){
 // gamma: F(x) = pgamma(x / f4, shape f3), f1 at dose zero and f2 at high doses as michaelismenten.
 // multistage: F(x) = 1 - exp(-(f3 x + f4 x^2 + f5 x^3)), f1 at dose zero and f2 at high doses.
 // nec (threshold): F(x) = 1 - exp(-(f3 (x - f4))^exp(f5)) above the threshold f4 and 0 below, f1 up to
-// the threshold and f2 at high doses; f5 = 0 is the exponential NEC model of drc.
+// the threshold and f2 at high doses; f5 = 0 is the exponential NEC model of drc. With smooth > 0, the
+// dose above the threshold, max(x - f4, 0), is replaced by smooth log(1 + exp((x - f4) / smooth)).
 // braincousens, cedergreen (hormesis): f(x) = f1 + (f2 - f1 + f5 * g(x)) * F(x), with the
 // loglogistic F and the hormesis term g(x) = x or exp(-1/x^alpha); f5 = 0 is the loglogistic model.
 template<class Type>
-Type drcmean(int mod, Type x, Type f1, Type f2, Type f3, Type f4, Type f5, Type alpha){
+Type drcmean(int mod, Type x, Type f1, Type f2, Type f3, Type f4, Type f5, Type alpha, Type smooth){
   if (mod == 10) return f1;
   bool logdose = (mod >= 2 && mod <= 5) || mod == 11 || mod == 12;
   // log-dose models at dose zero: the asymptote approached at low doses
@@ -86,10 +87,21 @@ Type drcmean(int mod, Type x, Type f1, Type f2, Type f3, Type f4, Type f5, Type 
     F = 1 - exp(-(f3 * x + f4 * x * x + f5 * x * x * x));
     break;
   case 15: {
-    // below the threshold, the power is evaluated at 1, so that neither branch has infinite derivatives
     Type d = x - f4;
-    Type dpos = CppAD::CondExpGt(d, Type(0), d, Type(1));
-    F = CppAD::CondExpGt(d, Type(0), Type(1 - exp(-pow(f3 * dpos, exp(f5)))), Type(0));
+    if (smooth > 0){
+      // smooth log(1 + exp(d / smooth)) as max(d, 0) + smooth log(1 + exp(-|d| / smooth)), finite for small widths
+      Type dmax = CppAD::CondExpGt(d, Type(0), d, Type(0));
+      Type dabs = CppAD::CondExpGt(d, Type(0), d, Type(-d));
+      Type dpos = dmax + smooth * log(1 + exp(-dabs / smooth));
+      // far below the threshold, dpos underflows to 0: as for the exact threshold, the power is then
+      // evaluated at 1
+      Type dsafe = CppAD::CondExpGt(dpos, Type(0), dpos, Type(1));
+      F = CppAD::CondExpGt(dpos, Type(0), Type(1 - exp(-pow(f3 * dsafe, exp(f5)))), Type(0));
+    } else {
+      // below the threshold, the power is evaluated at 1, so that neither branch has infinite derivatives
+      Type dpos = CppAD::CondExpGt(d, Type(0), d, Type(1));
+      F = CppAD::CondExpGt(d, Type(0), Type(1 - exp(-pow(f3 * dpos, exp(f5)))), Type(0));
+    }
     break;
   }
   case 11:
@@ -101,9 +113,9 @@ Type drcmean(int mod, Type x, Type f1, Type f2, Type f3, Type f4, Type f5, Type 
 }
 
 // effective dose: inverse of drcmean, the dose at which F equals q
-// r: shift on the response scale (residual)
+// r: shift on the response scale (residual); smooth: smoothing width of the threshold of nec
 template<class Type>
-Type drced(int mod, Type q, Type f1, Type f2, Type f3, Type f4, Type f5, Type r){
+Type drced(int mod, Type q, Type f1, Type f2, Type f3, Type f4, Type f5, Type r, Type smooth){
   Type qr = q - r / (f2 - f1);
   Type ed = 0;
   switch (mod){
@@ -135,9 +147,13 @@ Type drced(int mod, Type q, Type f1, Type f2, Type f3, Type f4, Type f5, Type r)
   case 13:
     ed = f4 * qgamma(qr, f3);
     break;
-  case 15:
-    ed = f4 + pow(-1*log(1 - qr), exp(-f5)) / f3;
+  case 15: {
+    // dose above the threshold, without smoothing; inverse of the smoothing: t + smooth log(1 - exp(-t / smooth))
+    Type t = pow(-1*log(1 - qr), exp(-f5)) / f3;
+    if (smooth > 0) t += smooth * logspace_sub(Type(0), Type(-t / smooth));
+    ed = f4 + t;
     break;
+  }
   }
   return ed;
 }
