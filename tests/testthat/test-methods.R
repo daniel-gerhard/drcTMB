@@ -347,7 +347,7 @@ test_that("small-sample inference of gaussian models without random effects", {
 
   # maximum likelihood for the other families and with random effects
   set.seed(2)
-  d$cnt <- rpois(nrow(d), d$dose + 1)
+  d$cnt <- rpois(nrow(d), drcmean("asymptoticregression", d$dose, c(1, 8, 0, 4, 0)))
   expect_null(df.residual(drmTMB(cnt ~ dose, data=d, model="exponentialdecay", family="poisson", link="log")))
   dg <- simgroups(ng=6, seed=3)
   dg$y <- drcmean("loglogistic", dg$dose, c(1, 8, -1.5, 3, 0)) + rnorm(6, 0, 0.5)[dg$grp] + rnorm(nrow(dg), 0, 0.3)
