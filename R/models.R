@@ -24,7 +24,9 @@ linstart <- function(z, logdose){
 #       polynomial
 #   b4: "location" on the dose scale, "scale" (a positive dose, the effective dose is b4 h), "threshold" (a
 #       positive dose, the effective dose is b4 + h), or "coefficient" of a polynomial
-#   b5: "asymmetry" or "shape" (both on the log scale), "hormesis" effect, or "coefficient" of a polynomial
+#   b5: "asymmetry" or "shape" (both positive, with the log link), "hormesis" effect, or "coefficient" of a
+#       polynomial
+# The functions F and edh take b3-b5 on their original scale, after the inverse links (see modellinks).
 # logdose: F depends on the dose through t = b3 (log x - log b4) instead of t = b3 (x - b4)
 # F(t, x, b3, b4, b5, smooth): increasing from 0 to 1; NULL for the constant model
 # ed: how effective doses are computed: "closed" by edh, "hormesis" numerically above the peak,
@@ -40,12 +42,12 @@ linstart <- function(z, logdose){
 #   d2g w.r.t. the log dose, and the largest b3 of a decreasing curve that the model is meant for
 drcmodels <- list(
   logistic=list(b1="asymptote", b2="asymptote", b3="steepness", b4="location", b5="asymmetry", logdose=FALSE,
-                F=function(t, x, b3, b4, b5, smooth) (1 + exp(-t))^(-exp(b5)),
-                ed="closed", edh=function(q, b3, b5, smooth) -log(q^(-1/exp(b5)) - 1)/b3,
+                F=function(t, x, b3, b4, b5, smooth) (1 + exp(-t))^(-b5),
+                ed="closed", edh=function(q, b3, b5, smooth) -log(q^(-1/b5) - 1)/b3,
                 start="linear", linear=linstart(function(q) qlogis(q), FALSE)),
   loglogistic=list(b1="asymptote", b2="asymptote", b3="steepness", b4="scale", b5="asymmetry", logdose=TRUE,
-                   F=function(t, x, b3, b4, b5, smooth) (1 + exp(-t))^(-exp(b5)),
-                   ed="closed", edh=function(q, b3, b5, smooth) (q^(-1/exp(b5)) - 1)^(-1/b3),
+                   F=function(t, x, b3, b4, b5, smooth) (1 + exp(-t))^(-b5),
+                   ed="closed", edh=function(q, b3, b5, smooth) (q^(-1/b5) - 1)^(-1/b3),
                    start="linear", linear=linstart(function(q) qlogis(q), TRUE)),
   weibull1=list(b1="asymptote", b2="asymptote", b3="steepness", b4="scale", b5=NA, logdose=TRUE,
                 F=function(t, x, b3, b4, b5, smooth) exp(-exp(-t)),
@@ -105,14 +107,36 @@ drcmodels <- list(
                   F=function(t, x, b3, b4, b5, smooth) 1 - exp(-(b3*x + b4*x^2 + b5*x^3)),
                   ed="polynomial", start="polynomial", lower0=3:5),
   nec=list(b1="asymptote", b2="asymptote", b3="rate", b4="threshold", b5="shape", logdose=FALSE,
-           F=function(t, x, b3, b4, b5, smooth) 1 - exp(-(b3*necdose(x - b4, smooth))^exp(b5)),
+           F=function(t, x, b3, b4, b5, smooth) 1 - exp(-(b3*necdose(x - b4, smooth))^b5),
            # with smoothing width smooth > 0, the inverse of the smoothing of the dose above the threshold
            ed="closed", edh=function(q, b3, b5, smooth){
-             h <- (-log(1 - q))^exp(-b5)/b3
+             h <- (-log(1 - q))^(1/b5)/b3
              if (smooth > 0) h + smooth*log(-expm1(-h/smooth)) else h
            },
            start="threshold", lower0=3:4)
 )
+
+# links of the parameters b1-b5 of a model m (see drcmodels): the possible links of each parameter, the
+# first one is the default; a positive b4 may have the log link, and a positive b5 has the log link
+modellinks <- function(m){
+  list(b1=c("identity", "log", "logit"),
+       b2=if (is.na(m$b2)) "identity" else c("identity", "log", "logit"),
+       b3="identity",
+       b4=if (m$b4 %in% c("scale", "threshold")) c("identity", "log") else "identity",
+       b5=if (m$b5 %in% c("asymmetry", "shape")) "log" else "identity")
+}
+
+# index of each link, as in the TMB templates: 1 = identity, 2 = log, 3 = logit
+linkindex <- function(link){
+  match(link, c("identity", "log", "logit"))
+}
+
+# parameters b1-b5 from their linear predictors eta (a vector, or a matrix with a column for each
+# parameter), by the inverse links lnk (see linkindex)
+linkpars <- function(lnk, eta){
+  if (is.matrix(eta)) return(do.call(cbind, lapply(1:5, function(k) linkfun(lnk[k], eta[, k], inverse=TRUE))))
+  sapply(1:5, function(k) linkfun(lnk[k], eta[k], inverse=TRUE))
+}
 
 # properties of a model, by name or index
 drcmodel <- function(mod){

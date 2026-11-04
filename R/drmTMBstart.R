@@ -16,7 +16,7 @@
 #' Without bounds in \code{gsl} and \code{gsu}, default ranges are used for b3 (the sign
 #' of the "lm" starting value, with 1/4 to 4 times its steepness, log-spaced), b4 (the dose
 #' range extended at both ends; log-spaced for models on the log-dose scale, and on the log scale
-#' with \code{b4link="log"}), and b5
+#' with the log link for b4), and b5
 #' (-2 to 2, logistic, loglogistic and nec; for braincousens and cedergreen, from 0 to four times the
 #' hormesis effect that equals the difference of the asymptotes at dose b4). Default ranges are only used for parameters
 #' with a single coefficient in \code{fform}; the asymptotes b1 and b2 are only included
@@ -32,17 +32,17 @@
 #' @param model Specify the nonlinear model. One of "logistic", "loglogistic", "weibull1", "weibull2", "lognormal", "michaelismenten", "asymptoticregression", "exponentialdecay", "gompertz", "gamma", "multistage", "nec", "braincousens", "cedergreen", "constant".
 #' @param alpha the exponent of the hormesis term of the cedergreen model, see \code{\link{drmTMB}}.
 #' @param smooth smoothing of the threshold of the nec model, relative to the smallest interval between doses, see \code{\link{drmTMB}}; without random effects, the default is 0, an exact threshold.
-#' @param link Specify the link function for estimating asymptote parameters. One of "identity", "log", "logit".
-#' @param b4link link function for b4, "identity" or "log". With "log", the coefficients of b4 are on the log scale (models with a positive b4 only, not logistic and gompertz), see \code{\link{drmTMB}}.
+#' @param link links of the parameters b1-b5, see \code{\link{drmTMB}}.
+#' @param b4link the link of b4, "identity" or "log"; the same as \code{link=c(b4="log")}.
 #' @param method one of "lm" or "grid".
-#' @param gsl a vector of lower bounds for the grid search, same length as start, on the scale of the coefficients (log scale for b4 with \code{b4link="log"}); NA (or NULL) for the default range.
+#' @param gsl a vector of lower bounds for the grid search, same length as start, on the scale of the coefficients (log scale for b4 with the log link); NA (or NULL) for the default range.
 #' @param gsu a vector of upper bounds for the grid search, same length as start; NA (or NULL) for the default range.
 #' @param gsn number of grid points for each parameter, a single number or a vector with the same length as start (default 10). A parameter with gsn = 1 stays at its "lm" starting value.
 #'
 #' @return a named vector of starting values
 #' @export
 #'
-drmTMBstart <- function(form, fform=NULL, data, start=NULL, fix=NULL, weights=NULL, family="gaussian", model="logistic", alpha=NULL, smooth=NULL, link="identity", b4link="identity", method="lm", gsl=NULL, gsu=NULL, gsn=NULL){
+drmTMBstart <- function(form, fform=NULL, data, start=NULL, fix=NULL, weights=NULL, family="gaussian", model="logistic", alpha=NULL, smooth=NULL, link=NULL, b4link=NULL, method="lm", gsl=NULL, gsu=NULL, gsn=NULL){
   dd <- drmTMBdata(form, fform=fform, data=data, weights=weights, family=family, model=model, alpha=alpha, smooth=smooth, link=link, b4link=b4link)
   if (is.null(start)) start <- rep(NA, sum(dd$npars))
   if (is.null(fix)) fix <- rep(FALSE, sum(dd$npars))
@@ -54,7 +54,7 @@ drmTMBstart <- function(form, fform=NULL, data, start=NULL, fix=NULL, weights=NU
 
 
 # model data shared by drmTMB and drmTMBstart
-drmTMBdata <- function(form, fform=NULL, rform=NULL, data, weights=NULL, family="gaussian", model="logistic", alpha=NULL, smooth=NULL, link="identity", b4link="identity"){
+drmTMBdata <- function(form, fform=NULL, rform=NULL, data, weights=NULL, family="gaussian", model="logistic", alpha=NULL, smooth=NULL, link=NULL, b4link=NULL){
   fform <- fforms(fform)
   if (is.null(weights)) weights <- rep(1, nrow(data))
   if (length(weights) != nrow(data)) stop("weights must have one entry for each row of data.")
@@ -79,16 +79,12 @@ drmTMBdata <- function(form, fform=NULL, rform=NULL, data, weights=NULL, family=
 
   # model
   mod <- modelindex(model)
-  lnk <- which(link == c("identity", "log", "logit"))
   fam <- which(family == c("gaussian", "poisson", "binomial", "beta", "nbinom2", "nbinom1", "betabinomial"))
   if (length(mod) != 1) stop("Unknown model: ", model)
   if (length(fam) != 1) stop("Unknown family: ", family, "; one of gaussian, poisson, binomial, betabinomial, beta, nbinom2, nbinom1.")
-  if (length(lnk) != 1) stop("Unknown link: ", link, "; one of identity, log, logit.")
-  lnk4 <- which(b4link == c("identity", "log"))
-  if (length(lnk4) != 1) stop("Unknown b4link: ", b4link, "; one of identity, log.")
   m <- drcmodel(mod)
-  if (lnk4 == 2 && m$b4 %in% "location") stop("b4link=\"log\" needs a positive b4; b4 of the ", model, " model is a location on the dose scale.")
-  if (lnk4 == 2 && m$b4 %in% "coefficient") stop("b4link=\"log\" is not available for the ", model, " model; b4 is a coefficient of its polynomial.")
+  link <- parlinks(link, b4link, m, model)
+  lnk <- linkindex(link)
   if (isTRUE(m$alpha)){
     if (is.null(alpha)) stop("the cedergreen model needs the exponent alpha of its hormesis term, e.g. alpha=1, 0.5 or 0.25 as CRS.4a, CRS.4b and CRS.4c of drc.")
     if (!is.numeric(alpha) || length(alpha) != 1 || !is.finite(alpha) || alpha <= 0) stop("alpha must be a single positive number.")
@@ -128,9 +124,9 @@ drmTMBdata <- function(form, fform=NULL, rform=NULL, data, weights=NULL, family=
     stop("smooth is only used by the ", modelswith(function(m) m$b4 %in% "threshold"), " model.")
   }
 
-  list(y=y, x=mf[,2], w=weights, bn=bn, fam=fam, mod=mod, alpha=alpha, smooth=smooth, lnk=lnk, lnk4=lnk4, re=re,
+  list(y=y, x=mf[,2], w=weights, bn=bn, fam=fam, mod=mod, alpha=alpha, smooth=smooth, lnk=lnk, re=re,
        Xs=Xs, fform=fform, fterms=fterms, npars=npars, npi=rep(1:5, npars),
-       family=family, model=model, link=link, b4link=b4link, data=data)
+       family=family, model=model, link=link, data=data)
 }
 
 # design matrix of a parameter for data, with the terms, factor levels and contrasts of the fit
@@ -172,7 +168,7 @@ lmstart <- function(dd, start, fix){
   # constant model: b1 at the overall mean
   if (m$start == "constant"){
     ybar <- if (dd$family %in% c("binomial", "betabinomial") & any(dd$bn > 0)) sum(dd$w * dd$y) / sum(dd$w * dd$bn) else sum(dd$w * dd$y) / sum(dd$w)
-    return(projectstart(dd, start, fix, c(linkfun(dd$lnk, linkrange(dd$lnk, ybar, dd$family)), 0, 0, 0, 0)))
+    return(projectstart(dd, start, fix, c(linkfun(dd$lnk[1], linkrange(dd$lnk[1], ybar, dd$family)), 0, 0, 0, 0)))
   }
 
   # asymptotes on the mean scale: for the models with steepness b3, b1 is the lower and b2 the
@@ -182,15 +178,15 @@ lmstart <- function(dd, start, fix){
   f1 <- if (hasb3) min(ylow, yhigh) else ylow
   f2 <- if (hasb3) max(ylow, yhigh) else yhigh
   # an asymptote with a given starting value keeps it; the other one is the more distant end of the curve
-  if (known1) f1 <- linkfun(dd$lnk, start[npi == 1][1], inverse=TRUE)
-  if (known2) f2 <- linkfun(dd$lnk, start[npi == 2][1], inverse=TRUE)
+  if (known1) f1 <- linkfun(dd$lnk[1], start[npi == 1][1], inverse=TRUE)
+  if (known2) f2 <- linkfun(dd$lnk[2], start[npi == 2][1], inverse=TRUE)
   if (known1 & !known2) f2 <- if (abs(ylow - f1) > abs(yhigh - f1)) ylow else yhigh
   if (known2 & !known1) f1 <- if (abs(ylow - f2) > abs(yhigh - f2)) ylow else yhigh
   # observed ends are not the asymptotes: extend the range by 5%
   if (!known1) f1 <- f1 + 0.05*(f1 - f2)
   if (!known2) f2 <- f2 - 0.05*(f1 - f2)
-  f1 <- linkrange(dd$lnk, f1, dd$family)
-  f2 <- linkrange(dd$lnk, f2, dd$family)
+  f1 <- linkrange(dd$lnk[1], f1, dd$family)
+  f2 <- linkrange(dd$lnk[2], f2, dd$family)
 
   # value of the increasing function F of the model; points at the asymptotes carry no information
   q <- (yd - f1) / (f2 - f1)
@@ -209,34 +205,35 @@ lmstart <- function(dd, start, fix){
     }
     # fallback: linear, F = 1/2 at the median positive dose
     if (all(beta == 0)) beta[1] <- log(2)/stats::median(xd[xd > 0])
-    return(projectstart(dd, start, fix, c(linkfun(dd$lnk, f1), linkfun(dd$lnk, f2), beta)))
+    return(projectstart(dd, start, fix, c(linkfun(dd$lnk[1], f1), linkfun(dd$lnk[2], f2), beta)))
   }
 
   # nec: the likelihood has local optima in the threshold b4, and is smooth between dose levels; for
   # given b4, b3 and b5 the model is linear in the asymptotes, so profile the residual sum of squares
   # over thresholds at dose zero and within each interval between doses, and over rates b3, with the
-  # shape b5 at 0 unless given
+  # shape b5 at 1 unless given
   if (m$start == "threshold"){
     kn <- sapply(3:5, function(i) fix[npi == i][1] | !is.na(start[npi == i][1]))
-    b5 <- if (kn[3]) start[npi == 5][1] else 0
+    b5 <- if (kn[3]) linkfun(dd$lnk[5], start[npi == 5][1], inverse=TRUE) else 1
     if (kn[2]){
-      b4grid <- linkfun(dd$lnk4, start[npi == 4][1], inverse=TRUE)
+      b4grid <- linkfun(dd$lnk[4], start[npi == 4][1], inverse=TRUE)
     } else {
       b4grid <- c(0, xd[-length(xd)] + outer(diff(xd), c(0.25, 0.5, 0.75)))
-      if (dd$lnk4 == 2) b4grid <- b4grid[b4grid > 0]
+      if (dd$lnk[4] == 2) b4grid <- b4grid[b4grid > 0]
     }
     cand <- do.call(rbind, lapply(b4grid, function(b4){
       dr <- max(xd) - b4
-      b3grid <- if (kn[1]) start[npi == 3][1] else exp(seq(log(0.1/dr), log(100/dr), length.out=50))
+      b3grid <- if (kn[1]) linkfun(dd$lnk[3], start[npi == 3][1], inverse=TRUE) else exp(seq(log(0.1/dr), log(100/dr), length.out=50))
       do.call(rbind, lapply(b3grid, function(b3){
         a <- asymfit(yd, drcmeanR(dd$mod, xd, 0, 1, b3, b4, b5, smooth=smoothwidth(dd$smooth)), f1, f2, known1, known2)
         data.frame(b3=b3, b4=b4, rss=a$rss, f1=a$f[1], f2=a$f[2])
       }))
     }))
     best <- cand[which.min(cand$rss), ]
-    f1 <- linkrange(dd$lnk, best$f1, dd$family)
-    f2 <- linkrange(dd$lnk, best$f2, dd$family)
-    return(projectstart(dd, start, fix, c(linkfun(dd$lnk, f1), linkfun(dd$lnk, f2), best$b3, linkfun(dd$lnk4, best$b4), b5)))
+    f1 <- linkrange(dd$lnk[1], best$f1, dd$family)
+    f2 <- linkrange(dd$lnk[2], best$f2, dd$family)
+    return(projectstart(dd, start, fix, c(linkfun(dd$lnk[1], f1), linkfun(dd$lnk[2], f2), linkfun(dd$lnk[3], best$b3),
+                                          linkfun(dd$lnk[4], best$b4), linkfun(dd$lnk[5], b5))))
   }
 
   # linearised model functions: inverse of F, linear in the dose (or log dose) with slope b3; the
@@ -265,11 +262,12 @@ lmstart <- function(dd, start, fix){
     pfit <- lapply(b4grid, function(b4) asymfit(yd, 1 - exp(-xd/b4), f1, f2, known1, known2))
     best <- which.min(sapply(pfit, function(p) p$rss))
     b4 <- b4grid[best]
-    f1 <- linkrange(dd$lnk, pfit[[best]]$f[1], dd$family)
-    f2 <- linkrange(dd$lnk, pfit[[best]]$f[2], dd$family)
+    f1 <- linkrange(dd$lnk[1], pfit[[best]]$f[1], dd$family)
+    f2 <- linkrange(dd$lnk[2], pfit[[best]]$f[2], dd$family)
   }
 
-  pooled <- c(linkfun(dd$lnk, f1), linkfun(dd$lnk, f2), b3, linkfun(dd$lnk4, b4), 0)
+  # b5 at 0 on the scale of its link: a symmetric curve, or no hormesis
+  pooled <- c(linkfun(dd$lnk[1], f1), linkfun(dd$lnk[2], f2), linkfun(dd$lnk[3], b3), linkfun(dd$lnk[4], b4), 0)
   projectstart(dd, start, fix, pooled)
 }
 
@@ -365,7 +363,7 @@ gridrange <- function(dd, start){
     if (m$b4 %in% "location"){
       ext <- 0.25*diff(range(x))
       rng[[i4]] <- list(lower=min(x) - ext, upper=max(x) + ext, log=FALSE)
-    } else if (length(xp) > 0 & dd$lnk4 == 2){
+    } else if (length(xp) > 0 & dd$lnk[4] == 2){
       rng[[i4]] <- list(lower=log(min(xp)/2), upper=log(max(xp)*2), log=FALSE)
     } else if (length(xp) > 0){
       rng[[i4]] <- list(lower=min(xp)/2, upper=max(xp)*2, log=TRUE)
@@ -379,8 +377,8 @@ gridrange <- function(dd, start){
     rng[[i5]] <- list(lower=-2, upper=2, log=FALSE)
   }
   if (!is.null(i5) & m$b5 %in% "hormesis" & dd$npars[1] == 1 & dd$npars[2] == 1 & dd$npars[4] == 1){
-    f12 <- linkfun(dd$lnk, start[npi %in% 1:2], inverse=TRUE)
-    b4 <- linkfun(dd$lnk4, start[npi == 4], inverse=TRUE)
+    f12 <- c(linkfun(dd$lnk[1], start[npi == 1], inverse=TRUE), linkfun(dd$lnk[2], start[npi == 2], inverse=TRUE))
+    b4 <- linkfun(dd$lnk[4], start[npi == 4], inverse=TRUE)
     rng[[i5]] <- list(lower=0, upper=4*abs(f12[2] - f12[1])/hormg(dd$mod, b4, dd$alpha), log=FALSE)
   }
   rng
@@ -397,7 +395,7 @@ drmTMBobj <- function(dd, start, fix, rform=NULL){
   # log standard deviations and transformed correlations for each term; random effects at zero
   stheta <- unlist(lapply(tnp, function(np) c(rep(0.001, np), rep(0, np*(np-1)/2))))
   up <- rep(0, sum(tnp*tnl))
-  dlist <- list(model="drcTMB", y=dd$y, x=dd$x, w=dd$w, bn=dd$bn, fam=dd$fam, mod=dd$mod, alpha=alphavalue(dd$alpha), smooth=smoothwidth(dd$smooth), lnk=dd$lnk, lnk4=dd$lnk4,
+  dlist <- list(model="drcTMB", y=dd$y, x=dd$x, w=dd$w, bn=dd$bn, fam=dd$fam, mod=dd$mod, alpha=alphavalue(dd$alpha), smooth=smoothwidth(dd$smooth), lnk=as.integer(dd$lnk),
                 tnp=tnp, tnl=tnl, tpar=as.integer(unlist(lapply(re$terms, function(tm) tm$pars)) - 1),
                 tzb=if (length(re$terms) > 0) tzbvec(re$terms) else integer(0),
                 simre=1L, Z=re$Z)
@@ -543,6 +541,39 @@ drcmeanR <- function(mod, x, f1, f2, f3, f4, f5, alpha=NULL, smooth=0){
   f1 + (f2 - f1) * Fx
 }
 
+# links of the parameters b1-b5 of model m (see drcmodels), named: the defaults of the model (see
+# modellinks), replaced by link, a single link for the asymptotes b1 and b2 or links named by parameter,
+# and by b4link
+parlinks <- function(link, b4link, m, model){
+  allowed <- modellinks(m)
+  out <- vapply(allowed, function(a) a[1], character(1))
+  if (!is.null(link)){
+    if (!is.character(link)) stop("link must be a character vector.")
+    if (is.null(names(link))){
+      if (length(link) != 1) stop("link must be a single link for the asymptotes b1 and b2, or named by parameter, e.g. c(b1=\"logit\", b4=\"log\").")
+      link <- c(b1=link, b2=link)[if (is.na(m$b2)) 1 else 1:2]
+    }
+    if (any(!(names(link) %in% names(out))) || any(duplicated(names(link)))) stop("the names of link must be distinct parameter names b1-b5.")
+    for (p in names(link)){
+      if (is.na(linkindex(link[[p]]))) stop("Unknown link: ", link[[p]], "; one of identity, log, logit.")
+    }
+    out[names(link)] <- link
+  }
+  if (!is.null(b4link)){
+    if (!(b4link %in% c("identity", "log"))) stop("Unknown b4link: ", b4link, "; one of identity, log.")
+    if (!is.null(link) && "b4" %in% names(link) && link[["b4"]] != b4link) stop("link and b4link give different links for b4.")
+    out[["b4"]] <- b4link
+  }
+  if (out[["b4"]] == "log" && m$b4 %in% "location") stop("the log link for b4 needs a positive b4; b4 of the ", model, " model is a location on the dose scale.")
+  if (out[["b4"]] == "log" && m$b4 %in% "coefficient") stop("the log link for b4 is not available for the ", model, " model; b4 is a coefficient of its polynomial.")
+  for (p in names(out)){
+    if (!(out[[p]] %in% allowed[[p]])) stop("the ", out[[p]], " link is not available for ", p, " of the ", model, " model; ",
+                                             if (length(allowed[[p]]) == 1) "it has the " else "one of ", paste(allowed[[p]], collapse=", "),
+                                             if (length(allowed[[p]]) == 1) " link." else ".")
+  }
+  out
+}
+
 # start or fix as a vector with one entry per coefficient: an unnamed vector is used as it is,
 # a vector named by parameter (e.g. c(b1=0, b5=0)) gives the value for all coefficients of that parameter
 parvector <- function(v, npi, default, arg){
@@ -585,7 +616,7 @@ alphavalue <- function(alpha){
   if (is.null(alpha)) 0 else as.numeric(alpha)
 }
 
-# link function (inverse=FALSE) or inverse link for the asymptote parameters and b4
+# link function (inverse=FALSE) or inverse link of a parameter, by its index (see linkindex)
 linkfun <- function(lnk, x, inverse=FALSE){
   if (inverse){
     switch(lnk, x, exp(x), plogis(x))

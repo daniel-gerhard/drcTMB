@@ -18,7 +18,8 @@ bfull <- function(fit){
   b
 }
 
-necmean <- function(x, b) drcTMB:::drcmeanR(15, x, b[1], b[2], b[3], b[4], b[5])
+# mean of nec with the shape b5 on the log scale, as the coefficient
+necmean <- function(x, b) drcTMB:::drcmeanR(15, x, b[1], b[2], b[3], b[4], exp(b[5]))
 
 simnec <- function(b5=0, seed=1){
   set.seed(seed)
@@ -163,7 +164,7 @@ test_that("effective doses of a smoothed threshold are on the smoothed curve, wi
   expect_equal(s, 0.25)
   b <- bfull(f)
   e <- ed(f, c(10, 50, 90))
-  smean <- function(x, b) drcTMB:::drcmeanR(15, x, b[1], b[2], b[3], b[4], b[5], smooth=s)
+  smean <- function(x, b) drcTMB:::drcmeanR(15, x, b[1], b[2], b[3], b[4], exp(b[5]), smooth=s)
   expect_equal(unname(smean(coef(e), b)), b[1] + (b[2] - b[1]) * c(0.1, 0.5, 0.9))
   # the fitted values of the template and of the R mean function agree
   expect_equal(unname(predict(f)), smean(simnec()$dose, b))

@@ -4,9 +4,11 @@
 models <- c("logistic", "loglogistic", "weibull1", "weibull2", "lognormal",
             "michaelismenten", "asymptoticregression", "exponentialdecay", "gompertz")
 
-# mean function for model name m and parameters b = c(b1, ..., b5)
+# mean function for model name m and parameters b = c(b1, ..., b5), with b5 on the scale of its link (the
+# log of the asymmetry of logistic and loglogistic)
 drcmean <- function(m, x, b){
-  drcTMB:::drcmeanR(match(m, models), x, b[1], b[2], b[3], b[4], b[5])
+  b5 <- if (m %in% c("logistic", "loglogistic")) exp(b[5]) else b[5]
+  drcTMB:::drcmeanR(match(m, models), x, b[1], b[2], b[3], b[4], b5)
 }
 
 # true parameters and doses for a well-identified curve of each model

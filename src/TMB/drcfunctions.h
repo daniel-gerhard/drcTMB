@@ -28,7 +28,9 @@ Type hormg(int mod, Type x, Type alpha){
 // mod: 1 = logistic, 2 = loglogistic, 3 = weibull1, 4 = weibull2, 5 = lognormal,
 //      6 = michaelismenten, 7 = asymptoticregression, 8 = exponentialdecay, 9 = gompertz,
 //      10 = constant, 11 = braincousens, 12 = cedergreen, 13 = gamma, 14 = multistage, 15 = nec
-// f(x) = f1 + (f2 - f1) * F(x), with F increasing from 0 to 1 in its argument.
+// f(x) = f1 + (f2 - f1) * F(x), with F increasing from 0 to 1 in its argument. The parameters f1-f5 are
+// on their original scale, after the inverse links; the asymmetry f5 of logistic and loglogistic and the
+// shape f5 of nec are positive, with the log link by default.
 // Models with steepness f3: F(f3 * z), z = x - f4 or log(x) - log(f4); f1 is the lower and
 // f2 the upper asymptote, f3 > 0 for an increasing and f3 < 0 for a decreasing curve.
 // michaelismenten, asymptoticregression, exponentialdecay: F(x) increases with dose, f1 is
@@ -36,8 +38,8 @@ Type hormg(int mod, Type x, Type alpha){
 // constant: f(x) = f1 at all doses, a model without a dose effect.
 // gamma: F(x) = pgamma(x / f4, shape f3), f1 at dose zero and f2 at high doses as michaelismenten.
 // multistage: F(x) = 1 - exp(-(f3 x + f4 x^2 + f5 x^3)), f1 at dose zero and f2 at high doses.
-// nec (threshold): F(x) = 1 - exp(-(f3 (x - f4))^exp(f5)) above the threshold f4 and 0 below, f1 up to
-// the threshold and f2 at high doses; f5 = 0 is the exponential NEC model of drc. With smooth > 0, the
+// nec (threshold): F(x) = 1 - exp(-(f3 (x - f4))^f5) above the threshold f4 and 0 below, f1 up to
+// the threshold and f2 at high doses; f5 = 1 is the exponential NEC model of drc. With smooth > 0, the
 // dose above the threshold, max(x - f4, 0), is replaced by smooth log(1 + exp((x - f4) / smooth)).
 // braincousens, cedergreen (hormesis): f(x) = f1 + (f2 - f1 + f5 * g(x)) * F(x), with the
 // loglogistic F and the hormesis term g(x) = x or exp(-1/x^alpha); f5 = 0 is the loglogistic model.
@@ -60,8 +62,8 @@ Type drcmean(int mod, Type x, Type f1, Type f2, Type f3, Type f4, Type f5, Type 
   switch (mod){
   case 1:
   case 2:
-    // (1 + exp(-t))^(-exp(f5)), on the log scale for numerical stability
-    F = exp(-exp(f5) * logspace_add(Type(0), Type(-t)));
+    // (1 + exp(-t))^(-f5), on the log scale for numerical stability
+    F = exp(-f5 * logspace_add(Type(0), Type(-t)));
     break;
   case 3:
   case 9:
@@ -96,11 +98,11 @@ Type drcmean(int mod, Type x, Type f1, Type f2, Type f3, Type f4, Type f5, Type 
       // far below the threshold, dpos underflows to 0: as for the exact threshold, the power is then
       // evaluated at 1
       Type dsafe = CppAD::CondExpGt(dpos, Type(0), dpos, Type(1));
-      F = CppAD::CondExpGt(dpos, Type(0), Type(1 - exp(-pow(f3 * dsafe, exp(f5)))), Type(0));
+      F = CppAD::CondExpGt(dpos, Type(0), Type(1 - exp(-pow(f3 * dsafe, f5))), Type(0));
     } else {
       // below the threshold, the power is evaluated at 1, so that neither branch has infinite derivatives
       Type dpos = CppAD::CondExpGt(d, Type(0), d, Type(1));
-      F = CppAD::CondExpGt(d, Type(0), Type(1 - exp(-pow(f3 * dpos, exp(f5)))), Type(0));
+      F = CppAD::CondExpGt(d, Type(0), Type(1 - exp(-pow(f3 * dpos, f5))), Type(0));
     }
     break;
   }
@@ -120,10 +122,10 @@ Type drced(int mod, Type q, Type f1, Type f2, Type f3, Type f4, Type f5, Type r,
   Type ed = 0;
   switch (mod){
   case 1:
-    ed = f4 - log(pow(qr, -1/exp(f5)) - 1) / f3;
+    ed = f4 - log(pow(qr, -1/f5) - 1) / f3;
     break;
   case 2:
-    ed = f4 * pow(pow(qr, -1/exp(f5)) - 1, -1/f3);
+    ed = f4 * pow(pow(qr, -1/f5) - 1, -1/f3);
     break;
   case 3:
     ed = f4 * pow(-1*log(qr), -1/f3);
@@ -149,7 +151,7 @@ Type drced(int mod, Type q, Type f1, Type f2, Type f3, Type f4, Type f5, Type r,
     break;
   case 15: {
     // dose above the threshold, without smoothing; inverse of the smoothing: t + smooth log(1 - exp(-t / smooth))
-    Type t = pow(-1*log(1 - qr), exp(-f5)) / f3;
+    Type t = pow(-1*log(1 - qr), 1/f5) / f3;
     if (smooth > 0) t += smooth * logspace_sub(Type(0), Type(-t / smooth));
     ed = f4 + t;
     break;

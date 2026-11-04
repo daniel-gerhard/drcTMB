@@ -45,7 +45,7 @@ print.drmTMB <- function(x, digits=max(3L, getOption("digits") - 3L), ...){
     cat("\n")
   }
   cat("Model:  ", x$model, if (!is.null(x$alpha)) paste(" (alpha = ", x$alpha, ")", sep=""), smoothtext(x$smooth), "\n", sep="")
-  cat("Family: ", x$family, ", ", x$link, " link for the asymptotes", if (b4linkindex(x) == 2) ", log link for b4", "\n", sep="")
+  cat("Family: ", x$family, ", ", linktext(x$link, x$model), "\n", sep="")
 
   cat("\nCoefficients:\n")
   print.default(format(coef(x)[seq_len(sum(!x$fix))], digits=digits), print.gap=2L, quote=FALSE)
@@ -122,7 +122,7 @@ summary.drmTMB <- function(object, ...){
     gr[object$opt$par <= lo & gr > 0] <- 0
     gr[object$opt$par >= up & gr < 0] <- 0
   }
-  res <- list(call=object$call, model=object$model, alpha=object$alpha, smooth=object$smooth, family=object$family, link=object$link, b4log=b4linkindex(object) == 2,
+  res <- list(call=object$call, model=object$model, alpha=object$alpha, smooth=object$smooth, family=object$family, link=object$link, b4log=object$link[["b4"]] == "log",
               direction=direction, b5=if (any(!object$fix[npi == 5]) && m$b5 %in% c("asymmetry", "shape")) m$b5,
               nobs=nobs(object), ntrials=if (object$family %in% c("binomial", "betabinomial")) sum(dat$bn), ngroups=ngroups,
               logLik=ll, AIC=AIC(object), BIC=BIC(object),
@@ -143,7 +143,7 @@ print.summary.drmTMB <- function(x, digits=max(3L, getOption("digits") - 3L), ..
     cat("\n")
   }
   cat("Model:  ", x$model, if (!is.null(x$alpha)) paste(" (alpha = ", x$alpha, ")", sep=""), smoothtext(x$smooth), if (!is.null(x$direction)) paste(",", x$direction, "curve"), "\n", sep="")
-  cat("Family: ", x$family, ", ", x$link, " link for the asymptotes", if (isTRUE(x$b4log)) ", log link for b4", "\n", sep="")
+  cat("Family: ", x$family, ", ", linktext(x$link, x$model), "\n", sep="")
 
   cat("\nNumber of observations: ", x$nobs, sep="")
   if (!is.null(x$ntrials)) cat(", number of trials: ", x$ntrials, sep="")
@@ -326,7 +326,7 @@ preddata <- function(object, newdata, random, covs=FALSE){
   }
   Zp <- if (length(Zl) > 0) do.call(cbind, unlist(Zl, recursive=FALSE)) else Matrix::sparseMatrix(i=integer(0), j=integer(0), x=numeric(0), dims=c(n, 0))
   list(x=x, Xs=Xs, eta=eta, Zp=Zp, Zl=Zl, X=rl$X, newgroup=newgroup,
-       mod=modelindex(object$model), alpha=object$alpha, smooth=smoothwidth(object$smooth), lnk=which(object$link == c("identity", "log", "logit")), lnk4=b4linkindex(object))
+       mod=modelindex(object$model), alpha=object$alpha, smooth=smoothwidth(object$smooth), lnk=linkindex(object$link))
 }
 
 # design of the random effects of the fitted levels in newdata. For each term: Zl, a design block for
@@ -393,8 +393,8 @@ reloads <- function(tm, X){
 
 # mean function at the linear predictors eta of b1-b5
 predmean <- function(pd, eta){
-  as.vector(drcmeanR(pd$mod, pd$x, linkfun(pd$lnk, eta[, 1], inverse=TRUE), linkfun(pd$lnk, eta[, 2], inverse=TRUE),
-                     eta[, 3], linkfun(pd$lnk4, eta[, 4], inverse=TRUE), eta[, 5], pd$alpha, pd$smooth))
+  b <- linkpars(pd$lnk, eta)
+  as.vector(drcmeanR(pd$mod, pd$x, b[, 1], b[, 2], b[, 3], b[, 4], b[, 5], pd$alpha, pd$smooth))
 }
 
 # standard errors of the predicted means by the delta method of TMB: the mean at the new doses is
@@ -678,10 +678,14 @@ smoothtext <- function(smooth){
         " times the smallest interval between doses)", sep="")
 }
 
-# index of the link for b4, as in the TMB template: 1 = identity, 2 = log; identity for fits
-# without b4link
-b4linkindex <- function(object){
-  if (is.null(object$b4link)) 1 else match(object$b4link, c("identity", "log"))
+# links of a fit, as text: of the asymptotes, and of b4 if it is not the identity; the default log link
+# of b5 is noted with the coefficients in summary
+linktext <- function(link, model){
+  m <- drcmodel(model)
+  asym <- unique(link[if (is.na(m$b2)) "b1" else c("b1", "b2")])
+  out <- if (length(asym) == 1) paste(asym, "link for the asymptotes") else paste(link[["b1"]], "link for b1,", link[["b2"]], "link for b2")
+  if (link[["b4"]] != "identity") out <- paste(out, ", ", link[["b4"]], " link for b4", sep="")
+  out
 }
 
 # coefficients fixed by the user, named; the parameters the model does not use are always fixed

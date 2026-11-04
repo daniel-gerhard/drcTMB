@@ -2,7 +2,7 @@
 simlogb4 <- function(ng=12, sd=0.5, seed=3){
   d <- simgroups(dose=c(0.5, 1, 2, 4, 8, 16, 32), ng=ng, seed=seed)
   u <- rnorm(ng, 0, sd)
-  d$y <- drcTMB:::drcmeanR(2, d$dose, 1, 8, -1.5, 3*exp(u[d$grp]), 0) + rnorm(nrow(d), 0, 0.3)
+  d$y <- drcTMB:::drcmeanR(2, d$dose, 1, 8, -1.5, 3*exp(u[d$grp]), 1) + rnorm(nrow(d), 0, 0.3)
   d
 }
 

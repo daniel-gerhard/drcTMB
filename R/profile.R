@@ -236,7 +236,7 @@ profile.edTMB <- function(fitted, parm=NULL, level=0.99, maxit=100, progress=int
 
   mod <- modelindex(fit$model)
   m <- drcmodel(mod)
-  lnk4 <- b4linkindex(fit)
+  lnk <- linkindex(fit$link)
   logscale <- !(m$b4 %in% "location")
   free <- which(!fit$fix)
   nf <- length(free)
@@ -277,13 +277,14 @@ profile.edTMB <- function(fitted, parm=NULL, level=0.99, maxit=100, progress=int
       pv[free] <- par[seq_len(nf)]
       pv
     }
-    # b4 on the scale of its coefficients, from b1, b2 (absolute effective doses, hormesis models), b3
-    # and b5 in lpv; for peaks, ed is the dose of the peak
+    # b4 (parameter ps) on the scale of its coefficients, from b1, b2 (absolute effective doses, hormesis
+    # models), b3 and b5 in lpv; for peaks, ed is the dose of the peak
     b4fun <- function(ed, lpv){
-      if (m$ed == "polynomial") return(msbeta(edq(fit, q, lpv, absolute), ed, lpv, ps))
-      b4 <- if (peak) peakb4(mod, ed, lpv[3], hormc(fit, lpv), fit$alpha)
-            else edb4(mod, edq(fit, q, lpv, absolute), ed, lpv[3], lpv[5], hormc(fit, lpv), fit$alpha, smoothwidth(fit$smooth))
-      linkfun(lnk4, b4)
+      b <- linkpars(lnk, lpv)
+      if (m$ed == "polynomial") return(linkfun(lnk[ps], msbeta(edq(fit, q, lpv, absolute), ed, b, ps)))
+      b4 <- if (peak) peakb4(mod, ed, b[3], hormc(fit, lpv), fit$alpha)
+            else edb4(mod, edq(fit, q, lpv, absolute), ed, b[3], b[5], hormc(fit, lpv), fit$alpha, smoothwidth(fit$smooth))
+      linkfun(lnk[4], b4)
     }
     expand <- function(x, ed){
       par <- append(x, 0, after=kp - 1)
@@ -378,8 +379,9 @@ profile.edTMB <- function(fitted, parm=NULL, level=0.99, maxit=100, progress=int
 # with parameters lpv (b1-b5 on the scale of the linear predictors), as in hormpeak of the template
 hormderivs <- function(fit, lpv, ed){
   hm <- drcmodel(fit$model)$hormesis
-  b3 <- lpv[3]
-  b4 <- linkfun(b4linkindex(fit), lpv[4], inverse=TRUE)
+  b <- linkpars(linkindex(fit$link), lpv)
+  b3 <- b[3]
+  b4 <- b[4]
   c5 <- hormc(fit, lpv)
   Fx <- plogis(b3*(log(ed) - log(b4)))
   g <- hm$g(ed, fit$alpha)
@@ -398,14 +400,14 @@ peakb4 <- function(mod, pk, b3, c5, alpha){
   hm <- drcmodel(mod)$hormesis
   g <- hm$g(pk, alpha)
   dg <- hm$dg(pk, alpha)
-  edb4(modelindex("loglogistic"), 1 + c5*dg/(b3*(1 + c5*g)), pk, b3, 0)
+  edb4(modelindex("loglogistic"), 1 + c5*dg/(b3*(1 + c5*g)), pk, b3, 1)
 }
 
 # coefficient pb (3-5) of the polynomial of a multistage curve with effective dose ed at level q of
-# F, given the other coefficients in lpv (b1-b5)
-msbeta <- function(q, ed, lpv, pb){
+# F, given the other coefficients in b (b1-b5)
+msbeta <- function(q, ed, b, pb){
   oth <- setdiff(3:5, pb)
-  (-log(1 - q) - sum(lpv[oth] * ed^(oth - 2))) / ed^(pb - 2)
+  (-log(1 - q) - sum(b[oth] * ed^(oth - 2))) / ed^(pb - 2)
 }
 
 # effective dose, or dose or response at the peak, of entry i of the edTMB object for the curve
@@ -413,16 +415,15 @@ msbeta <- function(q, ed, lpv, pb){
 edvalue <- function(object, i, lpv){
   fit <- object$fit
   mod <- modelindex(fit$model)
-  b4 <- linkfun(b4linkindex(fit), lpv[4], inverse=TRUE)
+  b <- linkpars(linkindex(fit$link), lpv)
   if (identical(object$type, "peak")){
-    s <- hormpeak(mod, lpv[3], b4, hormc(fit, lpv), fit$alpha)
+    s <- hormpeak(mod, b[3], b[4], hormc(fit, lpv), fit$alpha)
     if (object$q[[i]] == 1) return(exp(s))
-    lnk <- which(fit$link == c("identity", "log", "logit"))
-    return(drcmeanR(mod, exp(s), linkfun(lnk, lpv[1], inverse=TRUE), linkfun(lnk, lpv[2], inverse=TRUE), lpv[3], b4, lpv[5], fit$alpha))
+    return(drcmeanR(mod, exp(s), b[1], b[2], b[3], b[4], b[5], fit$alpha))
   }
   q <- edq(fit, object$q[[i]], lpv, identical(object$type, "absolute"))
   if (!is.finite(q) || q <= 0 || q > 1 || (q == 1 && drcmodel(mod)$ed != "hormesis")) return(NA)
-  edfun(mod, q, lpv[3], b4, lpv[5], hormc(fit, lpv), fit$alpha, smoothwidth(fit$smooth))
+  edfun(mod, q, b[3], b[4], b[5], hormc(fit, lpv), fit$alpha, smoothwidth(fit$smooth))
 }
 
 # effective dose from b3, b4 and b5 at level q of F (residual zero), as drced in the TMB template: b4
@@ -441,7 +442,7 @@ edfun <- function(mod, q, b3, b4, b5, c5=0, alpha=NULL, smooth=0){
 # models, F of the loglogistic model is q/(1 + c5 g(ed)) at the effective dose
 edb4 <- function(mod, q, ed, b3, b5, c5=0, alpha=NULL, smooth=0){
   m <- drcmodel(mod)
-  if (m$ed == "hormesis") return(edb4(modelindex("loglogistic"), q/(1 + c5*hormg(mod, ed, alpha)), ed, b3, 0))
+  if (m$ed == "hormesis") return(edb4(modelindex("loglogistic"), q/(1 + c5*hormg(mod, ed, alpha)), ed, b3, 1))
   h <- m$edh(q, b3, b5, smooth)
   if (m$b4 %in% c("location", "threshold")) ed - h else ed / h
 }

@@ -4,7 +4,7 @@ simcov <- function(seed=5){
   d <- expand.grid(rep=1:3, dose=c(0, 0.5, 1, 2, 4, 8, 16, 32), trt=c("A", "B"), temp=c(10, 20))
   d$rep <- NULL
   b4 <- 2*ifelse(d$trt == "B", 2, 1)*exp(0.03*(d$temp - 15))
-  d$y <- drcTMB:::drcmeanR(2, d$dose, 1, 8, -1.5, b4, 0) + rnorm(nrow(d), 0, 0.3)
+  d$y <- drcTMB:::drcmeanR(2, d$dose, 1, 8, -1.5, b4, 1) + rnorm(nrow(d), 0, 0.3)
   d
 }
 
@@ -53,7 +53,7 @@ simre <- function(ng=10, seed=3){
   d <- simgroups(dose=c(0, 0.5, 1, 2, 4, 8, 16, 32), ng=ng, seed=seed)
   u4 <- rnorm(ng, 0, 0.4)
   u1 <- rnorm(ng, 0, 0.3)
-  d$y <- drcTMB:::drcmeanR(2, d$dose, 1 + u1[d$grp], 8, -1.5, 3*exp(u4[d$grp]), 0) + rnorm(nrow(d), 0, 0.3)
+  d$y <- drcTMB:::drcmeanR(2, d$dose, 1 + u1[d$grp], 8, -1.5, 3*exp(u4[d$grp]), 1) + rnorm(nrow(d), 0, 0.3)
   d
 }
 
@@ -82,7 +82,7 @@ test_that("ed with fitted groups in newdata gives the effective doses of the gro
     pv <- f$start
     pv[!f$fix] <- par[1:4]
     lp <- as.vector(e$linfct[[i]] %*% pv + e$uweights[[i]] %*% par[r])
-    drcTMB:::edfun(2, e$q[[i]], lp[3], exp(lp[4]), lp[5])
+    drcTMB:::edfun(2, e$q[[i]], lp[3], exp(lp[4]), exp(lp[5]))
   }))
   expect_equal(unname(sqrt(diag(vcov(e)))[4:5]), apply(sim, 2, sd), tolerance=0.05)
 
