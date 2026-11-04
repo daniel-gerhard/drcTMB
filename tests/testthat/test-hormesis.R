@@ -187,7 +187,7 @@ test_that("intervals of the peak", {
   set.seed(1)
   cb <- suppressMessages(confint(pk, method="boot", nsim=30, progress=FALSE))
   expect_true(all(cb[, 1] < coef(pk) & coef(pk) < cb[, 2]))
-  expect_error(peak(drmTMB(weight ~ conc, data=lettuce, model="loglogistic", start=c(b5=0), fix=c(b5=TRUE))), "hormesis models")
+  expect_error(peak(drmTMB(weight ~ conc, data=lettuce, model="loglogistic", start=c(b5=0), fix=c(b5=TRUE))), "hormesis and substrate inhibition models")
 })
 
 test_that("peaks of fitted groups are the maxima of their predicted curves", {

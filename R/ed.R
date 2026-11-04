@@ -40,13 +40,15 @@ ed <- function(x, respLev=50, linfct=NULL, newdata=NULL, random=TRUE, residual=F
   edcore(x, respLev, linfct, newdata, random, residual, type)
 }
 
-#' Peak of hormesis curves
+#' Peak of hormesis and substrate inhibition curves
 #'
-#' The dose at which a curve of the hormesis models braincousens and cedergreen reaches its maximum,
-#' and the maximal response, as \code{MAX} in drc. The peak has no closed form: it is found
-#' numerically, and its derivatives, for the standard errors, follow from the implicit function
-#' theorem, as for the effective doses of \code{\link{ed}}. Curves without a stimulation (b5 <= 0,
-#' or a curve that does not decrease at high doses) have no peak, and give NA with a warning.
+#' The dose at which a curve of the hormesis models braincousens and cedergreen, or of the substrate
+#' inhibition model haldane, reaches its maximum, and the maximal response, as \code{MAX} in drc. For the
+#' hormesis models the peak has no closed form: it is found numerically, and its derivatives, for the
+#' standard errors, follow from the implicit function theorem, as for the effective doses of
+#' \code{\link{ed}}. Curves without a stimulation (b5 <= 0, or a curve that does not decrease at high
+#' doses) have no peak, and give NA with a warning. For haldane, the peak is at the dose sqrt(b4/b5), the
+#' optimal substrate concentration sqrt(Km Ki); without inhibition (b5 = 0) there is no peak.
 #'
 #' The result is an edTMB object, as from \code{\link{ed}}, with the dose and the response at the
 #' peak of each curve, named "dose" and "response", and their joint covariance matrix, e.g. for
@@ -54,13 +56,14 @@ ed <- function(x, respLev=50, linfct=NULL, newdata=NULL, random=TRUE, residual=F
 #' and profile likelihood intervals for the dose; for the response, profile intervals are not
 #' available and Wald intervals are returned, with a message.
 #'
-#' @param x a drmTMB object of the braincousens or cedergreen model
+#' @param x a drmTMB object of the braincousens, cedergreen or haldane model
 #' @param linfct,newdata,random the curves, as in \code{\link{ed}}
 #'
 #' @return an edTMB object
 #' @export
 peak <- function(x, linfct=NULL, newdata=NULL, random=TRUE){
-  if (is.null(drcmodel(x$model)$hormesis)) stop("peak is only available for the hormesis models ", modelswith(function(m) !is.null(m$hormesis)), ".")
+  m <- drcmodel(x$model)
+  if (is.null(m$hormesis) && is.null(m$peak)) stop("peak is only available for the hormesis and substrate inhibition models ", modelswith(function(m) !is.null(m$hormesis) || !is.null(m$peak)), ".")
   # the dose (1) and the response (2) at the peak of every curve
   if (is.null(newdata)){
     if (is.null(linfct)) linfct <- diag(5)
@@ -179,7 +182,7 @@ edcore <- function(x, respLev, linfct, newdata, random, residual, type){
 
     # hormesis models: log dose of the effective dose above the peak, or of the peak, found numerically
     s0 <- 0
-    if (m$ed == "hormesis"){
+    if (m$ed %in% "hormesis"){
       if (b[3] >= 0) stop(if (peak) "the peaks" else "the effective doses", " of the ", x$model, " model need a decreasing curve, with b3 < 0.")
       s0 <- if (peak) hormpeak(mod, b[3], b[4], hormc(x, lpv + u), x$alpha)
             else hormroot(mod, edq(x, q, lpv + u, absolute), b[3], b[4], hormc(x, lpv + u), x$alpha)
@@ -190,7 +193,13 @@ edcore <- function(x, respLev, linfct, newdata, random, residual, type){
       }
     }
     # multistage model: log of the smallest positive root of the polynomial
-    if (m$ed == "polynomial"){
+    # closed-form peaks: NA without a peak
+    if (peak && !is.null(m$peak) && is.na(m$peak$dose(b))){
+      edl[i] <- NA
+      grad[i, ] <- NA
+      next
+    }
+    if (m$ed %in% "polynomial"){
       s0 <- log(msroot(edq(x, q, lpv + u, absolute), b[3:5]))
       if (is.na(s0)){
         edl[i] <- NA

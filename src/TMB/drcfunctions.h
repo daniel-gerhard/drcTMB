@@ -27,7 +27,8 @@ Type hormg(int mod, Type x, Type alpha){
 // dose-response mean function
 // mod: 1 = logistic, 2 = loglogistic, 3 = weibull1, 4 = weibull2, 5 = lognormal,
 //      6 = michaelismenten, 7 = asymptoticregression, 8 = exponentialdecay, 9 = gompertz,
-//      10 = constant, 11 = braincousens, 12 = cedergreen, 13 = gamma, 14 = multistage, 15 = nec
+//      10 = constant, 11 = braincousens, 12 = cedergreen, 13 = gamma, 14 = multistage, 15 = nec,
+//      16 = haldane
 // f(x) = f1 + (f2 - f1) * F(x), with F increasing from 0 to 1 in its argument. The parameters f1-f5 are
 // on their original scale, after the inverse links; the asymmetry f5 of logistic and loglogistic and the
 // shape f5 of nec are positive, with the log link by default.
@@ -41,6 +42,9 @@ Type hormg(int mod, Type x, Type alpha){
 // nec (threshold): F(x) = 1 - exp(-(f3 (x - f4))^f5) above the threshold f4 and 0 below, f1 up to
 // the threshold and f2 at high doses; f5 = 1 is the exponential NEC model of drc. With smooth > 0, the
 // dose above the threshold, max(x - f4, 0), is replaced by smooth log(1 + exp((x - f4) / smooth)).
+// haldane (substrate inhibition): F(x) = x / (f4 + x + f5 x^2), f1 at dose zero, f2 the maximal response
+// without inhibition, f4 the half-saturation constant and f5 = 1/Ki the inhibition; f5 = 0 is
+// michaelismenten. F is not monotone: the curve has its peak at x = sqrt(f4 / f5).
 // braincousens, cedergreen (hormesis): f(x) = f1 + (f2 - f1 + f5 * g(x)) * F(x), with the
 // loglogistic F and the hormesis term g(x) = x or exp(-1/x^alpha); f5 = 0 is the loglogistic model.
 template<class Type>
@@ -84,6 +88,9 @@ Type drcmean(int mod, Type x, Type f1, Type f2, Type f3, Type f4, Type f5, Type 
     break;
   case 13:
     F = pgamma(Type(x / f4), f3);
+    break;
+  case 16:
+    F = x / (f4 + x + f5 * x * x);
     break;
   case 14:
     F = 1 - exp(-(f3 * x + f4 * x * x + f5 * x * x * x));
