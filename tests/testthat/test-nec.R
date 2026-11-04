@@ -18,7 +18,8 @@ bfull <- function(fit){
   b
 }
 
-necmean <- function(x, b) drcTMB:::drcmeanR(15, x, b[1], b[2], b[3], b[4], b[5])
+# mean of nec with the shape b5 on the log scale, as the coefficient
+necmean <- function(x, b) drcTMB:::drcmeanR(15, x, b[1], b[2], b[3], b[4], exp(b[5]))
 
 simnec <- function(b5=0, seed=1){
   set.seed(seed)
@@ -76,8 +77,8 @@ test_that("sigmoidal nec model maximises the likelihood and anova tests the shap
   a <- anova(f0, f1)
   expect_lt(a[2, "Pr(>Chisq)"], 0.05)
   expect_output(print(summary(f1)), "The shape parameter b5 is on the log scale.")
-  # b4link="log" gives the same fit without random effects on b4
-  f2 <- drmTMB(y ~ dose, data=d, model="nec", b4link="log")
+  # link=c(b4="log") gives the same fit without random effects on b4
+  f2 <- drmTMB(y ~ dose, data=d, model="nec", link=c(b4="log"))
   expect_equal(f2$opt$objective, f1$opt$objective, tolerance=1e-6)
   expect_equal(exp(unname(bcoef(f2)[4])), unname(bcoef(f1)[4]), tolerance=1e-4)
 })
@@ -126,8 +127,8 @@ test_that("starting values of the nec model keep given values", {
   sv <- drmTMBstart(rootl ~ conc, data=ryegrass, model="nec", start=c(NA, NA, NA, 2, 0), fix=c(FALSE, FALSE, FALSE, FALSE, TRUE))
   expect_equal(sv[[4]], 2)
   expect_true(sv[[3]] > 0)
-  # b4link="log": positive thresholds only
-  sv <- drmTMBstart(rootl ~ conc, data=ryegrass, model="nec", b4link="log")
+  # link=c(b4="log"): positive thresholds only
+  sv <- drmTMBstart(rootl ~ conc, data=ryegrass, model="nec", link=c(b4="log"))
   expect_true(is.finite(sv[[4]]))
 })
 
@@ -138,7 +139,7 @@ test_that("the threshold is smoothed with random effects on b4, and exact otherw
   # thresholds 2 exp(u4) of the groups
   d$y <- necmean(d$dose - 2*exp(u4[d$grp]) + 2, c(8, 1, 0.4, 2, 0)) + rnorm(nrow(d), 0, 0.3)
   # the optimiser meets non-finite values at trial steps far from the estimates
-  f <- suppressWarnings(drmTMB(y ~ dose, rform=b4 ~ 1 | grp, data=d, model="nec", b4link="log", start=c(b5=0), fix=c(b5=TRUE)))
+  f <- suppressWarnings(drmTMB(y ~ dose, rform=b4 ~ 1 | grp, data=d, model="nec", link=c(b4="log"), start=c(b5=0), fix=c(b5=TRUE)))
   expect_equal(f$opt$convergence, 0)
   # width 0.1 times the smallest interval between doses
   expect_equal(unname(f$smooth), c(0.1, 0.05))
@@ -163,7 +164,7 @@ test_that("effective doses of a smoothed threshold are on the smoothed curve, wi
   expect_equal(s, 0.25)
   b <- bfull(f)
   e <- ed(f, c(10, 50, 90))
-  smean <- function(x, b) drcTMB:::drcmeanR(15, x, b[1], b[2], b[3], b[4], b[5], smooth=s)
+  smean <- function(x, b) drcTMB:::drcmeanR(15, x, b[1], b[2], b[3], b[4], exp(b[5]), smooth=s)
   expect_equal(unname(smean(coef(e), b)), b[1] + (b[2] - b[1]) * c(0.1, 0.5, 0.9))
   # the fitted values of the template and of the R mean function agree
   expect_equal(unname(predict(f)), smean(simnec()$dose, b))

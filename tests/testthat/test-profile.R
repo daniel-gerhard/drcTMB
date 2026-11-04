@@ -107,7 +107,7 @@ test_that("b4 computed from the effective dose inverts ed() for all models", {
     b <- numeric(5)
     b[!f$fix] <- bcoef(f)
     b[f$fix] <- f$start[f$fix]
-    b4 <- sapply(1:3, function(i) drcTMB:::edb4(match(m, models), e$q[[i]], e$estimates[[i]], b[3], b[5]))
+    b4 <- sapply(1:3, function(i) drcTMB:::edb4(match(m, models), e$q[[i]], e$estimates[[i]], b[3], drcTMB:::linkpars(drcTMB:::linkindex(f$link), b)[5]))
     expect_equal(b4, rep(b[4], 3), tolerance=1e-10, label=m)
   }
 })
@@ -133,9 +133,9 @@ test_that("profile intervals of effective doses are likelihood ratio intervals",
       q <- e$q[[j]]
       for (ED in ci[j, ]){
         fm <- if (m == "loglogistic") {
-          y ~ b1 + (b2 - b1)/(1 + exp(-b3*(log(dose) - log(drcTMB:::edb4(mod, q, ED, b3, 0)))))
+          y ~ b1 + (b2 - b1)/(1 + exp(-b3*(log(dose) - log(drcTMB:::edb4(mod, q, ED, b3, 1)))))
         } else {
-          y ~ b1 + (b2 - b1)/(1 + exp(-b3*(dose - drcTMB:::edb4(mod, q, ED, b3, 0))))
+          y ~ b1 + (b2 - b1)/(1 + exp(-b3*(dose - drcTMB:::edb4(mod, q, ED, b3, 1))))
         }
         n1 <- nls(fm, data=d, start=setNames(bcoef(f)[1:3], paste("b", 1:3, sep="")))
         expect_equal(n*log(sum(residuals(n1)^2)/rss0), fcut, tolerance=1e-4,

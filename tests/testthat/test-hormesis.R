@@ -107,7 +107,7 @@ test_that("hormesis mixed models recover the simulated curve", {
   u2 <- rnorm(12, 0, 0.5)
   u4 <- rnorm(12, 0, 0.3)
   d$y <- drcTMB:::drcmeanR(11, d$dose, 1, 8 + u2[d$grp], -2, 3*exp(u4[d$grp]), 2) + rnorm(nrow(d), 0, 0.4)
-  f <- drmTMB(y ~ dose, rform=b2 + b4 ~ 1 | grp, data=d, model="braincousens", b4link="log")
+  f <- drmTMB(y ~ dose, rform=b2 + b4 ~ 1 | grp, data=d, model="braincousens", link=c(b4="log"))
   expect_equal(f$opt$convergence, 0)
   cf <- coef(f)
   expect_equal(unname(cf[1:5]), c(1, 8, -2, log(3), 2), tolerance=0.15)
@@ -196,7 +196,7 @@ test_that("peaks of fitted groups are the maxima of their predicted curves", {
   u2 <- rnorm(12, 0, 0.5)
   u4 <- rnorm(12, 0, 0.3)
   d$y <- drcTMB:::drcmeanR(11, d$dose, 1, 8 + u2[d$grp], -2, 3*exp(u4[d$grp]), 2) + rnorm(nrow(d), 0, 0.4)
-  f <- drmTMB(y ~ dose, rform=b2 + b4 ~ 1 | grp, data=d, model="braincousens", b4link="log")
+  f <- drmTMB(y ~ dose, rform=b2 + b4 ~ 1 | grp, data=d, model="braincousens", link=c(b4="log"))
   pk <- peak(f, newdata=data.frame(grp=c("1", "2")))
   for (g in 1:2){
     o <- optimise(function(x) predict(f, newdata=data.frame(dose=x, grp=as.character(g))), c(0.1, 3), maximum=TRUE, tol=1e-10)

@@ -15,8 +15,7 @@ drmTMBstart(
   model = "logistic",
   alpha = NULL,
   smooth = NULL,
-  link = "identity",
-  b4link = "identity",
+  link = NULL,
   method = "lm",
   gsl = NULL,
   gsu = NULL,
@@ -44,13 +43,11 @@ drmTMBstart(
 
 \item{smooth}{smoothing of the threshold of the nec model, relative to the smallest interval between doses, see \code{\link{drmTMB}}; without random effects, the default is 0, an exact threshold.}
 
-\item{link}{Specify the link function for estimating asymptote parameters. One of "identity", "log", "logit".}
-
-\item{b4link}{link function for b4, "identity" or "log". With "log", the coefficients of b4 are on the log scale (models with a positive b4 only, not logistic and gompertz), see \code{\link{drmTMB}}.}
+\item{link}{links of the parameters b1-b5, see \code{\link{drmTMB}}.}
 
 \item{method}{one of "lm" or "grid".}
 
-\item{gsl}{a vector of lower bounds for the grid search, same length as start, on the scale of the coefficients (log scale for b4 with \code{b4link="log"}); NA (or NULL) for the default range.}
+\item{gsl}{a vector of lower bounds for the grid search, same length as start, on the scale of the coefficients (log scale for b4 with the log link); NA (or NULL) for the default range.}
 
 \item{gsu}{a vector of upper bounds for the grid search, same length as start; NA (or NULL) for the default range.}
 
@@ -77,7 +74,7 @@ not included in the grid start at the values of method "lm".
 Without bounds in \code{gsl} and \code{gsu}, default ranges are used for b3 (the sign
 of the "lm" starting value, with 1/4 to 4 times its steepness, log-spaced), b4 (the dose
 range extended at both ends; log-spaced for models on the log-dose scale, and on the log scale
-with \code{b4link="log"}), and b5
+with the log link for b4), and b5
 (-2 to 2, logistic, loglogistic and nec; for braincousens and cedergreen, from 0 to four times the
 hormesis effect that equals the difference of the asymptotes at dose b4). Default ranges are only used for parameters
 with a single coefficient in \code{fform}; the asymptotes b1 and b2 are only included

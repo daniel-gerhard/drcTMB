@@ -18,8 +18,7 @@ drmTMB(
   model = "logistic",
   alpha = NULL,
   smooth = NULL,
-  link = "identity",
-  b4link = "identity",
+  link = NULL,
   gsl = NULL,
   gsu = NULL,
   gsn = NULL,
@@ -41,7 +40,7 @@ drmTMB(
 
 \item{weights}{a vector of weights, one for each row of data.}
 
-\item{lower}{lower bounds for the model coefficients b1-b5, a single value or a vector with the same length as start. Bounds of fixed coefficients are ignored; variance parameters are unbounded. For the multistage model, the default is 0 for the coefficients b3-b5 without covariates in fform, and for the nec model 0 for the rate b3 and, with b4link="identity", the threshold b4 without covariates, see Details.}
+\item{lower}{lower bounds for the model coefficients b1-b5, a single value or a vector with the same length as start. Bounds of fixed coefficients are ignored; variance parameters are unbounded. For the multistage model, the default is 0 for the coefficients b3-b5 without covariates in fform, and for the nec model 0 for the rate b3 and, with the identity link for b4, the threshold b4 without covariates, see Details.}
 
 \item{upper}{upper bounds for the model coefficients b1-b5, a single value or a vector with the same length as start.}
 
@@ -53,9 +52,7 @@ drmTMB(
 
 \item{smooth}{smoothing of the threshold of the nec model: the width of the smoothed threshold relative to the smallest interval between doses, a number of at least 0; 0 is an exact threshold. The default is 0.1 with random effects on b4, and 0 otherwise. Only for the nec model, see Details.}
 
-\item{link}{Specify the link function for estimating asymptote parameters. One of "identity", "log", "logit".}
-
-\item{b4link}{link function for b4, "identity" (default) or "log", see Details. Only for the models with a positive b4, not for logistic and gompertz.}
+\item{link}{links of the parameters b1-b5: NULL for the defaults of the model, a single link for the asymptotes b1 and b2, or links named by parameter, e.g. c(b1="logit", b2="logit", b4="log"), where the parameters not named keep their defaults. b1 and b2 have the link "identity" (default), "log" or "logit"; b4 has "identity" (default) or "log" for the models with a positive b4 (not logistic, gompertz and multistage); b5 has the log link for the asymmetry of logistic and loglogistic and the shape of nec; the other parameters have the identity link. The coefficients, and start, fix, lower, upper and linfct of \code{\link{ed}}, are on the scale of the links, see Details.}
 
 \item{gsl}{a vector of lower bounds for a grid search, same length as start; NA for the default range. If gsl, gsu and gsn are all NULL, no grid search is performed. See \code{\link{drmTMBstart}}.}
 
@@ -96,13 +93,13 @@ b4, e.g. \code{start=c(b2=1, b5=0), fix=c(b2=TRUE, b5=TRUE)}. As in BMDS, b3-b5 
 below by 0 by default (if \code{lower} is not given, and for parameters without covariates in
 fform), so that the curve increases; estimates at the bound are common, and are listed by
 \code{summary}, as their standard errors and Wald intervals do not account for the bound. Profile
-intervals of the effective doses respect the bounds. b4link="log" is not available.
+intervals of the effective doses respect the bounds. The log link for b4 is not available.
 
 The threshold model nec has no effect up to a threshold b4, the no-effect concentration (NEC), and
 F(x) = 1 - exp(-(b3 (x - b4))^exp(b5)) above it: b1 is the response up to the threshold and b2 the
 asymptote at high doses, b3 > 0 the rate and b5 the shape on the log scale; b3 and b4 are bounded
 below by 0 by default (if \code{lower} is not given, for parameters without covariates in fform,
-and for b4 with b4link="identity"). With b5 = 0, it is the NEC model of drc, NEC.4 (b1 = d,
+and for b4 with the identity link). With b5 = 0, it is the NEC model of drc, NEC.4 (b1 = d,
 b2 = c, b3 = b, b4 = e); with b2 fixed at 0, NEC.3, e.g. \code{start=c(b2=0, b5=0),
 fix=c(b2=TRUE, b5=TRUE)}, and with b1 also fixed at 1, NEC.2. With b5 estimated, the curve is
 sigmoidal above the threshold for b5 > 0, as the necsigm model of bayesnec (with the rate inside
@@ -143,7 +140,7 @@ a dose-response model by \code{\link{anova.drmTMB}}, it tests for a dose effect,
 asymptote are not identifiable, so the chi-square distribution of the likelihood ratio statistic
 is only an approximation.
 
-With \code{b4link="log"}, the linear predictor of b4, including its random effects, is log(b4):
+With the log link for b4, \code{link=c(b4="log")}, the linear predictor of b4, including its random effects, is log(b4):
 the coefficients of b4 in \code{coef}, \code{start}, \code{fix}, \code{lower}, \code{upper} and
 \code{linfct} of \code{\link{ed}} are on the log scale. Random effects on b4 then vary b4 by a
 factor between groups, and the estimate of b4 is the median over the groups. For the models on the

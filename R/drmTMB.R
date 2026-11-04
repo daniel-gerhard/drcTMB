@@ -7,14 +7,13 @@
 #' @param start a vector with starting values for each model coefficient. NA entries are replaced by the starting values of \code{\link{drmTMBstart}}. Alternatively, a vector named by parameter, e.g. c(b1=0, b5=0), gives the same starting value to all coefficients of each named parameter.
 #' @param fix a logical vector with one entry for each model coefficient. If TRUE, a model coefficient is fixed to its value in start. Alternatively, a vector named by parameter, e.g. c(b1=TRUE, b5=TRUE), fixes all coefficients of the named parameters; their values must then be given in start, e.g. start=c(b1=0, b5=0). Parameters not used by the model (b5 except for logistic, loglogistic, braincousens, cedergreen, multistage and nec, b3 for michaelismenten, asymptoticregression and exponentialdecay, b2-b5 for constant) are always fixed, at 0 unless given in start.
 #' @param weights a vector of weights, one for each row of data.
-#' @param lower lower bounds for the model coefficients b1-b5, a single value or a vector with the same length as start. Bounds of fixed coefficients are ignored; variance parameters are unbounded. For the multistage model, the default is 0 for the coefficients b3-b5 without covariates in fform, and for the nec model 0 for the rate b3 and, with b4link="identity", the threshold b4 without covariates, see Details.
+#' @param lower lower bounds for the model coefficients b1-b5, a single value or a vector with the same length as start. Bounds of fixed coefficients are ignored; variance parameters are unbounded. For the multistage model, the default is 0 for the coefficients b3-b5 without covariates in fform, and for the nec model 0 for the rate b3 and, with the identity link for b4, the threshold b4 without covariates, see Details.
 #' @param upper upper bounds for the model coefficients b1-b5, a single value or a vector with the same length as start.
 #' @param family Specify the distributional assumptions. One of "gaussian", "binomial", "betabinomial", "beta", "poisson", "nbinom2", and "nbinom1". The negative binomial families are for overdispersed counts, with variance mu (1 + mu/theta) for nbinom2 and mu (1 + phi) for nbinom1, and the beta-binomial family for overdispersed binomial counts, with variance n mu (1 - mu) (1 + (n - 1)/(phi + 1)) for n trials, as in glmmTMB.
 #' @param model Specify the nonlinear model. One of "logistic", "loglogistic", "weibull1", "weibull2", "lognormal", "michaelismenten", "asymptoticregression", "exponentialdecay", "gompertz", "gamma", "multistage", "nec", "braincousens", "cedergreen", "constant". The nec model has a threshold, the braincousens and cedergreen models describe hormesis, the constant model has no dose effect, see Details.
 #' @param alpha the exponent of the hormesis term of the cedergreen model, a positive number, e.g. 1, 0.5 or 0.25 as the models CRS.4a, CRS.4b and CRS.4c of drc (CRS.5a-c with b1 estimated); only for the cedergreen model. See Details.
 #' @param smooth smoothing of the threshold of the nec model: the width of the smoothed threshold relative to the smallest interval between doses, a number of at least 0; 0 is an exact threshold. The default is 0.1 with random effects on b4, and 0 otherwise. Only for the nec model, see Details.
-#' @param link Specify the link function for estimating asymptote parameters. One of "identity", "log", "logit". 
-#' @param b4link link function for b4, "identity" (default) or "log", see Details. Only for the models with a positive b4, not for logistic and gompertz.
+#' @param link links of the parameters b1-b5: NULL for the defaults of the model, a single link for the asymptotes b1 and b2, or links named by parameter, e.g. c(b1="logit", b2="logit", b4="log"), where the parameters not named keep their defaults. b1 and b2 have the link "identity" (default), "log" or "logit"; b4 has "identity" (default) or "log" for the models with a positive b4 (not logistic, gompertz and multistage); b5 has the log link for the asymmetry of logistic and loglogistic and the shape of nec; the other parameters have the identity link. The coefficients, and start, fix, lower, upper and linfct of \code{\link{ed}}, are on the scale of the links, see Details.
 #' @param gsl a vector of lower bounds for a grid search, same length as start; NA for the default range. If gsl, gsu and gsn are all NULL, no grid search is performed. See \code{\link{drmTMBstart}}.
 #' @param gsu a vector of upper bounds for a grid search, same length as start; NA for the default range.
 #' @param gsn number of grid points for each parameter, a single number or a vector with the same length as start. \code{gsn=10} alone runs a grid search over the default ranges.
@@ -44,13 +43,13 @@
 #' below by 0 by default (if \code{lower} is not given, and for parameters without covariates in
 #' fform), so that the curve increases; estimates at the bound are common, and are listed by
 #' \code{summary}, as their standard errors and Wald intervals do not account for the bound. Profile
-#' intervals of the effective doses respect the bounds. b4link="log" is not available.
+#' intervals of the effective doses respect the bounds. The log link for b4 is not available.
 #'
 #' The threshold model nec has no effect up to a threshold b4, the no-effect concentration (NEC), and
 #' F(x) = 1 - exp(-(b3 (x - b4))^exp(b5)) above it: b1 is the response up to the threshold and b2 the
 #' asymptote at high doses, b3 > 0 the rate and b5 the shape on the log scale; b3 and b4 are bounded
 #' below by 0 by default (if \code{lower} is not given, for parameters without covariates in fform,
-#' and for b4 with b4link="identity"). With b5 = 0, it is the NEC model of drc, NEC.4 (b1 = d,
+#' and for b4 with the identity link). With b5 = 0, it is the NEC model of drc, NEC.4 (b1 = d,
 #' b2 = c, b3 = b, b4 = e); with b2 fixed at 0, NEC.3, e.g. \code{start=c(b2=0, b5=0),
 #' fix=c(b2=TRUE, b5=TRUE)}, and with b1 also fixed at 1, NEC.2. With b5 estimated, the curve is
 #' sigmoidal above the threshold for b5 > 0, as the necsigm model of bayesnec (with the rate inside
@@ -91,7 +90,7 @@
 #' asymptote are not identifiable, so the chi-square distribution of the likelihood ratio statistic
 #' is only an approximation.
 #'
-#' With \code{b4link="log"}, the linear predictor of b4, including its random effects, is log(b4):
+#' With the log link for b4, \code{link=c(b4="log")}, the linear predictor of b4, including its random effects, is log(b4):
 #' the coefficients of b4 in \code{coef}, \code{start}, \code{fix}, \code{lower}, \code{upper} and
 #' \code{linfct} of \code{\link{ed}} are on the log scale. Random effects on b4 then vary b4 by a
 #' factor between groups, and the estimate of b4 is the median over the groups. For the models on the
@@ -113,10 +112,10 @@
 #' @return A drmTMB object
 #' @export
 
-drmTMB <- function(form, fform=NULL, rform=NULL, data, start=NULL, fix=NULL, weights=NULL, lower=-Inf, upper=Inf, family="gaussian", model="logistic", alpha=NULL, smooth=NULL, link="identity", b4link="identity", gsl=NULL, gsu=NULL, gsn=NULL, control=list()){
+drmTMB <- function(form, fform=NULL, rform=NULL, data, start=NULL, fix=NULL, weights=NULL, lower=-Inf, upper=Inf, family="gaussian", model="logistic", alpha=NULL, smooth=NULL, link=NULL, gsl=NULL, gsu=NULL, gsn=NULL, control=list()){
   # control list
   control <- do.call(drmTMBcontrol, control)
-  dd <- drmTMBdata(form, fform=fform, rform=rform, data=data, weights=weights, family=family, model=model, alpha=alpha, smooth=smooth, link=link, b4link=b4link)
+  dd <- drmTMBdata(form, fform=fform, rform=rform, data=data, weights=weights, family=family, model=model, alpha=alpha, smooth=smooth, link=link)
   fixnamed <- !is.null(names(fix))
   start <- parvector(start, dd$npi, NA, "start")
   fix <- parvector(fix, dd$npi, FALSE, "fix")
@@ -137,11 +136,12 @@ drmTMB <- function(form, fform=NULL, rform=NULL, data, start=NULL, fix=NULL, wei
     if (length(b) != length(start)) stop("lower and upper must be a single value or have the same length as start.")
     c(b[!fix], rep(inf, length(obj$par) - sum(!fix)))
   }
-  # multistage: coefficients b3-b5 of the polynomial bounded below by 0, as in BMDS; nec: rate b3
-  # and threshold b4 (identity link) bounded below by 0
-  if (dd$mod %in% c(14, 15) && identical(lower, -Inf)){
+  # default lower bounds of 0, e.g. for the coefficients b3-b5 of the polynomial of the multistage
+  # model, as in BMDS, and for the rate b3 and threshold b4 of nec; not needed for b4 on the log scale
+  m <- drcmodel(dd$mod)
+  if (!is.null(m$lower0) && identical(lower, -Inf)){
     lower <- rep(-Inf, length(start))
-    bpars <- if (dd$mod == 14) 3:5 else c(3, if (dd$lnk4 == 1) 4)
+    bpars <- if (dd$lnk[4] == 2) setdiff(m$lower0, 4) else m$lower0
     lower[dd$npi %in% which(dd$npars == 1) & dd$npi %in% bpars] <- 0
   }
   lower <- bounds(lower, -Inf)
@@ -166,8 +166,7 @@ drmTMB <- function(form, fform=NULL, rform=NULL, data, start=NULL, fix=NULL, wei
   res$model <- model
   res$alpha <- alpha
   res$smooth <- dd$smooth
-  res$link <- link
-  res$b4link <- b4link
+  res$link <- dd$link
   res$start <- start
   res$fix <- fix
   res$Xs <- dd$Xs
@@ -194,19 +193,20 @@ drmTMB <- function(form, fform=NULL, rform=NULL, data, start=NULL, fix=NULL, wei
     if (rdf > 0) res$rdf <- rdf else warning("no residual degrees of freedom; the standard errors use the maximum likelihood estimate of the residual variance.", call.=FALSE)
   }
   class(res) <- "drmTMB"
-  # hormesis models: a decreasing curve, which returns to b1 at high doses for braincousens
-  if (dd$mod %in% c(11, 12)){
+  # hormesis models: a decreasing curve, which returns to b1 at high doses for braincousens (b3 < -1)
+  if (!is.null(m$hormesis)){
     pv <- start
     pv[!fix] <- opt$par[seq_len(sum(!fix))]
     b3 <- as.vector(dd$Xs[[3]] %*% pv[dd$npi == 3])
-    if (any(b3 >= if (dd$mod == 11) -1 else 0)){
-      warning("the ", model, " model is meant for decreasing curves, with b3 < ", if (dd$mod == 11) "-1" else "0",
-              "; the estimate of b3 is ", if (dd$mod == 11) "-1 or larger" else "not negative", ".", call.=FALSE)
+    b3max <- m$hormesis$b3max
+    if (any(b3 >= b3max)){
+      warning("the ", model, " model is meant for decreasing curves, with b3 < ", b3max,
+              "; the estimate of b3 is ", if (b3max == 0) "not negative" else paste(b3max, "or larger"), ".", call.=FALSE)
     }
   }
-  # nec: the likelihood has a kink where the threshold equals a dose, and is flat in a threshold above
-  # the highest dose
-  if (dd$mod == 15 && any(!fix[dd$npi == 4])) necwarn(res)
+  # threshold models: the likelihood has a kink where the threshold equals a dose, and is flat in a
+  # threshold above the highest dose
+  if (m$b4 %in% "threshold" && any(!fix[dd$npi == 4])) necwarn(res)
   return(res)
 }
 
@@ -216,7 +216,7 @@ necwarn <- function(fit){
   pv <- fit$start
   pv[!fit$fix] <- fit$opt$par[seq_len(sum(!fit$fix))]
   npi <- rep(1:5, sapply(fit$Xs, ncol))
-  b4 <- unique(linkfun(b4linkindex(fit), as.vector(fit$Xs[[4]] %*% pv[npi == 4]), inverse=TRUE))
+  b4 <- unique(linkfun(linkindex(fit$link)[4], as.vector(fit$Xs[[4]] %*% pv[npi == 4]), inverse=TRUE))
   x <- fit$obj$env$data$x
   xd <- unique(x)
   tol <- 1e-6 * diff(range(x))

@@ -12,7 +12,7 @@ simslopes <- function(par=c("b2", "b4"), ng=10, nrep=1, seed=11){
   ug <- u0[d$grp] + u1[d$grp]*d$temp
   b2 <- 8 + d$temp + if (par == "b2") ug else 0
   b4 <- 3*exp(0.4*d$temp + if (par == "b4") 0.7*ug else 0)
-  d$y <- drcTMB:::drcmeanR(2, d$dose, 2, b2, -1.5, b4, 0) + rnorm(nrow(d), 0, 0.3)
+  d$y <- drcTMB:::drcmeanR(2, d$dose, 2, b2, -1.5, b4, 1) + rnorm(nrow(d), 0, 0.3)
   d
 }
 
@@ -44,7 +44,7 @@ test_that("predict with random slopes", {
   u <- matrix(f$sdrl$par.random, ncol=2)
   # fitted group 3 at temp 1, by hand
   p <- predict(f, data.frame(dose=2, temp=1, grp="3"))
-  expect_equal(p, drcTMB:::drcmeanR(2, 2, cf[[1]], cf[[2]] + cf[[3]] + u[3, 1] + u[3, 2], cf[[4]], cf[[5]], 0))
+  expect_equal(p, drcTMB:::drcmeanR(2, 2, cf[[1]], cf[[2]] + cf[[3]] + u[3, 1] + u[3, 2], cf[[4]], cf[[5]], 1))
   # a new group: the variance of the random intercept and slope at temp 1 in the prediction interval
   nd <- data.frame(dose=2, temp=1, grp="new")
   pc <- predict(f, nd, interval="confidence")
@@ -59,7 +59,7 @@ test_that("predict with random slopes", {
 
 test_that("effective doses with random slopes of log b4", {
   d <- simslopes("b4", ng=12, nrep=2, seed=12)
-  f <- fit4(y ~ dose, fform=b4 ~ temp, rform=b4 ~ temp | grp, data=d, model="loglogistic", b4link="log")
+  f <- fit4(y ~ dose, fform=b4 ~ temp, rform=b4 ~ temp | grp, data=d, model="loglogistic", link=c(b4="log"))
   nd <- data.frame(temp=c(1, 1, -1), grp=c("4", "new", "new"))
   e <- ed(f, 50, newdata=nd)
   expect_equal(names(coef(e)), c("50:temp=1,grp=4", "50:temp=1,grp=new", "50:temp=-1,grp=new"))
@@ -79,7 +79,7 @@ test_that("effective doses with random slopes of log b4", {
 test_that("random slopes need their covariates", {
   d <- simslopes("b4", ng=12, nrep=2, seed=12)
   # temp only in the random effects
-  f <- fit4(y ~ dose, rform=b4 ~ temp | grp, data=d, model="loglogistic", b4link="log")
+  f <- fit4(y ~ dose, rform=b4 ~ temp | grp, data=d, model="loglogistic", link=c(b4="log"))
   expect_error(ed(f), "covariates of the random slopes")
   expect_length(coef(ed(f, random=FALSE)), 1)
   expect_error(ed(f, newdata=data.frame(grp="4")), "covariates of the random slopes: temp")
@@ -92,7 +92,7 @@ test_that("random slopes need their covariates", {
 
 test_that("uncorrelated random intercepts and slopes with ||", {
   d <- simslopes("b4", ng=12, nrep=2, seed=12)
-  f <- fit4(y ~ dose, fform=b4 ~ temp, rform=b4 ~ temp || grp, data=d, model="loglogistic", b4link="log")
+  f <- fit4(y ~ dose, fform=b4 ~ temp, rform=b4 ~ temp || grp, data=d, model="loglogistic", link=c(b4="log"))
   expect_length(f$reterms, 2)
   expect_equal(names(coef(f))[6:7], c("log_sd:b4|grp", "log_sd:b4:temp|grp"))
   expect_equal(summary(f)$ngroups, c(grp=12))
@@ -105,8 +105,8 @@ test_that("random slopes of a factor use the levels and contrasts of the fit for
   d$rep <- NULL
   U <- matrix(rnorm(ng*3, 0, 0.25), ng)
   b4 <- 3*exp(c(0, -0.3, -0.6)[d$time] + U[cbind(as.integer(d$grp), as.integer(d$time))])
-  d$y <- drcTMB:::drcmeanR(2, d$dose, 1, 8, -1.5, b4, 0) + rnorm(nrow(d), 0, 0.3)
-  f <- fit4(y ~ dose, fform=b4 ~ time, rform=b4 ~ time | grp, data=d, model="loglogistic", b4link="log")
+  d$y <- drcTMB:::drcmeanR(2, d$dose, 1, 8, -1.5, b4, 1) + rnorm(nrow(d), 0, 0.3)
+  f <- fit4(y ~ dose, fform=b4 ~ time, rform=b4 ~ time | grp, data=d, model="loglogistic", link=c(b4="log"))
   expect_equal(names(coef(f))[7:9], c("log_sd:b4|grp", "log_sd:b4:time48h|grp", "log_sd:b4:time72h|grp"))
 
   lev <- c("24h", "48h", "72h")
