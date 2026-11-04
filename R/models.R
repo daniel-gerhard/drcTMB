@@ -138,6 +138,11 @@ linkpars <- function(lnk, eta){
   sapply(1:5, function(k) linkfun(lnk[k], eta[k], inverse=TRUE))
 }
 
+# derivative of the inverse link lnk at the linear predictor eta
+dlinkinv <- function(lnk, eta){
+  switch(lnk, rep(1, length(eta)), exp(eta), plogis(eta)*(1 - plogis(eta)))
+}
+
 # properties of a model, by name or index
 drcmodel <- function(mod){
   drcmodels[[mod]]

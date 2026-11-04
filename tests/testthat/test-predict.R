@@ -192,3 +192,68 @@ test_that("simulated prediction intervals of poisson and binomial models", {
   expect_true(all(pn$upr - pn$lwr > pc$upr - pc$lwr))
   expect_error(predict(fb, data.frame(dose=1, grp="1"), interval="prediction"), "number of trials")
 })
+
+## parameters of the curves ------------------------------------------------------------
+
+test_that("predicted parameters are the coefficients, with their standard errors", {
+  d <- simgauss("loglogistic")
+  f <- fit4(y ~ dose, data=d, model="loglogistic", link=c(b4="log"))
+  # the dose is not needed, and the unused parameters are left out
+  p <- predict(f, data.frame(z=1), type="parameters")
+  expect_equal(colnames(p), paste("b", 1:5, sep=""))
+  cf <- coef(f)
+  expect_equal(unname(p[1, ]), c(cf[[1]], cf[[2]], cf[[3]], exp(cf[[4]]), 1))
+  pl <- predict(f, data.frame(z=1), type="parameters", scale="link", se.fit=TRUE)
+  expect_equal(pl$fit[1:4], unname(cf[1:4]))
+  expect_equal(pl$se.fit[1:4], unname(summary(f)$coefficients[, 2]))
+  expect_equal(pl$se.fit[5], 0)
+  # original scale: standard errors by the delta method, intervals back-transformed from the log scale
+  po <- predict(f, data.frame(z=1), type="parameters", interval="confidence")
+  expect_equal(po$se.fit[4], exp(cf[[4]]) * pl$se.fit[4])
+  z <- qt(0.975, df.residual(f))
+  expect_equal(c(po$lwr[4], po$upr[4]), exp(cf[[4]] + c(-1, 1)*z*pl$se.fit[4]))
+  expect_equal(predict(drmTMB(y ~ dose, data=simgauss("weibull1"), model="weibull1"), data.frame(z=1:2), type="parameters"),
+               matrix(rep(coef(drmTMB(y ~ dose, data=simgauss("weibull1"), model="weibull1"))[1:4], each=2), 2,
+                      dimnames=list(NULL, paste("b", 1:4, sep=""))))
+})
+
+test_that("predicted parameters of covariates and fitted groups agree with ed", {
+  # ED50 = b4 for the loglogistic model without asymmetry
+  set.seed(2)
+  d <- simgroups(ng=8)
+  u <- rnorm(8, 0, 0.3)
+  d$trt <- factor(ifelse(as.integer(d$grp) <= 4, "a", "b"))
+  d$y <- drcTMB:::drcmeanR(2, d$dose, 1, 8, -1.5, 3*exp(u[d$grp] + 0.4*(d$trt == "b")), 1) + rnorm(nrow(d), 0, 0.3)
+  f <- fit4(y ~ dose, fform=b4 ~ trt, rform=b4 ~ 1 | grp, data=d, model="loglogistic", link=c(b4="log"))
+  nd <- data.frame(trt=c("a", "b", "b"), grp=c("1", "5", "new"))
+  p <- predict(f, nd, type="parameters", se.fit=TRUE)
+  e <- ed(f, 50, newdata=nd)
+  expect_equal(p$fit[p$parameter == "b4"], unname(coef(e)))
+  # for the new group, ed includes the variance of its random effect, as the prediction interval below
+  expect_equal(p$se.fit[p$parameter == "b4"][1:2], unname(sqrt(diag(vcov(e))))[1:2], tolerance=1e-6)
+  # population parameters
+  p0 <- predict(f, nd, random=FALSE, type="parameters", se.fit=TRUE)
+  e0 <- ed(f, 50, newdata=nd, random=FALSE)
+  expect_equal(p0$fit[p0$parameter == "b4"], unname(coef(e0)))
+  expect_equal(p0$se.fit[p0$parameter == "b4"], unname(sqrt(diag(vcov(e0)))), tolerance=1e-6)
+  # a new group: the variance of the random effect is added on the log scale
+  pp <- predict(f, nd, type="parameters", scale="link", interval="prediction")
+  pl <- predict(f, nd, type="parameters", scale="link", se.fit=TRUE)
+  sdre <- exp(coef(f)[["log_sd:b4|grp"]])
+  i <- which(pp$parameter == "b4")
+  expect_equal(pp$upr[i] - pp$fit[i], qnorm(0.975)*sqrt(pl$se.fit[i]^2 + c(0, 0, sdre^2)))
+  expect_equal(sqrt(vcov(e)[3, 3]), coef(e)[[3]]*sqrt(pl$se.fit[i[3]]^2 + sdre^2), tolerance=1e-6)
+})
+
+test_that("bootstrap intervals of the parameters", {
+  d <- simgauss("loglogistic")
+  f <- fit4(y ~ dose, data=d, model="loglogistic", link=c(b4="log"))
+  b <- bootstrap(f, nsim=200, seed=1)
+  p <- predict(f, data.frame(z=1), type="parameters", interval="confidence", boot=b)
+  pd <- predict(f, data.frame(z=1), type="parameters", interval="confidence")
+  expect_equal(p$fit, pd$fit)
+  expect_equal(p$se.fit, pd$se.fit, tolerance=0.2)
+  expect_equal(p$lwr[1:4], pd$lwr[1:4], tolerance=0.1)
+  expect_equal(p$upr[1:4], pd$upr[1:4], tolerance=0.1)
+  expect_error(predict(f, data.frame(z=1), type="parameters", interval="prediction", boot=b), "not available with boot")
+})

@@ -47,6 +47,8 @@
   boot = NULL,
   nsim = 1000,
   seed = NULL,
+  type = c("response", "parameters"),
+  scale = c("original", "link"),
   ...
 )
 
@@ -66,7 +68,7 @@
 \item{random}{logical, if TRUE, the random effects are included in the predictions, fitted values and residuals (conditional residuals). For simulate, if TRUE, new random effects are drawn for each simulation, otherwise the fitted random effects are kept.
 For prediction intervals, random=TRUE gives the interval of a new observation in the group of each row of newdata, and random=FALSE the interval of a new observation in a new group, including the variance of the random effects. Rows of newdata with a level that is not in the fitted data are treated as new groups for that random effect term.}
 
-\item{type}{type of residuals: "pearson" (default), the response residuals divided by the standard deviation of the fitted distribution and multiplied by the square root of the weights; "response", the observed minus the fitted values, as proportions for a binomial response; or "quantile", randomised quantile residuals (Dunn and Smyth, 1996), which are standard normal under the model. For the gaussian family, the quantile residuals are multiplied by the square root of the weights, as precision weights with standard deviation sigma/sqrt(w); for the other families they do not use the weights, as a weighted log-likelihood is not the density of a distribution of the observation. The quantile residuals are random for the count families; use set.seed for reproducible values.}
+\item{type}{type of prediction: "response" (default), the mean response at the doses of newdata, or "parameters", the parameters b1-b5 of the curve of each row of newdata (with its covariates in fform and, with random=TRUE, the random effects of its groups); newdata then needs no dose. The standard errors of the parameters are those of the estimates, by the delta method, and their confidence intervals are computed on the scale of the link and back-transformed; with random=TRUE, they include the uncertainty of the predicted random effects of the fitted groups. Prediction intervals of the parameters add the variance of the random effects of the terms without a fitted level, the parameters of a new group, and are not available with boot.}
 
 \item{newdata}{a data frame for prediction. If NULL, the original data is used.}
 
@@ -81,11 +83,16 @@ For prediction intervals, random=TRUE gives the interval of a new observation in
 \item{nsim}{number of response vectors to simulate; for predict, the number of parameter draws for simulated prediction intervals}
 
 \item{seed}{an optional seed for the random number generator}
+
+\item{scale}{for type="parameters", the scale of the parameters: "original" (default) or "link", the scale of the coefficients, see the argument link of \code{\link{drmTMB}}.}
 }
 \value{
 Estimated model coefficients, variance-covariance matrix, or predictions.
 predict returns a vector of predicted means, or, with se.fit=TRUE or an interval, a data frame with
 the predicted means (fit), their standard errors (se.fit), and the limits of the intervals (lwr, upr).
+With type="parameters", it returns a matrix of the parameters used by the model, a row for each row of
+newdata, or, with se.fit=TRUE or an interval, a data frame with the row of newdata (row), the
+parameter, and fit, se.fit, lwr and upr.
 coef and vcov include the variance parameters: for each random effect term the log standard deviations
 (log_sd:b1|group, or log_sd:b4:x|group for a random slope of b4 in x) and, for correlated random effects, the parameters of the correlation matrix
 (corr_par:b2,b1|group, unconstrained elements of the lower triangle of its Cholesky factor, by row);

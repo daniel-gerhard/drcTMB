@@ -12,11 +12,16 @@
 #' @param nsim number of response vectors to simulate; for predict, the number of parameter draws for simulated prediction intervals
 #' @param seed an optional seed for the random number generator
 #' @param boot a bootstrap sample of the model from \code{\link{bootstrap}}. predict then gives the standard deviation of the bootstrap predictions as se.fit, percentile confidence intervals, and prediction intervals simulated at the bootstrap fits, including their variance parameters. The bootstrap responses have new random effects, so for random=TRUE the random effects of the fitted groups are drawn, for each bootstrap fit, from the Laplace approximation of their conditional distribution given the original data at the parameters of that fit.
+#' @param type type of prediction: "response" (default), the mean response at the doses of newdata, or "parameters", the parameters b1-b5 of the curve of each row of newdata (with its covariates in fform and, with random=TRUE, the random effects of its groups); newdata then needs no dose. The standard errors of the parameters are those of the estimates, by the delta method, and their confidence intervals are computed on the scale of the link and back-transformed; with random=TRUE, they include the uncertainty of the predicted random effects of the fitted groups. Prediction intervals of the parameters add the variance of the random effects of the terms without a fitted level, the parameters of a new group, and are not available with boot.
+#' @param scale for type="parameters", the scale of the parameters: "original" (default) or "link", the scale of the coefficients, see the argument link of \code{\link{drmTMB}}.
 #' @param ... anything else
 #'
 #' @return Estimated model coefficients, variance-covariance matrix, or predictions.
 #' predict returns a vector of predicted means, or, with se.fit=TRUE or an interval, a data frame with
 #' the predicted means (fit), their standard errors (se.fit), and the limits of the intervals (lwr, upr).
+#' With type="parameters", it returns a matrix of the parameters used by the model, a row for each row of
+#' newdata, or, with se.fit=TRUE or an interval, a data frame with the row of newdata (row), the
+#' parameter, and fit, se.fit, lwr and upr.
 #' coef and vcov include the variance parameters: for each random effect term the log standard deviations
 #' (log_sd:b1|group, or log_sd:b4:x|group for a random slope of b4 in x) and, for correlated random effects, the parameters of the correlation matrix
 #' (corr_par:b2,b1|group, unconstrained elements of the lower triangle of its Cholesky factor, by row);
@@ -249,9 +254,13 @@ residuals.drmTMB <- function(object, type=c("pearson", "response", "quantile"), 
 
 #' @rdname drmTMB-methods
 #' @export
-predict.drmTMB <- function(object, newdata=NULL, random=TRUE, se.fit=FALSE, interval=c("none", "confidence", "prediction"), level=0.95, boot=NULL, nsim=1000, seed=NULL, ...){
+predict.drmTMB <- function(object, newdata=NULL, random=TRUE, se.fit=FALSE, interval=c("none", "confidence", "prediction"), level=0.95, boot=NULL, nsim=1000, seed=NULL,
+                           type=c("response", "parameters"), scale=c("original", "link"), ...){
   interval <- match.arg(interval)
+  type <- match.arg(type)
+  scale <- match.arg(scale)
   if (is.null(newdata)) newdata <- object$data
+  if (type == "parameters") return(predictpars(object, newdata, random, se.fit, interval, level, boot, nsim, seed, scale))
   pd <- preddata(object, newdata, random, covs=interval == "prediction")
   fit <- predmean(pd, pd$eta)
   if (!se.fit && interval == "none") return(fit)
@@ -415,6 +424,85 @@ predictse <- function(object, pd){
   sdr <- sdreport(obj, par.fixed=object$opt$par, hessian.fixed=H, getReportCovariance=FALSE)
   s <- summary(sdr, "report")
   unname(s[rownames(s) == "mu", 2])
+}
+
+# parameters b1-b5 of the curves in the rows of newdata (predict with type="parameters"), on their
+# original scale or on the scale of their links: a matrix with a column for each parameter used by the
+# model, or with se.fit or an interval, a data frame with a row for each row of newdata and parameter.
+# Standard errors on the link scale by the delta method, as the linear predictors are linear in the
+# coefficients and random effects; intervals on the link scale, back-transformed
+predictpars <- function(object, newdata, random, se.fit, interval, level, boot, nsim, seed, scale){
+  # the parameters do not depend on the dose
+  for (v in setdiff(all.vars(object$formula[[3]]), names(newdata))) newdata[[v]] <- NA
+  pd <- preddata(object, newdata, random, covs=interval == "prediction")
+  n <- length(pd$x)
+  used <- setdiff(1:5, unusedpars(pd$mod))
+  pnames <- paste("b", used, sep="")
+  out <- function(eta) if (scale == "link") eta else linkpars(pd$lnk, eta)
+  fit <- out(pd$eta)[, used, drop=FALSE]
+  colnames(fit) <- pnames
+  if (!se.fit && interval == "none") return(fit)
+  if (!is.null(seed)) set.seed(seed)
+
+  z <- zquant(object, level)
+  if (is.null(boot)){
+    se <- predparse(object, pd)
+    lo <- pd$eta - z*se
+    hi <- pd$eta + z*se
+    if (interval == "prediction"){
+      # new groups: the variance of the random effects of the terms without a fitted level
+      sdp <- sapply(1:5, function(k) sqrt(se[, k]^2 + newgroupvar(object, pd, outer(rep(1, n), 1:5 == k))))
+      sdp <- matrix(sdp, nrow=n)
+      lo <- pd$eta - z*sdp
+      hi <- pd$eta + z*sdp
+    }
+    # standard errors on the original scale: times the derivative of the inverse link
+    if (scale == "original") se <- se * sapply(1:5, function(k) dlinkinv(pd$lnk[k], pd$eta[, k]))
+  } else {
+    if (interval == "prediction") stop("prediction intervals of the parameters are not available with boot.")
+    draws <- bootdraws(object, getboot(object, boot, nsim, seed), random)
+    # linear predictors at the bootstrap fits, an array of rows, parameters and fits
+    bl <- lapply(seq_len(ncol(draws)), function(j) draweta(object, pd, draws[, j]))
+    be <- array(unlist(bl), c(n, 5, length(bl)))
+    bo <- array(unlist(lapply(bl, out)), dim(be))
+    se <- apply(bo, 1:2, sd, na.rm=TRUE)
+    # percentile intervals: the quantiles of the linear predictors, back-transformed below
+    probs <- c((1 - level)/2, (1 + level)/2)
+    lo <- apply(be, 1:2, quantile, probs=probs[1], na.rm=TRUE, names=FALSE)
+    hi <- apply(be, 1:2, quantile, probs=probs[2], na.rm=TRUE, names=FALSE)
+  }
+  se <- matrix(se, nrow=n)
+  lo <- matrix(lo, nrow=n)
+  hi <- matrix(hi, nrow=n)
+  se[is.na(pd$eta)] <- NA
+  res <- data.frame(row=rep(seq_len(n), length(used)), parameter=rep(pnames, each=n), fit=as.vector(fit),
+                    se.fit=as.vector(se[, used]))
+  if (interval != "none"){
+    res$lwr <- as.vector(out(lo)[, used])
+    res$upr <- as.vector(out(hi)[, used])
+  }
+  res
+}
+
+# standard errors of the linear predictors of b1-b5 in pd, a column for each parameter, by the delta
+# method: they are linear in the free coefficients and, with random=TRUE, in the random effects of the
+# fitted levels, with the joint covariance of both
+predparse <- function(object, pd){
+  env <- object$obj$env
+  np <- length(env$par)
+  nb <- sum(!object$fix)
+  r <- env$random
+  usere <- !is.null(r) && ncol(pd$Zp) > 0 && any(pd$Zp != 0)
+  id <- c(seq_len(nb), if (usere) r)
+  C <- if (usere) jointcov(object) else fixedcov(object)[seq_len(nb), seq_len(nb), drop=FALSE]
+  # derivatives of the linear predictors w.r.t. each parameter in id; draweta includes the fixed coefficients
+  e0 <- draweta(object, pd, numeric(np))
+  J <- lapply(id, function(j) draweta(object, pd, replace(numeric(np), j, 1)) - e0)
+  se <- sapply(1:5, function(k){
+    Jk <- matrix(sapply(J, function(Jj) Jj[, k]), nrow=length(pd$x))
+    sqrt(rowSums((Jk %*% C) * Jk))
+  })
+  matrix(se, nrow=length(pd$x))
 }
 
 # linear predictors of b1-b5 at a parameter vector par (as obj$env$par), with the random effects of
@@ -582,12 +670,13 @@ predci <- function(fit, se, family, z){
 }
 
 # variance of the mean from the random effects of the terms without a fitted level in each row, by
-# the delta method with numerical derivatives of the mean w.r.t. the linear predictors of b1-b5
-newgroupvar <- function(object, pd){
+# the delta method with numerical derivatives of the mean w.r.t. the linear predictors of b1-b5, or of a
+# function with the derivatives g (a column for each of b1-b5)
+newgroupvar <- function(object, pd, g=NULL){
   n <- length(pd$x)
   v <- numeric(n)
   if (length(object$reterms) == 0 || !any(pd$newgroup)) return(v)
-  g <- sapply(1:5, function(k){
+  if (is.null(g)) g <- sapply(1:5, function(k){
     h <- 1e-5*pmax(1, abs(pd$eta[, k]))
     e1 <- e2 <- pd$eta
     e1[, k] <- e1[, k] + h
