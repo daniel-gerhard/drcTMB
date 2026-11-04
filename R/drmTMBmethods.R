@@ -59,7 +59,7 @@ print.drmTMB <- function(x, digits=max(3L, getOption("digits") - 3L), ...){
 #' @export
 summary.drmTMB <- function(object, ...){
   dat <- object$obj$env$data
-  mod <- modelindex(object$model)
+  m <- drcmodel(object$model)
   vcs <- recov(object)
   ll <- logLik(object)
 
@@ -73,7 +73,7 @@ summary.drmTMB <- function(object, ...){
   # direction of the curve from the sign of the steepness b3 at the observations
   npi <- rep(1:5, sapply(object$Xs, ncol))
   direction <- NULL
-  if (!(mod %in% c(6:8, 10, 13, 14, 15))){
+  if (m$b3 %in% "steepness"){
     b <- object$start
     b[!object$fix] <- coefs[, 1]
     s3 <- sign(object$Xs[[3]] %*% b[npi == 3])
@@ -123,7 +123,7 @@ summary.drmTMB <- function(object, ...){
     gr[object$opt$par >= up & gr < 0] <- 0
   }
   res <- list(call=object$call, model=object$model, alpha=object$alpha, smooth=object$smooth, family=object$family, link=object$link, b4log=b4linkindex(object) == 2,
-              direction=direction, b5=if (any(!object$fix[npi == 5]) && mod %in% c(1, 2, 15)) c("asymmetry", "shape")[1 + (mod == 15)],
+              direction=direction, b5=if (any(!object$fix[npi == 5]) && m$b5 %in% c("asymmetry", "shape")) m$b5,
               nobs=nobs(object), ntrials=if (object$family %in% c("binomial", "betabinomial")) sum(dat$bn), ngroups=ngroups,
               logLik=ll, AIC=AIC(object), BIC=BIC(object),
               coefficients=coefs, fixed=userfixed(object), varcor=vcs, residpar=residpar(object), rdf=object$rdf,
@@ -676,11 +676,6 @@ smoothtext <- function(smooth){
   if (smoothwidth(smooth) == 0) return(NULL)
   paste(", threshold smoothed over width ", format(smooth[["width"]], digits=3), " (", format(smooth[["relative"]], digits=3),
         " times the smallest interval between doses)", sep="")
-}
-
-# index of the model, as in the TMB template
-modelindex <- function(model){
-  which(model == c("logistic", "loglogistic", "weibull1", "weibull2", "lognormal", "michaelismenten", "asymptoticregression", "exponentialdecay", "gompertz", "constant", "braincousens", "cedergreen", "gamma", "multistage", "nec"))
 }
 
 # index of the link for b4, as in the TMB template: 1 = identity, 2 = log; identity for fits

@@ -137,11 +137,12 @@ drmTMB <- function(form, fform=NULL, rform=NULL, data, start=NULL, fix=NULL, wei
     if (length(b) != length(start)) stop("lower and upper must be a single value or have the same length as start.")
     c(b[!fix], rep(inf, length(obj$par) - sum(!fix)))
   }
-  # multistage: coefficients b3-b5 of the polynomial bounded below by 0, as in BMDS; nec: rate b3
-  # and threshold b4 (identity link) bounded below by 0
-  if (dd$mod %in% c(14, 15) && identical(lower, -Inf)){
+  # default lower bounds of 0, e.g. for the coefficients b3-b5 of the polynomial of the multistage
+  # model, as in BMDS, and for the rate b3 and threshold b4 of nec; not needed for b4 on the log scale
+  m <- drcmodel(dd$mod)
+  if (!is.null(m$lower0) && identical(lower, -Inf)){
     lower <- rep(-Inf, length(start))
-    bpars <- if (dd$mod == 14) 3:5 else c(3, if (dd$lnk4 == 1) 4)
+    bpars <- if (dd$lnk4 == 2) setdiff(m$lower0, 4) else m$lower0
     lower[dd$npi %in% which(dd$npars == 1) & dd$npi %in% bpars] <- 0
   }
   lower <- bounds(lower, -Inf)
@@ -194,19 +195,20 @@ drmTMB <- function(form, fform=NULL, rform=NULL, data, start=NULL, fix=NULL, wei
     if (rdf > 0) res$rdf <- rdf else warning("no residual degrees of freedom; the standard errors use the maximum likelihood estimate of the residual variance.", call.=FALSE)
   }
   class(res) <- "drmTMB"
-  # hormesis models: a decreasing curve, which returns to b1 at high doses for braincousens
-  if (dd$mod %in% c(11, 12)){
+  # hormesis models: a decreasing curve, which returns to b1 at high doses for braincousens (b3 < -1)
+  if (!is.null(m$hormesis)){
     pv <- start
     pv[!fix] <- opt$par[seq_len(sum(!fix))]
     b3 <- as.vector(dd$Xs[[3]] %*% pv[dd$npi == 3])
-    if (any(b3 >= if (dd$mod == 11) -1 else 0)){
-      warning("the ", model, " model is meant for decreasing curves, with b3 < ", if (dd$mod == 11) "-1" else "0",
-              "; the estimate of b3 is ", if (dd$mod == 11) "-1 or larger" else "not negative", ".", call.=FALSE)
+    b3max <- m$hormesis$b3max
+    if (any(b3 >= b3max)){
+      warning("the ", model, " model is meant for decreasing curves, with b3 < ", b3max,
+              "; the estimate of b3 is ", if (b3max == 0) "not negative" else paste(b3max, "or larger"), ".", call.=FALSE)
     }
   }
-  # nec: the likelihood has a kink where the threshold equals a dose, and is flat in a threshold above
-  # the highest dose
-  if (dd$mod == 15 && any(!fix[dd$npi == 4])) necwarn(res)
+  # threshold models: the likelihood has a kink where the threshold equals a dose, and is flat in a
+  # threshold above the highest dose
+  if (m$b4 %in% "threshold" && any(!fix[dd$npi == 4])) necwarn(res)
   return(res)
 }
 

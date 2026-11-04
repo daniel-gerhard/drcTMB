@@ -36,7 +36,7 @@
 #'
 ed <- function(x, respLev=50, linfct=NULL, newdata=NULL, random=TRUE, residual=FALSE, type=c("relative", "absolute")){
   type <- match.arg(type)
-  if (x$model == "constant") stop("the constant model has no effective doses.")
+  if (is.na(drcmodel(x$model)$ed)) stop("the ", x$model, " model has no effective doses.")
   edcore(x, respLev, linfct, newdata, random, residual, type)
 }
 
@@ -60,7 +60,7 @@ ed <- function(x, respLev=50, linfct=NULL, newdata=NULL, random=TRUE, residual=F
 #' @return an edTMB object
 #' @export
 peak <- function(x, linfct=NULL, newdata=NULL, random=TRUE){
-  if (!(modelindex(x$model) %in% c(11, 12))) stop("peak is only available for the hormesis models braincousens and cedergreen.")
+  if (is.null(drcmodel(x$model)$hormesis)) stop("peak is only available for the hormesis models ", modelswith(function(m) !is.null(m$hormesis)), ".")
   # the dose (1) and the response (2) at the peak of every curve
   if (is.null(newdata)){
     if (is.null(linfct)) linfct <- diag(5)
@@ -141,6 +141,7 @@ edcore <- function(x, respLev, linfct, newdata, random, residual, type){
   cond <- vapply(W, function(w) any(w != 0), logical(1))
 
   mod <- modelindex(x$model)
+  m <- drcmodel(mod)
   lnk <- which(x$link == c("identity", "log", "logit"))
 
   # gradient of each ED w.r.t. the free coefficients, the fitted random effects, the random effects
@@ -170,13 +171,13 @@ edcore <- function(x, respLev, linfct, newdata, random, residual, type){
       }
     } else {
       q <- respLev[i]/100
-      if (!(mod %in% c(6, 7, 8, 13, 14, 15)) && lpv[3] + u[3] < 0) q <- 1 - q
+      if (m$b3 %in% "steepness" && lpv[3] + u[3] < 0) q <- 1 - q
     }
     ql[i] <- q
 
     # hormesis models: log dose of the effective dose above the peak, or of the peak, found numerically
     s0 <- 0
-    if (mod %in% c(11, 12)){
+    if (m$ed == "hormesis"){
       if (lpv[3] + u[3] >= 0) stop(if (peak) "the peaks" else "the effective doses", " of the ", x$model, " model need a decreasing curve, with b3 < 0.")
       b4 <- linkfun(b4linkindex(x), lpv[4] + u[4], inverse=TRUE)
       s0 <- if (peak) hormpeak(mod, lpv[3] + u[3], b4, hormc(x, lpv + u), x$alpha)
@@ -188,7 +189,7 @@ edcore <- function(x, respLev, linfct, newdata, random, residual, type){
       }
     }
     # multistage model: log of the smallest positive root of the polynomial
-    if (mod == 14){
+    if (m$ed == "polynomial"){
       s0 <- log(msroot(edq(x, q, lpv + u, absolute), (lpv + u)[3:5]))
       if (is.na(s0)){
         edl[i] <- NA
@@ -247,7 +248,7 @@ hormc <- function(fit, lpv){
   lpv[5] / (linkfun(lnk, lpv[2], inverse=TRUE) - linkfun(lnk, lpv[1], inverse=TRUE))
 }
 
-# log dose of the effective dose of a hormesis model (mod 11 or 12) with steepness b3 < 0, b4,
+# log dose of the effective dose of a hormesis model with steepness b3 < 0, b4,
 # relative hormesis effect c5 (see hormc) and alpha: the dose above the peak at which
 # F(x) (1 + c5 g(x)) equals q, with the loglogistic F. The last sign change on a grid of log doses,
 # from where F is close to 1 up to a dose at which the curve is below q, is refined by uniroot. NA
@@ -286,7 +287,7 @@ hormgrid <- function(G, b3, b4){
   seq(s4 - 30*w, su, length.out=2001)
 }
 
-# log dose of the peak of a hormesis curve (mod 11 or 12) with b3 < 0, b4, relative hormesis effect
+# log dose of the peak of a hormesis curve with b3 < 0, b4, relative hormesis effect
 # c5 (see hormc) and alpha: the maximum of F(x) (1 + c5 g(x)) on a grid of log doses, up to where the
 # curve is back below the response at dose zero, refined by optimise. NA without a stimulation
 hormpeak <- function(mod, b3, b4, c5, alpha){
