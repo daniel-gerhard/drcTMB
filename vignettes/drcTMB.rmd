@@ -402,7 +402,7 @@ $$ f(x) = b_1 + \left( b_2 - b_1 \right) P \left( \frac{x}{b_4}, b_3 \right) $$
 
 #### multistage
 
-The multistage model of BMDS, with the coefficients $\beta_1$ to $\beta_3$ of its polynomial in $b_3$ to $b_5$, bounded below by 0 by default; for quantal responses, $b_1$ is the background risk and $b_2$ is fixed at 1. Fixing $b_5$ at 0 gives the model of degree 2, and fixing $b_4$ and $b_5$ at 0 the model of degree 1, which is the asymptoticregression model with $b_4 = 1/\beta_1$.
+The multistage model of BMDS, with the coefficients $\beta_1$ to $\beta_3$ of its polynomial in $b_3$ to $b_5$, bounded below by 0 by default; for quantal responses, $b_1$ is the background risk and $b_2$ is fixed at 1. Fixing $b_5$ at 0 gives the model of degree 2, and fixing $b_4$ and $b_5$ at 0 the model of degree 1, which is the asymptoticregression model with $b_4 = 1/\beta_1$. The model of degree 2 with $b_1 = 1$ and $b_2 = 0$ is the linear-quadratic model of radiobiology, $S = \exp(-\alpha x - \beta x^2)$, with $\alpha = b_3$ and $\beta = b_4$.
 
 $$ f(x) = b_1 + \left( b_2 - b_1 \right) \left( 1 - \exp \left( -b_3 x - b_4 x^2 - b_5 x^3 \right) \right) $$
 
@@ -411,6 +411,12 @@ $$ f(x) = b_1 + \left( b_2 - b_1 \right) \left( 1 - \exp \left( -b_3 x - b_4 x^2
 The threshold model, with no effect up to the no-effect concentration $b_4$: $b_1$ is the response up to the threshold, $b_2$ the asymptote at high doses, $b_3 > 0$ the rate and $b_5$ the shape on the log scale, with $(x - b_4)_+ = \max(x - b_4, 0)$. With $b_5 = 0$, it is the NEC model of drc; with $b_5 > 0$, the curve is sigmoidal above the threshold. With random effects on $b_4$, the threshold is smoothed by default, replacing $(x - b_4)_+$ by $s \log(1 + \exp((x - b_4)/s))$ with a width $s$ of 0.1 times the smallest interval between the doses (argument `smooth`).
 
 $$ f(x) = b_1 + \left( b_2 - b_1 \right) \left( 1 - \exp \left( -\left( b_3 (x - b_4)_+ \right)^{\exp(b_5)} \right) \right) $$
+
+#### haldane
+
+The substrate inhibition model of Haldane, as michaelismenten with the inhibition $b_5 = 1/K_i \geq 0$ (bounded below by 0 by default): $b_2$ is the maximal response without inhibition ($V_{max}$) and $b_4$ the half-saturation constant ($K_m$). With $b_5 = 0$, it is the michaelismenten model, so that `anova()` tests for inhibition. The curve has its peak at $x = \sqrt{b_4/b_5} = \sqrt{K_m K_i}$, given with its standard error by `peak()`; effective doses are not defined.
+
+$$ f(x) = b_1 + \frac{(b_2 - b_1) x}{b_4 + x + b_5 x^2} $$
 
 #### asymptoticregression and exponentialdecay
 

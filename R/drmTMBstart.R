@@ -235,6 +235,28 @@ lmstart <- function(dd, start, fix){
                                           linkfun(dd$lnk[4], best$b4), linkfun(dd$lnk[5], b5))))
   }
 
+  # haldane: for given b4 and b5 the model is linear in the asymptotes, so profile the residual sum of
+  # squares over the half-saturation constant b4 and the inhibition b5, from none (b5 = 0,
+  # michaelismenten) to a peak sqrt(b4/b5) between half the smallest and ten times the largest dose
+  if (m$start == "inhibition"){
+    kn <- sapply(4:5, function(i) fix[npi == i][1] | !is.na(start[npi == i][1]))
+    xp <- xd[xd > 0]
+    b4grid <- if (kn[1]) linkfun(dd$lnk[4], start[npi == 4][1], inverse=TRUE) else exp(seq(log(min(xp)/10), log(max(xp)*10), length.out=30))
+    pkgrid <- exp(seq(log(min(xp)/2), log(max(xp)*10), length.out=30))
+    cand <- do.call(rbind, lapply(b4grid, function(b4){
+      b5grid <- if (kn[2]) linkfun(dd$lnk[5], start[npi == 5][1], inverse=TRUE) else c(0, b4/pkgrid^2)
+      do.call(rbind, lapply(b5grid, function(b5){
+        a <- asymfit(yd, drcmeanR(dd$mod, xd, 0, 1, 0, b4, b5), f1, f2, known1, known2)
+        data.frame(b4=b4, b5=b5, rss=a$rss, f1=a$f[1], f2=a$f[2])
+      }))
+    }))
+    best <- cand[which.min(cand$rss), ]
+    f1 <- linkrange(dd$lnk[1], best$f1, dd$family)
+    f2 <- linkrange(dd$lnk[2], best$f2, dd$family)
+    return(projectstart(dd, start, fix, c(linkfun(dd$lnk[1], f1), linkfun(dd$lnk[2], f2), 0,
+                                          linkfun(dd$lnk[4], best$b4), linkfun(dd$lnk[5], best$b5))))
+  }
+
   # linearised model functions: inverse of F, linear in the dose (or log dose) with slope b3; the
   # hormesis models start from the loglogistic model, without hormesis (b5 = 0)
   b3 <- b4 <- NA

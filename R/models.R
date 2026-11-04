@@ -24,8 +24,8 @@ linstart <- function(z, logdose){
 #       polynomial
 #   b4: "location" on the dose scale, "scale" (a positive dose, the effective dose is b4 h), "threshold" (a
 #       positive dose, the effective dose is b4 + h), or "coefficient" of a polynomial
-#   b5: "asymmetry" or "shape" (both positive, with the log link), "hormesis" effect, or "coefficient" of a
-#       polynomial
+#   b5: "asymmetry" or "shape" (both positive, with the log link), "hormesis" effect, "inhibition", or
+#       "coefficient" of a polynomial
 # The functions F and edh take b3-b5 on their original scale, after the inverse links (see modellinks).
 # logdose: F depends on the dose through t = b3 (log x - log b4) instead of t = b3 (x - b4)
 # F(t, x, b3, b4, b5, smooth): increasing from 0 to 1; NULL for the constant model
@@ -33,13 +33,16 @@ linstart <- function(z, logdose){
 #   "polynomial" as the root of the polynomial; NA for none
 # edh(q, b3, b5, smooth): effective dose at level q of F, b4 h, or b4 + h for a location or threshold b4
 # start: starting values in lmstart: "linear" from a linearised F (linear), "asymptotic" from the residual
-#   sum of squares profiled over b4, "threshold", "polynomial", "constant"
+#   sum of squares profiled over b4, "inhibition" profiled over b4 and b5, "threshold", "polynomial",
+#   "constant"
 # linear(x, q): starting values of b3 and b4 from the doses x and the values q of F
 # lower0: parameters bounded below by 0 by default, if they have a single coefficient (b4 only with the
 #   identity link)
 # alpha: the model needs the exponent alpha of its hormesis term
 # hormesis: hormesis term g(x, alpha) of f1 + (f2 - f1 + f5 g) F, its first and second derivatives dg and
 #   d2g w.r.t. the log dose, and the largest b3 of a decreasing curve that the model is meant for
+# peak: the dose of the peak of the curve in closed form, dose(b) from the parameters b1-b5, NA without a
+#   peak, and its inverse b4(pk, b), the b4 of a curve with its peak at dose pk (as in the TMB template)
 drcmodels <- list(
   logistic=list(b1="asymptote", b2="asymptote", b3="steepness", b4="location", b5="asymmetry", logdose=FALSE,
                 F=function(t, x, b3, b4, b5, smooth) (1 + exp(-t))^(-b5),
@@ -113,7 +116,12 @@ drcmodels <- list(
              h <- (-log(1 - q))^(1/b5)/b3
              if (smooth > 0) h + smooth*log(-expm1(-h/smooth)) else h
            },
-           start="threshold", lower0=3:4)
+           start="threshold", lower0=3:4),
+  haldane=list(b1="asymptote", b2="asymptote", b3=NA, b4="scale", b5="inhibition", logdose=FALSE,
+               F=function(t, x, b3, b4, b5, smooth) x / (b4 + x + b5*x^2),
+               ed=NA, start="inhibition", lower0=5,
+               peak=list(dose=function(b) if (isTRUE(b[5] > 0 && b[4] > 0)) sqrt(b[4]/b[5]) else NA,
+                         b4=function(pk, b) pk^2*b[5]))
 )
 
 # links of the parameters b1-b5 of a model m (see drcmodels): the possible links of each parameter, the
@@ -155,5 +163,7 @@ modelindex <- function(model){
 
 # names of the models with a property, for messages
 modelswith <- function(cond){
-  paste(names(Filter(cond, drcmodels)), collapse=" and ")
+  nm <- names(Filter(cond, drcmodels))
+  if (length(nm) == 1) return(nm)
+  paste(paste(nm[-length(nm)], collapse=", "), "and", nm[length(nm)])
 }

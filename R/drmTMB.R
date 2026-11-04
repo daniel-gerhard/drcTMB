@@ -5,12 +5,12 @@
 #' @param rform random effects: a formula of the form b1 + b2 + b4 ~ 1 | cluster for random intercepts, or b4 ~ x | cluster for random intercepts and slopes in a covariate x, or a list of such formulas, e.g. list(b1 + b4 ~ 1 | exper, b1 ~ 1 | plate). The random effects within a formula are correlated across the listed parameters and their intercepts and slopes; different formulas, the levels of nested factors (1 | exper/plate), and intercepts and slopes with || (b4 ~ x || cluster) are independent terms. The random slopes of a parameter usually go with a fixed effect of the covariate in fform.
 #' @param data a data.frame object. Observations with missing values in the variables of the model or in the weights are left out.
 #' @param start a vector with starting values for each model coefficient. NA entries are replaced by the starting values of \code{\link{drmTMBstart}}. Alternatively, a vector named by parameter, e.g. c(b1=0, b5=0), gives the same starting value to all coefficients of each named parameter.
-#' @param fix a logical vector with one entry for each model coefficient. If TRUE, a model coefficient is fixed to its value in start. Alternatively, a vector named by parameter, e.g. c(b1=TRUE, b5=TRUE), fixes all coefficients of the named parameters; their values must then be given in start, e.g. start=c(b1=0, b5=0). Parameters not used by the model (b5 except for logistic, loglogistic, braincousens, cedergreen, multistage and nec, b3 for michaelismenten, asymptoticregression and exponentialdecay, b2-b5 for constant) are always fixed, at 0 unless given in start.
+#' @param fix a logical vector with one entry for each model coefficient. If TRUE, a model coefficient is fixed to its value in start. Alternatively, a vector named by parameter, e.g. c(b1=TRUE, b5=TRUE), fixes all coefficients of the named parameters; their values must then be given in start, e.g. start=c(b1=0, b5=0). Parameters not used by the model (b5 except for logistic, loglogistic, braincousens, cedergreen, multistage, nec and haldane, b3 for michaelismenten, asymptoticregression, exponentialdecay and haldane, b2-b5 for constant) are always fixed, at 0 unless given in start.
 #' @param weights a vector of weights, one for each row of data.
 #' @param lower lower bounds for the model coefficients b1-b5, a single value or a vector with the same length as start. Bounds of fixed coefficients are ignored; variance parameters are unbounded. For the multistage model, the default is 0 for the coefficients b3-b5 without covariates in fform, and for the nec model 0 for the rate b3 and, with the identity link for b4, the threshold b4 without covariates, see Details.
 #' @param upper upper bounds for the model coefficients b1-b5, a single value or a vector with the same length as start.
 #' @param family Specify the distributional assumptions. One of "gaussian", "binomial", "betabinomial", "beta", "poisson", "nbinom2", and "nbinom1". The negative binomial families are for overdispersed counts, with variance mu (1 + mu/theta) for nbinom2 and mu (1 + phi) for nbinom1, and the beta-binomial family for overdispersed binomial counts, with variance n mu (1 - mu) (1 + (n - 1)/(phi + 1)) for n trials, as in glmmTMB.
-#' @param model Specify the nonlinear model. One of "logistic", "loglogistic", "weibull1", "weibull2", "lognormal", "michaelismenten", "asymptoticregression", "exponentialdecay", "gompertz", "gamma", "multistage", "nec", "braincousens", "cedergreen", "constant". The nec model has a threshold, the braincousens and cedergreen models describe hormesis, the constant model has no dose effect, see Details.
+#' @param model Specify the nonlinear model. One of "logistic", "loglogistic", "weibull1", "weibull2", "lognormal", "michaelismenten", "asymptoticregression", "exponentialdecay", "gompertz", "gamma", "multistage", "nec", "braincousens", "cedergreen", "haldane", "constant". The nec model has a threshold, the braincousens and cedergreen models describe hormesis, the haldane model substrate inhibition, and the constant model has no dose effect, see Details.
 #' @param alpha the exponent of the hormesis term of the cedergreen model, a positive number, e.g. 1, 0.5 or 0.25 as the models CRS.4a, CRS.4b and CRS.4c of drc (CRS.5a-c with b1 estimated); only for the cedergreen model. See Details.
 #' @param smooth smoothing of the threshold of the nec model: the width of the smoothed threshold relative to the smallest interval between doses, a number of at least 0; 0 is an exact threshold. The default is 0.1 with random effects on b4, and 0 otherwise. Only for the nec model, see Details.
 #' @param link links of the parameters b1-b5: NULL for the defaults of the model, a single link for the asymptotes b1 and b2, or links named by parameter, e.g. c(b1="logit", b2="logit", b4="log"), where the parameters not named keep their defaults. b1 and b2 have the link "identity" (default), "log" or "logit"; b4 has "identity" (default) or "log" for the models with a positive b4 (not logistic, gompertz and multistage); b5 has the log link for the asymmetry of logistic and loglogistic and the shape of nec; the other parameters have the identity link. The coefficients, and start, fix, lower, upper and linfct of \code{\link{ed}}, are on the scale of the links, see Details.
@@ -83,6 +83,19 @@
 #' model only for b3 < -1. The models are meant for decreasing curves; a warning is given otherwise.
 #' The exponent alpha of the cedergreen model is not estimated, as it is hardly identifiable together
 #' with b5.
+#'
+#' The haldane model of substrate inhibition, f(x) = b1 + (b2 - b1) x / (b4 + x + b5 x^2), extends
+#' michaelismenten: b1 is the response at dose zero, b2 the maximal response without inhibition (Vmax),
+#' b4 the half-saturation constant (Km), and b5 = 1/Ki the inhibition, bounded below by 0 by default (if
+#' \code{lower} is not given, without covariates in fform); b3 is not used. With b5 = 0, it is the
+#' michaelismenten model, so that \code{\link{anova.drmTMB}} tests for inhibition (with the estimate on
+#' the boundary under the null hypothesis, the chi-square test is conservative). The curve rises to its
+#' peak at the dose sqrt(b4/b5) and then decreases, so that effective doses are not defined;
+#' \code{\link{peak}} gives the dose and the response at the peak.
+#'
+#' The linear-quadratic model of radiobiology, S = exp(-alpha x - beta x^2), is the multistage model of
+#' degree 2 with b1 = 1 and b2 = 0: alpha = b3 and beta = b4, e.g.
+#' \code{start=c(b1=1, b2=0, b5=0), fix=c(b1=TRUE, b2=TRUE, b5=TRUE)}.
 #'
 #' The constant model, f(x) = b1, has the same mean at all doses; b2-b5 are not used. Compared with
 #' a dose-response model by \code{\link{anova.drmTMB}}, it tests for a dose effect, as

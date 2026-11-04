@@ -19,8 +19,8 @@ simplified input of response and dose variables through a formula
 interface, and specifying a nonlinear model through the `model`
 argument. Available models include “logistic”, “loglogistic”,
 “weibull1”, “weibull2”, “lognormal”, “gamma” and “multistage”, the
-threshold model “nec”, and the hormesis models “braincousens” and
-“cedergreen”.
+threshold model “nec”, the hormesis models “braincousens” and
+“cedergreen”, and the substrate inhibition model “haldane”.
 
 Each of these models has the same parameter names, b1 for the lower and
 b2 for the upper asymptote, b3 for the steepness, b4 for the location of
@@ -29,8 +29,9 @@ parameter. The steepness b3 is positive for an increasing and negative
 for a decreasing curve. The asymmetry parameter b5 is estimated on a
 logarithmic scale. The models michaelismenten, asymptoticregression, and
 exponentialdecay have no steepness parameter, and in the models gamma
-(shape b3), multistage (polynomial coefficients b3 to b5), and nec (rate
-b3, threshold b4, shape b5) b3 is not a signed steepness; for all of
+(shape b3), multistage (polynomial coefficients b3 to b5), nec (rate b3,
+threshold b4, shape b5) and haldane (half-saturation constant b4,
+inhibition b5) b3 is not a signed steepness or not used; for all of
 these, b1 is the response at dose zero (for nec, up to the threshold)
 and b2 the asymptote at high doses. Starting values are found
 automatically from the data. The `start` argument can provide starting
@@ -74,7 +75,7 @@ ci <- predict(mod, newdata = newdata, interval = "confidence")
 pi <- predict(mod, newdata = newdata, interval = "prediction")
 head(cbind(newdata, ci))
 #>        conc      fit    se.fit      lwr      upr
-#> 1 0.6065307 7.734345 0.1791433 7.361796 8.106894
+#> 1 0.6065307 7.734345 0.1791434 7.361796 8.106894
 #> 2 0.6309088 7.722175 0.1781019 7.351792 8.092558
 #> 3 0.6562668 7.708806 0.1771504 7.340401 8.077210
 #> 4 0.6826439 7.694123 0.1763198 7.327446 8.060800
@@ -145,13 +146,13 @@ confint(effdose_glht)
 #> 
 #> Fit: NULL
 #> 
-#> Quantile = 2.4899
+#> Quantile = 2.4947
 #> 95% family-wise confidence level
 #>  
 #> 
 #> Linear Hypotheses:
 #>           Estimate lwr    upr   
-#> ED25 == 0 2.0918   1.6270 2.5567
-#> ED50 == 0 3.2634   2.7743 3.7524
-#> ED75 == 0 5.0910   4.0422 6.1399
+#> ED25 == 0 2.0918   1.6261 2.5576
+#> ED50 == 0 3.2634   2.7734 3.7533
+#> ED75 == 0 5.0910   4.0401 6.1419
 ```
