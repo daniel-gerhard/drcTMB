@@ -19,7 +19,6 @@ drmTMB(
   alpha = NULL,
   smooth = NULL,
   link = NULL,
-  b4link = NULL,
   gsl = NULL,
   gsu = NULL,
   gsn = NULL,
@@ -54,8 +53,6 @@ drmTMB(
 \item{smooth}{smoothing of the threshold of the nec model: the width of the smoothed threshold relative to the smallest interval between doses, a number of at least 0; 0 is an exact threshold. The default is 0.1 with random effects on b4, and 0 otherwise. Only for the nec model, see Details.}
 
 \item{link}{links of the parameters b1-b5: NULL for the defaults of the model, a single link for the asymptotes b1 and b2, or links named by parameter, e.g. c(b1="logit", b2="logit", b4="log"), where the parameters not named keep their defaults. b1 and b2 have the link "identity" (default), "log" or "logit"; b4 has "identity" (default) or "log" for the models with a positive b4 (not logistic, gompertz and multistage); b5 has the log link for the asymmetry of logistic and loglogistic and the shape of nec; the other parameters have the identity link. The coefficients, and start, fix, lower, upper and linfct of \code{\link{ed}}, are on the scale of the links, see Details.}
-
-\item{b4link}{the link of b4, "identity" or "log"; the same as \code{link=c(b4="log")}.}
 
 \item{gsl}{a vector of lower bounds for a grid search, same length as start; NA for the default range. If gsl, gsu and gsn are all NULL, no grid search is performed. See \code{\link{drmTMBstart}}.}
 
@@ -143,7 +140,7 @@ a dose-response model by \code{\link{anova.drmTMB}}, it tests for a dose effect,
 asymptote are not identifiable, so the chi-square distribution of the likelihood ratio statistic
 is only an approximation.
 
-With the log link for b4, \code{link=c(b4="log")} or \code{b4link="log"}, the linear predictor of b4, including its random effects, is log(b4):
+With the log link for b4, \code{link=c(b4="log")}, the linear predictor of b4, including its random effects, is log(b4):
 the coefficients of b4 in \code{coef}, \code{start}, \code{fix}, \code{lower}, \code{upper} and
 \code{linfct} of \code{\link{ed}} are on the log scale. Random effects on b4 then vary b4 by a
 factor between groups, and the estimate of b4 is the median over the groups. For the models on the

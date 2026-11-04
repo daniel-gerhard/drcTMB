@@ -33,7 +33,6 @@
 #' @param alpha the exponent of the hormesis term of the cedergreen model, see \code{\link{drmTMB}}.
 #' @param smooth smoothing of the threshold of the nec model, relative to the smallest interval between doses, see \code{\link{drmTMB}}; without random effects, the default is 0, an exact threshold.
 #' @param link links of the parameters b1-b5, see \code{\link{drmTMB}}.
-#' @param b4link the link of b4, "identity" or "log"; the same as \code{link=c(b4="log")}.
 #' @param method one of "lm" or "grid".
 #' @param gsl a vector of lower bounds for the grid search, same length as start, on the scale of the coefficients (log scale for b4 with the log link); NA (or NULL) for the default range.
 #' @param gsu a vector of upper bounds for the grid search, same length as start; NA (or NULL) for the default range.
@@ -42,8 +41,8 @@
 #' @return a named vector of starting values
 #' @export
 #'
-drmTMBstart <- function(form, fform=NULL, data, start=NULL, fix=NULL, weights=NULL, family="gaussian", model="logistic", alpha=NULL, smooth=NULL, link=NULL, b4link=NULL, method="lm", gsl=NULL, gsu=NULL, gsn=NULL){
-  dd <- drmTMBdata(form, fform=fform, data=data, weights=weights, family=family, model=model, alpha=alpha, smooth=smooth, link=link, b4link=b4link)
+drmTMBstart <- function(form, fform=NULL, data, start=NULL, fix=NULL, weights=NULL, family="gaussian", model="logistic", alpha=NULL, smooth=NULL, link=NULL, method="lm", gsl=NULL, gsu=NULL, gsn=NULL){
+  dd <- drmTMBdata(form, fform=fform, data=data, weights=weights, family=family, model=model, alpha=alpha, smooth=smooth, link=link)
   if (is.null(start)) start <- rep(NA, sum(dd$npars))
   if (is.null(fix)) fix <- rep(FALSE, sum(dd$npars))
   fix[dd$npi %in% unusedpars(dd$mod)] <- TRUE
@@ -54,7 +53,7 @@ drmTMBstart <- function(form, fform=NULL, data, start=NULL, fix=NULL, weights=NU
 
 
 # model data shared by drmTMB and drmTMBstart
-drmTMBdata <- function(form, fform=NULL, rform=NULL, data, weights=NULL, family="gaussian", model="logistic", alpha=NULL, smooth=NULL, link=NULL, b4link=NULL){
+drmTMBdata <- function(form, fform=NULL, rform=NULL, data, weights=NULL, family="gaussian", model="logistic", alpha=NULL, smooth=NULL, link=NULL){
   fform <- fforms(fform)
   if (is.null(weights)) weights <- rep(1, nrow(data))
   if (length(weights) != nrow(data)) stop("weights must have one entry for each row of data.")
@@ -83,7 +82,7 @@ drmTMBdata <- function(form, fform=NULL, rform=NULL, data, weights=NULL, family=
   if (length(mod) != 1) stop("Unknown model: ", model)
   if (length(fam) != 1) stop("Unknown family: ", family, "; one of gaussian, poisson, binomial, betabinomial, beta, nbinom2, nbinom1.")
   m <- drcmodel(mod)
-  link <- parlinks(link, b4link, m, model)
+  link <- parlinks(link, m, model)
   lnk <- linkindex(link)
   if (isTRUE(m$alpha)){
     if (is.null(alpha)) stop("the cedergreen model needs the exponent alpha of its hormesis term, e.g. alpha=1, 0.5 or 0.25 as CRS.4a, CRS.4b and CRS.4c of drc.")
@@ -542,9 +541,8 @@ drcmeanR <- function(mod, x, f1, f2, f3, f4, f5, alpha=NULL, smooth=0){
 }
 
 # links of the parameters b1-b5 of model m (see drcmodels), named: the defaults of the model (see
-# modellinks), replaced by link, a single link for the asymptotes b1 and b2 or links named by parameter,
-# and by b4link
-parlinks <- function(link, b4link, m, model){
+# modellinks), replaced by link, a single link for the asymptotes b1 and b2 or links named by parameter
+parlinks <- function(link, m, model){
   allowed <- modellinks(m)
   out <- vapply(allowed, function(a) a[1], character(1))
   if (!is.null(link)){
@@ -558,11 +556,6 @@ parlinks <- function(link, b4link, m, model){
       if (is.na(linkindex(link[[p]]))) stop("Unknown link: ", link[[p]], "; one of identity, log, logit.")
     }
     out[names(link)] <- link
-  }
-  if (!is.null(b4link)){
-    if (!(b4link %in% c("identity", "log"))) stop("Unknown b4link: ", b4link, "; one of identity, log.")
-    if (!is.null(link) && "b4" %in% names(link) && link[["b4"]] != b4link) stop("link and b4link give different links for b4.")
-    out[["b4"]] <- b4link
   }
   if (out[["b4"]] == "log" && m$b4 %in% "location") stop("the log link for b4 needs a positive b4; b4 of the ", model, " model is a location on the dose scale.")
   if (out[["b4"]] == "log" && m$b4 %in% "coefficient") stop("the log link for b4 is not available for the ", model, " model; b4 is a coefficient of its polynomial.")

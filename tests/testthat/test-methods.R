@@ -293,7 +293,7 @@ test_that("methods for the beta-binomial family", {
   d <- data.frame(dose=rep(c(0, 0.5, 1, 2, 4, 8, 16, 32), each=4), n=25)
   p <- drcmean("loglogistic", d$dose, c(0.05, 0.9, -1.5, 3, 0))
   d$y <- rbinom(nrow(d), d$n, rbeta(nrow(d), p*6, (1 - p)*6))
-  f <- fit4(cbind(y, n - y) ~ dose, data=d, model="loglogistic", family="betabinomial", link="logit", b4link="log")
+  f <- fit4(cbind(y, n - y) ~ dose, data=d, model="loglogistic", family="betabinomial", link=c(b1="logit", b2="logit", b4="log"))
   expect_equal(names(coef(f))[5], "log_phi")
   out <- capture.output(print(summary(f)))
   expect_true(any(grepl("^Beta-binomial precision \\(phi\\)", out)))
@@ -316,7 +316,7 @@ test_that("methods for the beta-binomial family", {
   expect_error(predict(f, data.frame(dose=1), interval="prediction"), "number of trials")
   expect_equal(dim(simulate(f, 2, seed=1)), c(nrow(d), 2))
   # overdispersed proportions are much better described than by the binomial model
-  fb <- fit4(cbind(y, n - y) ~ dose, data=d, model="loglogistic", family="binomial", link="logit", b4link="log")
+  fb <- fit4(cbind(y, n - y) ~ dose, data=d, model="loglogistic", family="binomial", link=c(b1="logit", b2="logit", b4="log"))
   expect_lt(AIC(f), AIC(fb) - 20)
   # binary responses
   d$bin <- as.integer(d$y > 12)

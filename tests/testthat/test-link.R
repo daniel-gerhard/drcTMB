@@ -20,17 +20,6 @@ test_that("the links of a fit are the defaults of the model, by parameter", {
   expect_equal(unname(exp(coef(f)[1])), mean(d$y), tolerance=1e-6)
 })
 
-test_that("link for b4 is the same as b4link", {
-  d <- simgauss("loglogistic")
-  f1 <- fit4(y ~ dose, data=d, model="loglogistic", b4link="log")
-  f2 <- fit4(y ~ dose, data=d, model="loglogistic", link=c(b4="log"))
-  expect_equal(coef(f2), coef(f1))
-  expect_equal(f2$link, f1$link)
-  # both, if they agree
-  f3 <- fit4(y ~ dose, data=d, model="loglogistic", link=c(b4="log"), b4link="log")
-  expect_equal(coef(f3), coef(f1))
-})
-
 test_that("the asymptotes can have different links", {
   q <- simquantal()
   # background on the logit scale, b2 fixed at 1 on the probability scale
@@ -59,5 +48,4 @@ test_that("link is checked", {
   expect_error(drmTMB(y ~ dose, data=d, model="loglogistic", link=c(b3="log")), "not available for b3")
   expect_error(drmTMB(y ~ dose, data=d, model="loglogistic", link=c(b5="identity")), "not available for b5")
   expect_error(drmTMB(y ~ dose, data=d, model="logistic", link=c(b4="log")), "positive b4")
-  expect_error(drmTMB(y ~ dose, data=d, model="loglogistic", link=c(b4="log"), b4link="identity"), "different links")
 })

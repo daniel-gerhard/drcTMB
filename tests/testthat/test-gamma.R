@@ -81,7 +81,7 @@ test_that("gamma mixed model recovers the simulated curve", {
   d <- simgroups(dose=c(0, 1, 2, 4, 8, 16, 32), ng=10)
   u4 <- rnorm(10, 0, 0.3)
   d$y <- drcTMB:::drcmeanR(13, d$dose, 1, 8, 2.5, 3*exp(u4[d$grp]), 0) + rnorm(nrow(d), 0, 0.3)
-  f <- drmTMB(y ~ dose, rform=b4 ~ 1 | grp, data=d, model="gamma", b4link="log")
+  f <- drmTMB(y ~ dose, rform=b4 ~ 1 | grp, data=d, model="gamma", link=c(b4="log"))
   expect_equal(f$opt$convergence, 0)
   expect_equal(unname(bcoef(f)), c(1, 8, 2.5, log(3)), tolerance=0.1)
   # effective dose of a fitted group: its predicted curve is halfway between the asymptotes there

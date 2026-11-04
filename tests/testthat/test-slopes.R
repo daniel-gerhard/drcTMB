@@ -59,7 +59,7 @@ test_that("predict with random slopes", {
 
 test_that("effective doses with random slopes of log b4", {
   d <- simslopes("b4", ng=12, nrep=2, seed=12)
-  f <- fit4(y ~ dose, fform=b4 ~ temp, rform=b4 ~ temp | grp, data=d, model="loglogistic", b4link="log")
+  f <- fit4(y ~ dose, fform=b4 ~ temp, rform=b4 ~ temp | grp, data=d, model="loglogistic", link=c(b4="log"))
   nd <- data.frame(temp=c(1, 1, -1), grp=c("4", "new", "new"))
   e <- ed(f, 50, newdata=nd)
   expect_equal(names(coef(e)), c("50:temp=1,grp=4", "50:temp=1,grp=new", "50:temp=-1,grp=new"))
@@ -79,7 +79,7 @@ test_that("effective doses with random slopes of log b4", {
 test_that("random slopes need their covariates", {
   d <- simslopes("b4", ng=12, nrep=2, seed=12)
   # temp only in the random effects
-  f <- fit4(y ~ dose, rform=b4 ~ temp | grp, data=d, model="loglogistic", b4link="log")
+  f <- fit4(y ~ dose, rform=b4 ~ temp | grp, data=d, model="loglogistic", link=c(b4="log"))
   expect_error(ed(f), "covariates of the random slopes")
   expect_length(coef(ed(f, random=FALSE)), 1)
   expect_error(ed(f, newdata=data.frame(grp="4")), "covariates of the random slopes: temp")
@@ -92,7 +92,7 @@ test_that("random slopes need their covariates", {
 
 test_that("uncorrelated random intercepts and slopes with ||", {
   d <- simslopes("b4", ng=12, nrep=2, seed=12)
-  f <- fit4(y ~ dose, fform=b4 ~ temp, rform=b4 ~ temp || grp, data=d, model="loglogistic", b4link="log")
+  f <- fit4(y ~ dose, fform=b4 ~ temp, rform=b4 ~ temp || grp, data=d, model="loglogistic", link=c(b4="log"))
   expect_length(f$reterms, 2)
   expect_equal(names(coef(f))[6:7], c("log_sd:b4|grp", "log_sd:b4:temp|grp"))
   expect_equal(summary(f)$ngroups, c(grp=12))
@@ -106,7 +106,7 @@ test_that("random slopes of a factor use the levels and contrasts of the fit for
   U <- matrix(rnorm(ng*3, 0, 0.25), ng)
   b4 <- 3*exp(c(0, -0.3, -0.6)[d$time] + U[cbind(as.integer(d$grp), as.integer(d$time))])
   d$y <- drcTMB:::drcmeanR(2, d$dose, 1, 8, -1.5, b4, 1) + rnorm(nrow(d), 0, 0.3)
-  f <- fit4(y ~ dose, fform=b4 ~ time, rform=b4 ~ time | grp, data=d, model="loglogistic", b4link="log")
+  f <- fit4(y ~ dose, fform=b4 ~ time, rform=b4 ~ time | grp, data=d, model="loglogistic", link=c(b4="log"))
   expect_equal(names(coef(f))[7:9], c("log_sd:b4|grp", "log_sd:b4:time48h|grp", "log_sd:b4:time72h|grp"))
 
   lev <- c("24h", "48h", "72h")

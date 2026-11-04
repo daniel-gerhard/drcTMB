@@ -108,7 +108,7 @@ test_that("multistage bounds and options", {
   f2 <- drmTMB(cbind(dead, n - dead) ~ dose, data=q, family="binomial", model="multistage", start=c(b2=1, b5=0),
                fix=c(b2=TRUE, b5=TRUE), lower=c(0, 1, 0, -1, 0))
   expect_equal(f2$lower[1:3], c(0, 0, -1))
-  expect_error(drmTMB(cbind(dead, n - dead) ~ dose, data=q, family="binomial", model="multistage", b4link="log"),
+  expect_error(drmTMB(cbind(dead, n - dead) ~ dose, data=q, family="binomial", model="multistage", link=c(b4="log")),
                "not available for the multistage")
   # mean of the template and of R
   b <- bfull(f)

@@ -14,7 +14,6 @@
 #' @param alpha the exponent of the hormesis term of the cedergreen model, a positive number, e.g. 1, 0.5 or 0.25 as the models CRS.4a, CRS.4b and CRS.4c of drc (CRS.5a-c with b1 estimated); only for the cedergreen model. See Details.
 #' @param smooth smoothing of the threshold of the nec model: the width of the smoothed threshold relative to the smallest interval between doses, a number of at least 0; 0 is an exact threshold. The default is 0.1 with random effects on b4, and 0 otherwise. Only for the nec model, see Details.
 #' @param link links of the parameters b1-b5: NULL for the defaults of the model, a single link for the asymptotes b1 and b2, or links named by parameter, e.g. c(b1="logit", b2="logit", b4="log"), where the parameters not named keep their defaults. b1 and b2 have the link "identity" (default), "log" or "logit"; b4 has "identity" (default) or "log" for the models with a positive b4 (not logistic, gompertz and multistage); b5 has the log link for the asymmetry of logistic and loglogistic and the shape of nec; the other parameters have the identity link. The coefficients, and start, fix, lower, upper and linfct of \code{\link{ed}}, are on the scale of the links, see Details.
-#' @param b4link the link of b4, "identity" or "log"; the same as \code{link=c(b4="log")}.
 #' @param gsl a vector of lower bounds for a grid search, same length as start; NA for the default range. If gsl, gsu and gsn are all NULL, no grid search is performed. See \code{\link{drmTMBstart}}.
 #' @param gsu a vector of upper bounds for a grid search, same length as start; NA for the default range.
 #' @param gsn number of grid points for each parameter, a single number or a vector with the same length as start. \code{gsn=10} alone runs a grid search over the default ranges.
@@ -91,7 +90,7 @@
 #' asymptote are not identifiable, so the chi-square distribution of the likelihood ratio statistic
 #' is only an approximation.
 #'
-#' With the log link for b4, \code{link=c(b4="log")} or \code{b4link="log"}, the linear predictor of b4, including its random effects, is log(b4):
+#' With the log link for b4, \code{link=c(b4="log")}, the linear predictor of b4, including its random effects, is log(b4):
 #' the coefficients of b4 in \code{coef}, \code{start}, \code{fix}, \code{lower}, \code{upper} and
 #' \code{linfct} of \code{\link{ed}} are on the log scale. Random effects on b4 then vary b4 by a
 #' factor between groups, and the estimate of b4 is the median over the groups. For the models on the
@@ -113,10 +112,10 @@
 #' @return A drmTMB object
 #' @export
 
-drmTMB <- function(form, fform=NULL, rform=NULL, data, start=NULL, fix=NULL, weights=NULL, lower=-Inf, upper=Inf, family="gaussian", model="logistic", alpha=NULL, smooth=NULL, link=NULL, b4link=NULL, gsl=NULL, gsu=NULL, gsn=NULL, control=list()){
+drmTMB <- function(form, fform=NULL, rform=NULL, data, start=NULL, fix=NULL, weights=NULL, lower=-Inf, upper=Inf, family="gaussian", model="logistic", alpha=NULL, smooth=NULL, link=NULL, gsl=NULL, gsu=NULL, gsn=NULL, control=list()){
   # control list
   control <- do.call(drmTMBcontrol, control)
-  dd <- drmTMBdata(form, fform=fform, rform=rform, data=data, weights=weights, family=family, model=model, alpha=alpha, smooth=smooth, link=link, b4link=b4link)
+  dd <- drmTMBdata(form, fform=fform, rform=rform, data=data, weights=weights, family=family, model=model, alpha=alpha, smooth=smooth, link=link)
   fixnamed <- !is.null(names(fix))
   start <- parvector(start, dd$npi, NA, "start")
   fix <- parvector(fix, dd$npi, FALSE, "fix")

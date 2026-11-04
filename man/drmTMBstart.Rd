@@ -16,7 +16,6 @@ drmTMBstart(
   alpha = NULL,
   smooth = NULL,
   link = NULL,
-  b4link = NULL,
   method = "lm",
   gsl = NULL,
   gsu = NULL,
@@ -45,8 +44,6 @@ drmTMBstart(
 \item{smooth}{smoothing of the threshold of the nec model, relative to the smallest interval between doses, see \code{\link{drmTMB}}; without random effects, the default is 0, an exact threshold.}
 
 \item{link}{links of the parameters b1-b5, see \code{\link{drmTMB}}.}
-
-\item{b4link}{the link of b4, "identity" or "log"; the same as \code{link=c(b4="log")}.}
 
 \item{method}{one of "lm" or "grid".}
 
