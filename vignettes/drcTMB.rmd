@@ -346,6 +346,28 @@ We can additionally include the residual variance in the standard error estimati
 ```
 
 
+## Benchmark doses
+
+The benchmark dose (BMD) is the dose at which the response has changed from the response at dose zero by the benchmark response (BMR). Unlike an effective dose, it does not refer to the asymptote at high doses. The function `bmd()` offers the definitions `"excess"` (extra) risk, (p(BMD) - p0)/(1 - p0) = BMR, and `"additional"` (added) risk, p(BMD) - p0 = BMR, for proportions; the `"relative"` deviation from the response at dose zero, the default of EFSA for continuous responses; and, for gaussian models without random effects, `"sd"`, a change by BMR residual standard deviations, the default of the US EPA for continuous responses without a biologically motivated BMR. The uncertainty of the estimated response at dose zero, and of the residual standard deviation, is included. The BMDL, the lower limit of a two-sided 90% interval, is the reference point of a risk assessment.
+
+```{r, message=FALSE}
+# 10% extra risk of immobility of daphnids
+(bd <- bmd(dmod, bmr = 0.1, def = "excess"))
+confint(bd, level = 0.9)
+
+# ryegrass: a decrease of the root length by 5%, and by one standard deviation
+bmd(mod, bmr = 0.05, def = "relative")
+(bsd <- bmd(mod, bmr = 1, def = "sd"))
+confint(bsd, level = 0.9)
+```
+
+With random effects, the BMD can refer to two different curves: the typical curve, with the random effects at zero (`scale = "conditional"`), or the marginal mean curve, the mean response of the population of groups (`scale = "marginal"`, the default), found by integrating the curves over the distribution of the random effects. Both are the same if the random effects enter the mean linearly, as random effects on the asymptotes with the identity link in the vinclozolin model; random effects on b4 or b3, or on asymptotes with a log or logit link, make them differ. The standard errors of marginal BMDs include the uncertainty of the variances of the random effects. Profile intervals are not available for marginal BMDs that need the integration; `confint()` then returns Wald intervals, and `method = "boot"` bootstrap intervals.
+
+```{r, message=FALSE}
+bmd(vmod, bmr = 0.1, def = "relative")
+```
+
+
 ### Model functions
 
 All models are of the form $f(x) = b_1 + (b_2 - b_1) F(x)$, with a function $F$ increasing from 0 to 1. For the models with steepness parameter $b_3$, $b_1$ is the lower and $b_2$ the upper asymptote, and the curve is increasing for $b_3 > 0$ and decreasing for $b_3 < 0$.

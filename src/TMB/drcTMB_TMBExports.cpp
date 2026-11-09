@@ -2,13 +2,16 @@
 
 #define TMB_LIB_INIT R_init_drcTMB_TMBExports
 #include <TMB.hpp>
+#include "drcBMD.hpp"
 #include "drcED.hpp"
 #include "drcTMB.hpp"
 
 template<class Type>
 Type objective_function<Type>::operator() () {
   DATA_STRING(model);
-  if(model == "drcED") {
+  if(model == "drcBMD") {
+    return drcBMD(this);
+  } else if(model == "drcED") {
     return drcED(this);
   } else if(model == "drcTMB") {
     return drcTMB(this);
