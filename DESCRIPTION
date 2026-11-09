@@ -27,10 +27,14 @@ Roxygen: list(markdown = TRUE)
 RoxygenNote: 8.0.0
 Imports: 
     ggplot2,
+    graphics,
     grid,
     Matrix,
     methods,
     reformulas,
-    TMB (>= 1.9.2)
+    stats,
+    TMB (>= 1.9.2),
+    utils
 LinkingTo: 
-    TMB
+    TMB,
+    RcppEigen
