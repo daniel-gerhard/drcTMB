@@ -1,15 +1,20 @@
 Package: drcTMB
-Title: Fitting dose-response curves using the Template Model Builder
+Title: Fitting Dose-Response Curves Using the Template Model Builder
 Version: 0.0.0.9940
 Authors@R: 
     person("Daniel", "Gerhard", , "00gerhard@gmail.com", role = c("aut", "cre"),
            comment = c(ORCID = "0000-0002-9336-3454"))
-Description: Provides a simple user-interface for fitting non-linear mixed-effects models for dose-response analysis.
+Description: Fits non-linear dose-response models, optionally with
+    random effects, by maximum likelihood using the Template Model Builder
+    ('TMB'), with the Laplace approximation for the random effects. The
+    log-logistic, Weibull, hormesis and threshold models of the 'drc' package
+    are available, and the response can follow a Gaussian, Poisson, binomial,
+    beta, beta-binomial or negative binomial distribution. Effective doses
+    and their standard errors are derived by automatic differentiation.
 License: GPL (>=2)
 VignetteBuilder: knitr
 Suggests: 
     knitr,
-    markdown,
     rmarkdown,
     drcData,
     multcomp,
@@ -27,10 +32,14 @@ Roxygen: list(markdown = TRUE)
 RoxygenNote: 8.0.0
 Imports: 
     ggplot2,
+    graphics,
     grid,
     Matrix,
     methods,
     reformulas,
-    TMB (>= 1.9.2)
+    stats,
+    TMB (>= 1.9.2),
+    utils
 LinkingTo: 
-    TMB
+    TMB,
+    RcppEigen
