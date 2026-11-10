@@ -59,17 +59,9 @@ for (m in names(drcmap)){
     e1 <- ed(f1, respLev=c(10, 50, 90))
     e2 <- drc::ED(f2, c(10, 50, 90), display=FALSE)
     expect_equal(unname(e1$estimates), unname(e2[, 1]), tolerance=1e-3)
-    # drc::ED gives too large standard errors for G.4; compare with the delta method instead
-    if (m != "gompertz"){
-      expect_equal(unname(sqrt(diag(e1$variance))), unname(e2[, 2]), tolerance=1e-2)
-    } else {
-      edg <- function(b, q) b[4] - log(-log(q))/b[3]
-      se <- sapply(c(0.1, 0.5, 0.9), function(q){
-        g <- numDeriv::grad(edg, bcoef(f1), q=q)
-        sqrt(drop(t(g) %*% vcov(f1)[1:4, 1:4] %*% g))
-      })
-      expect_equal(unname(sqrt(diag(e1$variance))), se, tolerance=1e-4)
-    }
+    # standard errors: the derivatives of drc::ED are wrong for G.4, and in drc 4.0-3 also for W1.4,
+    # W2.4, AR.3 and EXD.3; compare with the delta method from drc's ED values and covariance
+    expect_equal(unname(sqrt(diag(e1$variance))), drcedse(f2, c(10, 50, 90)), tolerance=1e-2)
   })
 }
 

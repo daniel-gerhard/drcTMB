@@ -51,3 +51,23 @@ bcoef <- function(fit){
   cf <- coef(fit)
   cf[grepl("^b[1-5]:", names(cf))]
 }
+
+# reference standard errors of the effective doses of a drc fit, independent of the derivatives of
+# drc's edfct (wrong for several models in drc 4.0-3): delta method with numerical derivatives of
+# drc's ED value and drc's covariance matrix
+drcedse <- function(fit, respLev, ...){
+  p <- coef(fit)
+  vapply(respLev, function(r){
+    g <- numDeriv::grad(function(q) fit$fct$edfct(q, r, reference="control", type="relative", ...)[[1]], p)
+    sqrt(drop(t(g) %*% vcov(fit) %*% g))
+  }, numeric(1))
+}
+
+# peak of a drc fit by numerical maximisation of drc's model function, on the log-dose scale
+# (MAX of drc 4.0-3 is wrong for BC.5)
+drcpeak <- function(fit, range=c(-10, 5)){
+  p <- coef(fit)
+  fm <- function(x) fit$fct$fct(x, matrix(p, nrow=length(x), ncol=length(p), byrow=TRUE))
+  o <- optimize(function(lx) -fm(exp(lx)), range, tol=1e-12)
+  c(exp(o$minimum), -o$objective)
+}
