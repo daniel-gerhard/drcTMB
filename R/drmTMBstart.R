@@ -451,8 +451,32 @@ drmTMBobj <- function(dd, start, fix, rform=NULL){
     }
   }
   if (dd$family %in% c("poisson", "binomial")) lmap$log_sigma <- factor(NA)
+  if (!(dd$family %in% c("poisson", "binomial"))) parameters$log_sigma <- sigmastart(datalist, parameters, lmap, rform)
 
   MakeADFun(datalist, parameters, map=lmap, random=if (!is.null(rform)) "u", DLL="drcTMB_TMBExports", silent=TRUE)
+}
+
+# starting value of log_sigma (residual sd, precision, size or dispersion), on the scale of the data:
+# the maximum likelihood estimate with the coefficients and the variances of the random effects at
+# their starting values, starting from the family default; with random effects, the random effects are
+# integrated out (Laplace approximation), so that the variation between groups is left to them. The
+# family default is kept if the fit fails or is not better.
+sigmastart <- function(datalist, parameters, lmap, rform){
+  ls0 <- parameters$log_sigma
+  map1 <- lmap
+  for (i in 1:5){
+    b <- paste("b", i, sep="")
+    map1[[b]] <- factor(rep(NA, length(parameters[[b]])))
+  }
+  map1$theta <- factor(rep(NA, length(parameters$theta)))
+  if (is.null(rform)) map1$u <- factor(rep(NA, length(parameters$u)))
+  res <- tryCatch({
+    obj1 <- MakeADFun(datalist, parameters, map=map1, random=if (!is.null(rform)) "u", DLL="drcTMB_TMBExports", silent=TRUE)
+    f0 <- obj1$fn(ls0)
+    o <- suppressWarnings(nlminb(ls0, obj1$fn, obj1$gr, lower=ls0 - 20, upper=ls0 + 20))
+    if (is.finite(o$objective) && (!is.finite(f0) || o$objective < f0)) o$par else ls0
+  }, error=function(e) ls0)
+  unname(res)
 }
 
 
