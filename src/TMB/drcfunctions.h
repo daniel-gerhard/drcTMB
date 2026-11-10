@@ -217,10 +217,29 @@ Type hormpeak(int mod, Type f1, Type f2, Type f3, Type f4, Type f5, Type alpha, 
   return s0 - D / dD;
 }
 
+// mean f clamped into the open unit interval, for the beta and beta-binomial log-likelihoods
+template<class Type>
+Type unitclamp(Type f){
+  Type lo = Type(1e-12), hi = Type(1 - 1e-12);
+  return CppAD::CondExpLt(f, lo, lo, CppAD::CondExpGt(f, hi, hi, f));
+}
+
+// -Inf for a mean f outside the open unit interval, else ll; ll is computed at the clamped mean,
+// as the beta functions are finite for most negative arguments (lgamma), and the derivatives of
+// both branches of a conditional expression are evaluated
+template<class Type>
+Type inunit(Type f, Type ll){
+  Type ninf = Type(-std::numeric_limits<double>::infinity());
+  return CppAD::CondExpLe(f, Type(0), ninf, CppAD::CondExpGe(f, Type(1), ninf, ll));
+}
+
 // log-likelihood contribution of a single observation
 // fam: 1 = gaussian (phi = sd), 2 = poisson, 3 = binomial (bn = number of trials),
 //      4 = beta (phi = precision), 5 = nbinom2 (variance f (1 + f/phi), phi = size),
-//      6 = nbinom1 (variance f (1 + phi)), 7 = betabinomial (bn = number of trials, phi = precision)
+//      6 = nbinom1 (variance f (1 + phi)), 7 = betabinomial (bn = number of trials, phi = precision),
+//      8 = lognormal (median f, phi = sd of log(y))
+// A mean outside the range of the family gives -Inf (beta, betabinomial) or NaN (log of a negative mean
+// or probability), which the optimisers treat as invalid.
 template<class Type>
 Type loglik(int fam, Type y, Type f, Type bn, Type phi){
   switch (fam){
@@ -230,18 +249,22 @@ Type loglik(int fam, Type y, Type f, Type bn, Type phi){
     return dpois(y, f, true);
   case 3:
     return dbinom(y, bn, f, true);
-  case 4:
-    return lgamma(phi) - lgamma(f*phi) - lgamma((1-f)*phi) + (f*phi-1)*log(y) + ((1-f)*phi - 1)*log(1 - y);
+  case 4: {
+    Type fc = unitclamp(f);
+    return inunit(f, Type(lgamma(phi) - lgamma(fc*phi) - lgamma((1-fc)*phi) + (fc*phi-1)*log(y) + ((1-fc)*phi - 1)*log(1 - y)));
+  }
   case 5:
     // on the log scale of the mean and of the variance minus the mean, for numerical stability
     return dnbinom_robust(y, log(f), Type(2*log(f) - log(phi)), 1);
   case 6:
     return dnbinom_robust(y, log(f), Type(log(f) + log(phi)), 1);
-  case 7:
+  case 7: {
     // binomial with a beta distributed probability, with mean f and precision phi
-    return lgamma(bn + 1) - lgamma(y + 1) - lgamma(bn - y + 1)
-      + lgamma(y + f*phi) + lgamma(bn - y + (1-f)*phi) - lgamma(bn + phi)
-      - lgamma(f*phi) - lgamma((1-f)*phi) + lgamma(phi);
+    Type fc = unitclamp(f);
+    return inunit(f, Type(lgamma(bn + 1) - lgamma(y + 1) - lgamma(bn - y + 1)
+      + lgamma(y + fc*phi) + lgamma(bn - y + (1-fc)*phi) - lgamma(bn + phi)
+      - lgamma(fc*phi) - lgamma((1-fc)*phi) + lgamma(phi)));
+  }
   case 8:
     // lognormal with median f and standard deviation phi of log(y); density of y, with the Jacobian
     return dnorm(log(y), log(f), phi, true) - log(y);
