@@ -5,6 +5,7 @@
 
 skip_if_not_installed("drc")
 skip_if_not_installed("drcData")
+skip_if_not_installed("numDeriv")
 data(lettuce, package="drcData")
 
 drccases <- list(
@@ -32,7 +33,8 @@ for (nm in names(drccases)){
     e1 <- ed(f1, respLev=c(10, 50))
     e2 <- drc::ED(f2, c(10, 50), display=FALSE, upper=1e6)
     expect_equal(unname(coef(e1)), unname(e2[, 1]), tolerance=2e-3)
-    expect_equal(unname(sqrt(diag(vcov(e1)))), unname(e2[, 2]), tolerance=1e-2)
+    # standard errors: delta method from drc's ED values (the derivatives of drc 4.0-3 are wrong)
+    expect_equal(unname(sqrt(diag(vcov(e1)))), drcedse(f2, c(10, 50), upper=1e6), tolerance=1e-2)
   })
 }
 
@@ -133,12 +135,13 @@ drcstart <- function(f2, b1fix){
   c(b1=if (b1fix) 0 else p[["c"]], b2=p[["d"]], b3=-p[["b"]], b4=p[["e"]], b5=p[["f"]])
 }
 
-test_that("the peak agrees with MAX of drc", {
+test_that("the peak agrees with the maximum of the drc curve", {
   f2 <- drc::drm(weight ~ conc, data=lettuce, fct=drc::BC.5(), control=drc::drmc(relTol=1e-12))
   f1 <- drmTMB(weight ~ conc, data=lettuce, model="braincousens", start=drcstart(f2, FALSE))
   pk <- peak(f1)
   expect_equal(names(coef(pk)), c("dose:lf1", "response:lf1"))
-  expect_equal(unname(coef(pk)), unname(drc::MAX(f2)[1, ]), tolerance=1e-3)
+  # numerical maximum of drc's curve: MAX of drc 4.0-3 is wrong for BC.5
+  expect_equal(unname(coef(pk)), drcpeak(f2), tolerance=1e-3)
 
   # CRS.4a on lettuce: the stimulation does not lift the curve above the control, no peak
   f2 <- drc::drm(weight ~ conc, data=lettuce, fct=drc::CRS.4a(), control=drc::drmc(relTol=1e-12))
