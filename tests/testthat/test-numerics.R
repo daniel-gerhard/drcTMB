@@ -170,3 +170,17 @@ test_that("a non-finite objective at the estimates gives a warning", {
                         start=c(b1=0, b2=1, b5=0), fix=c(b1=TRUE, b2=TRUE, b5=TRUE)),
                  "not finite")
 })
+
+test_that("the residual parameter starts at its maximum likelihood value for the starting curve", {
+  d <- simgauss("loglogistic")
+  w <- rep(1:3, length.out=nrow(d))
+  f <- fit4(y ~ dose, data=d, weights=w, model="loglogistic")
+  s <- f$start
+  mu0 <- drcTMB:::drcmeanR(drcTMB:::modelindex("loglogistic"), d$dose, s[1], s[2], s[3], s[4], exp(s[5]))
+  # gaussian: the weighted root mean square residual of the starting curve
+  expect_equal(f$obj$par[["log_sigma"]], log(sqrt(sum(w*(d$y - mu0)^2)/sum(w))), tolerance=1e-6)
+  # on the scale of the data: a response times 1e4 starts at a residual sd times 1e4
+  d4 <- transform(d, y=y*1e4)
+  f4 <- fit4(y ~ dose, data=d4, weights=w, model="loglogistic")
+  expect_equal(f4$obj$par[["log_sigma"]] - f$obj$par[["log_sigma"]], log(1e4), tolerance=1e-6)
+})
