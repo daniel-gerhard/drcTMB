@@ -16,7 +16,7 @@
 #' coefficient, but not when re-optimising the other coefficients.
 #'
 #' The cutoff of the deviance is the quantile of the chi-square distribution with one degree of
-#' freedom. For gaussian models without random effects and small-sample inference (see
+#' freedom. For gaussian and lognormal models without random effects and small-sample inference (see
 #' \code{\link{drmTMB}}), the cutoff of the coefficients b1-b5 is F-based instead,
 #' sum(w) log(1 + F/(n - p)) with the quantile F of the F distribution with 1 and n - p degrees of
 #' freedom, which gives the intervals of a t-test of each coefficient, as profile intervals of nls.
@@ -317,7 +317,7 @@ profile.edTMB <- function(fitted, parm=NULL, level=0.99, maxit=100, progress=int
       })
       J <- diag(length(par0))[, -kp, drop=FALSE]
       J[kp, seq_len(nf - 1)] <- ((colSums(d * L[oth, free, drop=FALSE]) - L[ps, free]) / L[ps, k])[-kp]
-      if (isbmd && identical(fitted$bmd[[i]]$def, "sd") && length(ils) > 0){
+      if (isbmd && fitted$bmd[[i]]$def %in% c("sd", "logsd") && length(ils) > 0){
         J[kp, ils - 1] <- (b4fun(ed, e$lpv, ls + h) - b4fun(ed, e$lpv, ls - h)) / (2*h) / L[ps, k]
       }
       J

@@ -35,7 +35,7 @@ mod <- drmTMB(rootl ~ conc, data=ryegrass, model="loglogistic",
 print(mod)
 ```
 
-The model is fitted by maximum likelihood. For gaussian models without random effects, the inference follows `lm()`, `nls()` and drc by default: the residual standard deviation is the square root of the unbiased residual variance with n - p residual degrees of freedom (`df.residual(mod)`), the standard errors are scaled accordingly, and confidence and prediction intervals use t quantiles. With `control = list(smallsample = FALSE)`, they use the maximum likelihood estimate and normal quantiles instead. The other families and models with random effects always use maximum likelihood and normal quantiles.
+The model is fitted by maximum likelihood. For gaussian (and lognormal) models without random effects, the inference follows `lm()`, `nls()` and drc by default: the residual standard deviation is the square root of the unbiased residual variance with n - p residual degrees of freedom (`df.residual(mod)`), the standard errors are scaled accordingly, and confidence and prediction intervals use t quantiles. With `control = list(smallsample = FALSE)`, they use the maximum likelihood estimate and normal quantiles instead. The other families and models with random effects always use maximum likelihood and normal quantiles.
 
 With the `predict()` method, we can visualize the fitted curve.
 ```{r}
@@ -88,7 +88,7 @@ mod4 <- update(mod, start = c(NA, NA, NA, NA, 0), fix = c(FALSE, FALSE, FALSE, F
 anova(mod, mod4)
 ```
 
-For gaussian models without random effects, F-tests account for the estimation of the residual variance with n - p residual degrees of freedom, as in drc, and are usually preferable for small experiments.
+For gaussian and lognormal models without random effects, F-tests account for the estimation of the residual variance with n - p residual degrees of freedom, as in drc, and are usually preferable for small experiments.
 ```{r}
 anova(mod, mod4, test = "F")
 ```
@@ -169,7 +169,7 @@ ed(hmod, respLev = 0)
 
 ## Non-normal response distributions
 
-The `family` argument allows to specify the distribution of the response as "gaussian", "poisson", "binomial", "beta", or, for overdispersed counts, the negative binomial "nbinom2" (variance mu (1 + mu/theta)) or "nbinom1" (variance mu (1 + phi)), and, for overdispersed binomial counts, the beta-binomial "betabinomial" with precision phi, as in glmmTMB.
+The `family` argument allows to specify the distribution of the response as "gaussian", "lognormal", "poisson", "binomial", "beta", or, for overdispersed counts, the negative binomial "nbinom2" (variance mu (1 + mu/theta)) or "nbinom1" (variance mu (1 + phi)), and, for overdispersed binomial counts, the beta-binomial "betabinomial" with precision phi, as in glmmTMB. For the "lognormal" family, log(y) is normal around the log of the curve, which is then the median (geometric mean) of a positive response with a constant coefficient of variation, as in PROAST and the BMDS of the US EPA; the residual standard deviation is that of log(y), and the log-likelihood is that of y, so that AIC compares gaussian and lognormal fits.
 To improve optimisation, the `link` argument allows us to estimate parameters on a transformed scale: a single link, e.g. `link="logit"`, applies to the asymptotes b1 and b2, and links named by parameter, e.g. `link=c(b1="logit", b4="log")`, to single parameters, with the defaults of the model for the others. The asymptotes have the identity (default), log or logit link. The log link for b4, `link=c(b4="log")`, is available for the models with a positive b4; random effects on b4 then vary the ED50 by a factor between groups, as in a logistic model of the log dose. The asymmetry b5 of the logistic and loglogistic models and the shape b5 of nec always have the log link. The parameters of the curves, e.g. b4 of each group or treatment, follow from `predict(fit, newdata, type="parameters")`, on their original scale or with `scale="link"` on the scale of the coefficients, with standard errors and confidence intervals. Furthermore, we can add constraints on the parameters through the `lower` and `upper` arguments with vectors for the lower and upper bounds of the parameters, respectively.
 
 For the proportion of immobile daphnids after 48 hours, we fit a 2-parameter log-logistic model, with the asymptotes fixed at 0 and 1 and without asymmetry (b5 = 0). With only eight doses, the asymmetry parameter b5 cannot be estimated reliably: in a model with b5, the parameters b3, b4 and b5 are almost perfectly correlated, with very large standard errors.
@@ -348,7 +348,7 @@ We can additionally include the residual variance in the standard error estimati
 
 ## Benchmark doses
 
-The benchmark dose (BMD) is the dose at which the response has changed from the response at dose zero by the benchmark response (BMR). Unlike an effective dose, it does not refer to the asymptote at high doses. The function `bmd()` offers the definitions `"excess"` (extra) risk, (p(BMD) - p0)/(1 - p0) = BMR, and `"additional"` (added) risk, p(BMD) - p0 = BMR, for proportions; the `"relative"` deviation from the response at dose zero, the default of EFSA for continuous responses; and, for gaussian models without random effects, `"sd"`, a change by BMR residual standard deviations, the default of the US EPA for continuous responses without a biologically motivated BMR. The uncertainty of the estimated response at dose zero, and of the residual standard deviation, is included. The BMDL, the lower limit of a two-sided 90% interval, is the reference point of a risk assessment.
+The benchmark dose (BMD) is the dose at which the response has changed from the response at dose zero by the benchmark response (BMR). Unlike an effective dose, it does not refer to the asymptote at high doses. The function `bmd()` offers the definitions `"excess"` (extra) risk, (p(BMD) - p0)/(1 - p0) = BMR, and `"additional"` (added) risk, p(BMD) - p0 = BMR, for proportions; the `"relative"` deviation from the response at dose zero, the default of EFSA for continuous responses; and, for gaussian and lognormal models without random effects, `"sd"`, a change by BMR residual standard deviations (of log(y) for lognormal, as in BMDS), the default of the US EPA for continuous responses without a biologically motivated BMR. The uncertainty of the estimated response at dose zero, and of the residual standard deviation, is included. The BMDL, the lower limit of a two-sided 90% interval, is the reference point of a risk assessment.
 
 ```{r, message=FALSE}
 # 10% extra risk of immobility of daphnids
@@ -360,6 +360,17 @@ bmd(mod, bmr = 0.05, def = "relative")
 (bsd <- bmd(mod, bmr = 1, def = "sd"))
 confint(bsd, level = 0.9)
 ```
+
+EFSA recommends fitting both normal and lognormal responses. For the lognormal family, the curve is the median, and the relative BMD is that of the mean as well.
+
+```{r, message=FALSE}
+lmod <- drmTMB(rootl ~ conc, data = ryegrass, family = "lognormal", model = "loglogistic",
+               start = c(b1 = 0, b5 = 0), fix = c(b1 = TRUE, b5 = TRUE))
+AIC(mod, lmod)
+confint(bmd(lmod, bmr = 0.05, def = "relative"), level = 0.9)
+```
+
+For the ryegrass data, the AIC clearly favours the normal distribution: the root lengths close to zero at high concentrations vary much more on the log scale. The BMDs of the two fits differ considerably, which shows how much the BMD can depend on the assumed distribution.
 
 With random effects, the BMD can refer to two different curves: the typical curve, with the random effects at zero (`scale = "conditional"`), or the marginal mean curve, the mean response of the population of groups (`scale = "marginal"`, the default), found by integrating the curves over the distribution of the random effects. Both are the same if the random effects enter the mean linearly, as random effects on the asymptotes with the identity link in the vinclozolin model; random effects on b4 or b3, or on asymptotes with a log or logit link, make them differ. The standard errors of marginal BMDs include the uncertainty of the variances of the random effects. Profile intervals are not available for marginal BMDs that need the integration; `confint()` then returns Wald intervals, and `method = "boot"` bootstrap intervals.
 

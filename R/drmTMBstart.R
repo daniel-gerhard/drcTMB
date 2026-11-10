@@ -28,7 +28,7 @@
 #' @param start a vector with starting values for each model parameter. Only NA entries are replaced.
 #' @param fix a binary vector with same length as start. If TRUE, a model coefficient is fixed to the starting value. Parameters not used by the model (b5 except for logistic, loglogistic, braincousens, cedergreen, multistage and nec, b3 for michaelismenten, asymptoticregression and exponentialdecay, b2-b5 for constant) are always fixed, at 0 unless given in start.
 #' @param weights a vector of weights, one for each row of data.
-#' @param family Specify the distributional assumptions. One of "gaussian", "binomial", "betabinomial", "beta", "poisson", "nbinom2", and "nbinom1". The negative binomial families are for overdispersed counts, with variance mu (1 + mu/theta) for nbinom2 and mu (1 + phi) for nbinom1, and the beta-binomial family for overdispersed binomial counts, with variance n mu (1 - mu) (1 + (n - 1)/(phi + 1)) for n trials, as in glmmTMB.
+#' @param family Specify the distributional assumptions. One of "gaussian", "lognormal", "binomial", "betabinomial", "beta", "poisson", "nbinom2", and "nbinom1". For the lognormal family, log(y) is normal with mean log f(x) and standard deviation sigma: the curve f is the median of a positive response, with a constant coefficient of variation, as in PROAST and BMDS; the mean is f(x) exp(sigma^2/2). The negative binomial families are for overdispersed counts, with variance mu (1 + mu/theta) for nbinom2 and mu (1 + phi) for nbinom1, and the beta-binomial family for overdispersed binomial counts, with variance n mu (1 - mu) (1 + (n - 1)/(phi + 1)) for n trials, as in glmmTMB.
 #' @param model Specify the nonlinear model. One of "logistic", "loglogistic", "weibull1", "weibull2", "lognormal", "michaelismenten", "asymptoticregression", "exponentialdecay", "gompertz", "gamma", "multistage", "nec", "braincousens", "cedergreen", "constant".
 #' @param alpha the exponent of the hormesis term of the cedergreen model, see \code{\link{drmTMB}}.
 #' @param smooth smoothing of the threshold of the nec model, relative to the smallest interval between doses, see \code{\link{drmTMB}}; without random effects, the default is 0, an exact threshold.
@@ -78,9 +78,9 @@ drmTMBdata <- function(form, fform=NULL, rform=NULL, data, weights=NULL, family=
 
   # model
   mod <- modelindex(model)
-  fam <- which(family == c("gaussian", "poisson", "binomial", "beta", "nbinom2", "nbinom1", "betabinomial"))
+  fam <- which(family == c("gaussian", "poisson", "binomial", "beta", "nbinom2", "nbinom1", "betabinomial", "lognormal"))
   if (length(mod) != 1) stop("Unknown model: ", model)
-  if (length(fam) != 1) stop("Unknown family: ", family, "; one of gaussian, poisson, binomial, betabinomial, beta, nbinom2, nbinom1.")
+  if (length(fam) != 1) stop("Unknown family: ", family, "; one of gaussian, lognormal, poisson, binomial, betabinomial, beta, nbinom2, nbinom1.")
   m <- drcmodel(mod)
   link <- parlinks(link, m, model)
   lnk <- linkindex(link)
@@ -104,6 +104,7 @@ drmTMBdata <- function(form, fform=NULL, rform=NULL, data, weights=NULL, family=
   } else {
     bn <- rep(0, length(y))
   }
+  if (family == "lognormal" && any(!is.na(y) & y <= 0)) stop("the lognormal family needs a positive response.")
 
   # random effects
   re <- reterms(rform, data)
@@ -153,9 +154,11 @@ lmstart <- function(dd, start, fix){
   known1 <- fix[npi == 1][1] | !is.na(start[npi == 1][1])
   known2 <- fix[npi == 2][1] | !is.na(start[npi == 2][1])
 
-  # response on the mean scale, aggregated by dose
+  # response on the mean scale, aggregated by dose; geometric means for the medians of lognormal responses
   if (dd$family %in% c("binomial", "betabinomial") & any(dd$bn > 0)){
     yd <- tapply(dd$w * dd$y, dd$x, sum) / tapply(dd$w * dd$bn, dd$x, sum)
+  } else if (identical(dd$family, "lognormal")){
+    yd <- exp(tapply(dd$w * log(dd$y), dd$x, sum) / tapply(dd$w, dd$x, sum))
   } else {
     yd <- tapply(dd$w * dd$y, dd$x, sum) / tapply(dd$w, dd$x, sum)
   }
@@ -166,7 +169,8 @@ lmstart <- function(dd, start, fix){
 
   # constant model: b1 at the overall mean
   if (m$start == "constant"){
-    ybar <- if (dd$family %in% c("binomial", "betabinomial") & any(dd$bn > 0)) sum(dd$w * dd$y) / sum(dd$w * dd$bn) else sum(dd$w * dd$y) / sum(dd$w)
+    ybar <- if (dd$family %in% c("binomial", "betabinomial") & any(dd$bn > 0)) sum(dd$w * dd$y) / sum(dd$w * dd$bn)
+            else if (identical(dd$family, "lognormal")) exp(sum(dd$w * log(dd$y)) / sum(dd$w)) else sum(dd$w * dd$y) / sum(dd$w)
     return(projectstart(dd, start, fix, c(linkfun(dd$lnk[1], linkrange(dd$lnk[1], ybar, dd$family)), 0, 0, 0, 0)))
   }
 
@@ -424,9 +428,11 @@ drmTMBobj <- function(dd, start, fix, rform=NULL){
   Xp <- setNames(lapply(dd$Xs, function(X) X[0, , drop=FALSE]), paste("Xp", 1:5, sep=""))
   datalist <- c(dlist, dd$Xs, list(xp=numeric(0)), Xp, list(Zp=re$Z[0, , drop=FALSE]))
 
-  # log_sigma: residual sd (gaussian), precision (beta, betabinomial), size theta (nbinom2) or dispersion phi
+  # log_sigma: residual sd (gaussian, of log(y) for lognormal), precision (beta, betabinomial), size theta (nbinom2) or dispersion phi
   # (nbinom1); fixed for poisson and binomial
   if (dd$family == "gaussian") slsigma <- if (is.null(rform)) 1 else 0
+  # lognormal: sd of log(y), an upper bound of the residual sd
+  if (dd$family == "lognormal") slsigma <- log(max(sqrt(sum(dd$w * (log(dd$y) - sum(dd$w * log(dd$y))/sum(dd$w))^2)/sum(dd$w)), 1e-3))
   if (dd$family == "beta") slsigma <- 10
   if (dd$family %in% c("nbinom2", "nbinom1")) slsigma <- 0
   if (dd$family == "betabinomial") slsigma <- 2
@@ -641,11 +647,11 @@ linkfun <- function(lnk, x, inverse=FALSE){
 }
 
 # keep asymptotes inside the range of the link function, inside (0, 1) for proportions, and positive
-# for counts
+# for counts and lognormal responses
 linkrange <- function(lnk, f, family){
   if (family %in% c("binomial", "betabinomial", "beta") | lnk == 3) return(min(max(f, 1e-4), 1 - 1e-4))
   if (lnk == 2) return(max(f, 1e-8))
-  # means of counts are positive
-  if (family %in% c("poisson", "nbinom2", "nbinom1")) return(max(f, 1e-4))
+  # means of counts and medians of lognormal responses are positive
+  if (family %in% c("poisson", "nbinom2", "nbinom1", "lognormal")) return(max(f, 1e-4))
   f
 }

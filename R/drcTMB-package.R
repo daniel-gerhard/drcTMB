@@ -6,7 +6,7 @@
 #' @useDynLib drcTMB_TMBExports
 #' @importFrom stats AIC BIC approx coef coefficients confint fitted lm lm.fit logLik
 #' @importFrom stats model.frame model.matrix model.response nlminb nobs pbeta pbinom
-#' @importFrom stats plogis pnorm ppois predict printCoefmat profile qchisq qlogis qnorm
+#' @importFrom stats plogis pnorm ppois predict printCoefmat profile qchisq qlogis qnorm rlnorm
 #' @importFrom stats quantile residuals runif sd setNames simulate splinefun vcov
 #' @importFrom stats complete.cases terms .getXlevels na.pass as.formula
 #' @importFrom stats rnorm rpois rbinom rbeta rnbinom pnbinom anova pchisq pf lowess ppoints qt qf df.residual uniroot optimise pgamma qgamma

@@ -21,7 +21,7 @@ bmd(
 
 \item{def}{the definition of the benchmark response, see Details: "excess" (extra) risk or
 "additional" (added) risk for quantal responses, "relative" deviation, or "sd", the change in
-standard deviations of the response (gaussian family, models without random effects)}
+standard deviations of the response (gaussian and lognormal families, models without random effects)}
 
 \item{linfct}{a matrix of linear functions to identify the parameters of the dose-response curve,
 or a list of such matrices, as in \code{\link{ed}}; each matrix is paired with an entry of bmr}
@@ -55,13 +55,17 @@ decreasing curve, i.e. the change relative to the proportion that can still chan
 \item additional (added) risk: mu0 + bmr, or mu0 - bmr for a decreasing curve;
 \item relative deviation: mu0 (1 + bmr), or mu0 (1 - bmr) for a decreasing curve;
 \item sd: mu0 + bmr sigma, or mu0 - bmr sigma for a decreasing curve, with the residual standard
-deviation sigma (for weights of 1).
+deviation sigma (for weights of 1); for the lognormal family, mu0 exp(bmr sigma), or
+mu0 exp(-bmr sigma), with the standard deviation sigma of log(y), as in BMDS.
 }
 The definitions excess and additional are for responses that are proportions (binomial,
 beta-binomial and beta families). For excess risk, the BMD of a curve from zero to one is the
 effective dose \code{ed(x, 100*bmr)}. The response at dose zero, and sigma, are estimated, and their
 uncertainty is included in the standard errors and confidence intervals. Curves that do not reach
 the response give NA, with a warning.
+
+For the lognormal family, mu0 is the median at dose zero; as the mean is the median times a constant,
+the relative BMD is the same for the median and the mean.
 
 With random effects, the BMD depends on the curve it refers to. The conditional BMD is that of the
 typical curve, with all random effects at zero, as the effective doses of \code{\link{ed}} with

@@ -17,6 +17,9 @@ Type bmdtarget(int def, Type bmr, int inc, Type mu0, Type sigma){
     return mu0 * (1 + Type(inc) * bmr);
   case 4:
     return mu0 + Type(inc) * bmr * sigma;
+  case 5:
+    // lognormal: bmr standard deviations of log(y)
+    return mu0 * exp(Type(inc) * bmr * sigma);
   default:
     return mu0;
   }

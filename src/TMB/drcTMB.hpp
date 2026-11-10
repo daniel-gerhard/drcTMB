@@ -40,11 +40,11 @@ Type drcTMB(objective_function<Type>* obj) {
   PARAMETER_VECTOR(b5);
   PARAMETER_VECTOR(u);     // length zero without random effects
   PARAMETER_VECTOR(theta); // length zero without random effects
-  PARAMETER(log_sigma);    // log sd (gaussian), precision (beta, betabinomial), size (nbinom2) or dispersion (nbinom1);
+  PARAMETER(log_sigma);    // log sd (gaussian; of log(y) for lognormal), precision (beta, betabinomial), size (nbinom2) or dispersion (nbinom1);
                            // mapped (fixed) for poisson and binomial
 
   Type phi = exp(log_sigma);
-  if (fam == 1){
+  if (fam == 1 || fam == 8){
     Type sigma = phi;
     ADREPORT(sigma);
   }

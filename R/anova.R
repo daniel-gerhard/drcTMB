@@ -15,7 +15,7 @@
 #' conservative: the p-value is approximately twice the correct value for a single standard
 #' deviation.
 #'
-#' For gaussian models without random effects, \code{test="F"} gives F-tests, as drc does for
+#' For gaussian and lognormal (on the log scale) models without random effects, \code{test="F"} gives F-tests, as drc does for
 #' continuous responses: the reduction of the (weighted) residual sum of squares per additional
 #' parameter, divided by the residual mean square of the largest model, with n - p residual degrees
 #' of freedom for p coefficients b1-b5. The F-test is exact for linear models and accounts for the
@@ -37,7 +37,7 @@
 #'
 #' @param object a drmTMB object
 #' @param ... further drmTMB objects
-#' @param test "Chisq" (default) for likelihood ratio tests, "F" for F-tests of gaussian models
+#' @param test "Chisq" (default) for likelihood ratio tests, "F" for F-tests of gaussian or lognormal models
 #'   without random effects, or "boot" for parametric bootstrap likelihood ratio tests
 #' @param nsim number of simulations for \code{test="boot"}
 #' @param seed an optional seed for the random number generator, for \code{test="boot"}
@@ -74,11 +74,15 @@ anova.drmTMB <- function(object, ..., test=c("Chisq", "F", "boot"), nsim=1000, s
   ic <- data.frame(npar=np, AIC=vapply(fits[ord], AIC, numeric(1)), BIC=vapply(fits[ord], BIC, numeric(1)), logLik=ll)
 
   if (test == "F"){
-    if (!all(vapply(fits, function(f) f$family == "gaussian" && length(f$reterms) == 0, logical(1)))){
-      stop("F-tests are only available for gaussian models without random effects; use test=\"Chisq\".")
+    fam <- unique(vapply(fits, function(f) f$family, character(1)))
+    if (length(fam) != 1 || !(fam %in% c("gaussian", "lognormal")) || any(vapply(fits, function(f) length(f$reterms) > 0, logical(1)))){
+      stop("F-tests are only available for gaussian or lognormal models without random effects; use test=\"Chisq\".")
     }
-    # weighted residual sums of squares, residual degrees of freedom without the residual sd
-    rss <- vapply(fits[ord], function(f) sum(f$obj$env$data$w * residuals(f, type="response")^2), numeric(1))
+    # weighted residual sums of squares (of log(y) for lognormal), residual degrees of freedom without the residual sd
+    rss <- vapply(fits[ord], function(f){
+      r <- if (fam == "lognormal") log(f$obj$env$data$y) - log(predict(f)) else residuals(f, type="response")
+      sum(f$obj$env$data$w * r^2)
+    }, numeric(1))
     rdf <- nobs(object) - (np - 1)
     k <- length(fits)
     fval <- c(NA, -diff(rss)/df[-1] / (rss[k]/rdf[k]))

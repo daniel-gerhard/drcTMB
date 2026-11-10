@@ -5,10 +5,10 @@
 #' @param random logical, if TRUE, the random effects are included in the predictions, fitted values and residuals (conditional residuals). For simulate, if TRUE, new random effects are drawn for each simulation, otherwise the fitted random effects are kept.
 #'   For prediction intervals, random=TRUE gives the interval of a new observation in the group of each row of newdata, and random=FALSE the interval of a new observation in a new group, including the variance of the random effects. Rows of newdata with a level that is not in the fitted data are treated as new groups for that random effect term.
 #' @param se.fit logical, if TRUE, predict returns the standard errors of the predicted means, by the delta method; with random=TRUE they include the uncertainty of the predicted random effects.
-#' @param interval type of interval of predict: "none", "confidence" for confidence intervals of the mean, computed on the log scale for poisson and on the logit scale for binomial and beta responses, or "prediction" for prediction intervals of a new observation with weight 1. Gaussian models without random effects use t quantiles with n - p degrees of freedom and the unbiased residual variance, see \code{\link{drmTMB}}. For the gaussian family without boot, the prediction intervals use the normal (or t) distribution, and the variance of the random effects of new groups is added by the delta method. Otherwise they are quantiles of new observations simulated at nsim draws from the normal approximation of the fixed and random effects, with the variance parameters kept at their estimates, or at the bootstrap fits (see boot); with new random effects for new groups; for a binomial response as proportions, with the number of trials from the response in newdata (one for a binary response).
+#' @param interval type of interval of predict: "none", "confidence" for confidence intervals of the mean, computed on the log scale for poisson and lognormal and on the logit scale for binomial and beta responses, or "prediction" for prediction intervals of a new observation with weight 1. Gaussian and lognormal models without random effects use t quantiles with n - p degrees of freedom and the unbiased residual variance, see \code{\link{drmTMB}}. For the gaussian and lognormal (on the log scale) families without boot, the prediction intervals use the normal (or t) distribution, and the variance of the random effects of new groups is added by the delta method. Otherwise they are quantiles of new observations simulated at nsim draws from the normal approximation of the fixed and random effects, with the variance parameters kept at their estimates, or at the bootstrap fits (see boot); with new random effects for new groups; for a binomial response as proportions, with the number of trials from the response in newdata (one for a binary response).
 #' @param level confidence level of the intervals of predict
 #' @param digits number of significant digits in the printed output
-#' @param type type of residuals: "pearson" (default), the response residuals divided by the standard deviation of the fitted distribution and multiplied by the square root of the weights; "response", the observed minus the fitted values, as proportions for a binomial response; or "quantile", randomised quantile residuals (Dunn and Smyth, 1996), which are standard normal under the model. For the gaussian family, the quantile residuals are multiplied by the square root of the weights, as precision weights with standard deviation sigma/sqrt(w); for the other families they do not use the weights, as a weighted log-likelihood is not the density of a distribution of the observation. The quantile residuals are random for the count families; use set.seed for reproducible values.
+#' @param type type of residuals: "pearson" (default), the response residuals divided by the standard deviation of the fitted distribution and multiplied by the square root of the weights; "response", the observed minus the fitted values, as proportions for a binomial response; or "quantile", randomised quantile residuals (Dunn and Smyth, 1996), which are standard normal under the model. For the gaussian family, the quantile residuals are multiplied by the square root of the weights, as precision weights with standard deviation sigma/sqrt(w); for the other families they do not use the weights, as a weighted log-likelihood is not the density of a distribution of the observation. The quantile residuals are random for the count families; use set.seed for reproducible values. For the lognormal family, the pearson and quantile residuals are the standardised residuals of log(y), (log(y) - log(f))/sigma, multiplied by the square root of the weights.
 #' @param nsim number of response vectors to simulate; for predict, the number of parameter draws for simulated prediction intervals
 #' @param seed an optional seed for the random number generator
 #' @param boot a bootstrap sample of the model from \code{\link{bootstrap}}. predict then gives the standard deviation of the bootstrap predictions as se.fit, percentile confidence intervals, and prediction intervals simulated at the bootstrap fits, including their variance parameters. The bootstrap responses have new random effects, so for random=TRUE the random effects of the fitted groups are drawn, for each bootstrap fit, from the Laplace approximation of their conditional distribution given the original data at the parameters of that fit.
@@ -25,13 +25,13 @@
 #' coef and vcov include the variance parameters: for each random effect term the log standard deviations
 #' (log_sd:b1|group, or log_sd:b4:x|group for a random slope of b4 in x) and, for correlated random effects, the parameters of the correlation matrix
 #' (corr_par:b2,b1|group, unconstrained elements of the lower triangle of its Cholesky factor, by row);
-#' and the log residual standard deviation (log_sigma, gaussian), log precision (log_phi, beta), log size
+#' and the log residual standard deviation (log_sigma, gaussian; of log(y) for lognormal), log precision (log_phi, beta), log size
 #' (log_theta, nbinom2), log dispersion (log_phi, nbinom1) or log precision (log_phi, betabinomial).
 #' summary returns a summary.drmTMB object with the coefficient table (Estimate, Std. Error), the
 #' variance components, log-likelihood, AIC and BIC, sample sizes, a Pearson dispersion statistic for
 #' poisson and binomial models, and convergence information. logLik returns the log-likelihood at the
 #' estimates, with the number of free coefficients and variance parameters as degrees of freedom.
-#' df.residual returns the residual degrees of freedom n - p of gaussian models without random
+#' df.residual returns the residual degrees of freedom n - p of gaussian and lognormal models without random
 #' effects (small-sample inference, see \code{\link{drmTMB}}), and NULL otherwise; as the \code{df}
 #' argument of \code{multcomp::glht} for effective doses, it gives multivariate t instead of normal
 #' quantiles.
@@ -218,6 +218,9 @@ residuals.drmTMB <- function(object, type=c("pearson", "response", "quantile"), 
 
   if (type == "response") return(y - mu)
 
+  # lognormal: standardised residuals of log(y), for both pearson and quantile residuals
+  if (object$family == "lognormal") return((log(y) - log(mu))/phi * sqrt(as.vector(dat$w)))
+
   if (type == "pearson"){
     v <- switch(object$family,
                 gaussian=phi^2,
@@ -289,6 +292,11 @@ predict.drmTMB <- function(object, newdata=NULL, random=TRUE, se.fit=FALSE, inte
       sdp <- sqrt(se^2 + residpar(object)^2 + newgroupvar(object, pd))
       res$lwr <- fit - z*sdp
       res$upr <- fit + z*sdp
+    } else if (object$family == "lognormal" && is.null(boot)){
+      # the same on the log scale, with the standard errors of the log median by the delta method
+      sdp <- sqrt((se^2 + newgroupvar(object, pd))/fit^2 + residpar(object)^2)
+      res$lwr <- fit*exp(-z*sdp)
+      res$upr <- fit*exp(z*sdp)
     } else {
       # simulated new observations at parameter draws: from the bootstrap fits, or from the normal
       # approximation of the fixed and random effects
@@ -638,6 +646,7 @@ predsim <- function(object, pd, draws, trials, probs, vardraws=FALSE){
     # draws outside the valid range of the parameters give NA
     suppressWarnings(switch(object$family,
                             gaussian=rnorm(n, mu, phi),
+                            lognormal=rlnorm(n, log(mu), phi),
                             poisson=rpois(n, mu),
                             binomial=rbinom(n, trials, mu)/trials,
                             betabinomial=rbinom(n, trials, rbeta(n, mu*phi, (1 - mu)*phi))/trials,
@@ -653,12 +662,13 @@ predsim <- function(object, pd, draws, trials, probs, vardraws=FALSE){
   t(apply(sims, 1, quantile, probs=probs, na.rm=TRUE, names=FALSE, type=type))
 }
 
-# confidence intervals of the means, computed on the log scale for the count families and the logit
+# confidence intervals of the means, computed on the log scale for the count families (and the medians of
+# lognormal responses) and the logit
 # scale for binomial and beta, so that they stay inside the range of the mean
 predci <- function(fit, se, family, z){
   tr <- switch(family,
                gaussian=list(f=identity, d=function(m) 1, i=identity),
-               poisson=, nbinom2=, nbinom1=list(f=log, d=function(m) 1/m, i=exp),
+               poisson=, nbinom2=, nbinom1=, lognormal=list(f=log, d=function(m) 1/m, i=exp),
                list(f=qlogis, d=function(m) 1/(m*(1 - m)), i=plogis))
   eta <- tr$f(fit)
   se.eta <- se*tr$d(fit)
@@ -809,14 +819,14 @@ printre <- function(vcs, digits){
   print(tab, quote=FALSE, right=FALSE)
 }
 
-# residual standard deviation (gaussian), precision (beta, betabinomial), size theta (nbinom2) or dispersion phi
+# residual standard deviation (gaussian, of log(y) for lognormal), precision (beta, betabinomial), size theta (nbinom2) or dispersion phi
 # (nbinom1); NULL for poisson and binomial; the unbiased estimate for small-sample inference
 residpar <- function(object){
   if (object$family %in% c("poisson", "binomial")) return(NULL)
   unname(exp(object$sdrl$par.fixed["log_sigma"])) * sqrt(varscale(object))
 }
 
-# unbiased over maximum likelihood residual variance of gaussian models without random effects: the
+# unbiased over maximum likelihood residual variance of gaussian (and lognormal) models without random effects: the
 # ML estimate divides the weighted residual sum of squares by the sum of the weights, the unbiased
 # one by the residual degrees of freedom rdf; 1 without small-sample inference
 varscale <- function(object){
@@ -846,6 +856,8 @@ zquant <- function(object, level){
 printresid <- function(family, residpar, digits, rdf=NULL){
   if (family == "gaussian") cat("\nResidual standard deviation: ", format(residpar, digits=digits),
                                 if (!is.null(rdf)) paste(" on", rdf, "degrees of freedom"), "\n", sep="")
+  if (family == "lognormal") cat("\nResidual standard deviation of log(y): ", format(residpar, digits=digits),
+                                 if (!is.null(rdf)) paste(" on", rdf, "degrees of freedom"), "\n", sep="")
   if (family == "beta") cat("\nPrecision: ", format(residpar, digits=digits), "\n", sep="")
   if (family == "nbinom2") cat("\nNegative binomial size (theta): ", format(residpar, digits=digits), "\n", sep="")
   if (family == "betabinomial") cat("\nBeta-binomial precision (phi): ", format(residpar, digits=digits), "\n", sep="")
@@ -865,7 +877,7 @@ parnames <- function(object){
       if (np > 1) paste("corr_par:", pairs, "|", tm$group, sep=""))
   }))
   c(object$coefnames[!object$fix], renames,
-    switch(object$family, gaussian="log_sigma", beta="log_phi", nbinom2="log_theta", nbinom1="log_phi", betabinomial="log_phi"))
+    switch(object$family, gaussian=, lognormal="log_sigma", beta="log_phi", nbinom2="log_theta", nbinom1="log_phi", betabinomial="log_phi"))
 }
 
 # distribution function of the beta-binomial distribution with n trials, mean mu and precision phi

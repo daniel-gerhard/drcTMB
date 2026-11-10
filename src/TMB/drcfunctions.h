@@ -242,6 +242,9 @@ Type loglik(int fam, Type y, Type f, Type bn, Type phi){
     return lgamma(bn + 1) - lgamma(y + 1) - lgamma(bn - y + 1)
       + lgamma(y + f*phi) + lgamma(bn - y + (1-f)*phi) - lgamma(bn + phi)
       - lgamma(f*phi) - lgamma((1-f)*phi) + lgamma(phi);
+  case 8:
+    // lognormal with median f and standard deviation phi of log(y); density of y, with the Jacobian
+    return dnorm(log(y), log(f), phi, true) - log(y);
   default:
     return 0;
   }
@@ -265,6 +268,8 @@ Type simobs(int fam, Type f, Type bn, Type phi){
     return rnbinom2(f, Type(f*(1 + phi)));
   case 7:
     return rbinom(bn, rbeta(f*phi, (1-f)*phi));
+  case 8:
+    return exp(rnorm(log(f), phi));
   default:
     return 0;
   }
