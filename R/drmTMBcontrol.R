@@ -3,7 +3,7 @@
 #' @param optimiser character string specifying the optimiser to use
 #' @param iter.max maximum number of iterations of the optimiser, see \code{\link{nlminb}}.
 #' @param eval.max maximum number of evaluations of the objective function, see \code{\link{nlminb}}.
-#' @param smallsample if TRUE (default), gaussian models without random effects use the unbiased
+#' @param smallsample if TRUE (default), gaussian and lognormal models without random effects use the unbiased
 #'   residual variance with n - p residual degrees of freedom and t quantiles, as lm, nls and drc; if
 #'   FALSE, the maximum likelihood estimate and normal quantiles. See \code{\link{drmTMB}}.
 #'

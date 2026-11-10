@@ -63,7 +63,7 @@ Bounds given by \code{lower} and \code{upper} in \code{\link{drmTMB}} are used f
 coefficient, but not when re-optimising the other coefficients.
 
 The cutoff of the deviance is the quantile of the chi-square distribution with one degree of
-freedom. For gaussian models without random effects and small-sample inference (see
+freedom. For gaussian and lognormal models without random effects and small-sample inference (see
 \code{\link{drmTMB}}), the cutoff of the coefficients b1-b5 is F-based instead,
 sum(w) log(1 + F/(n - p)) with the quantile F of the F distribution with 1 and n - p degrees of
 freedom, which gives the intervals of a t-test of each coefficient, as profile intervals of nls.

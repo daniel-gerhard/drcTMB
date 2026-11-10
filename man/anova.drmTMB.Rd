@@ -18,7 +18,7 @@
 
 \item{...}{further drmTMB objects}
 
-\item{test}{"Chisq" (default) for likelihood ratio tests, "F" for F-tests of gaussian models
+\item{test}{"Chisq" (default) for likelihood ratio tests, "F" for F-tests of gaussian or lognormal models
 without random effects, or "boot" for parametric bootstrap likelihood ratio tests}
 
 \item{nsim}{number of simulations for \code{test="boot"}}
@@ -53,7 +53,7 @@ infinite size of the negative binomial for the poisson model, the chi-square dis
 conservative: the p-value is approximately twice the correct value for a single standard
 deviation.
 
-For gaussian models without random effects, \code{test="F"} gives F-tests, as drc does for
+For gaussian and lognormal (on the log scale) models without random effects, \code{test="F"} gives F-tests, as drc does for
 continuous responses: the reduction of the (weighted) residual sum of squares per additional
 parameter, divided by the residual mean square of the largest model, with n - p residual degrees
 of freedom for p coefficients b1-b5. The F-test is exact for linear models and accounts for the

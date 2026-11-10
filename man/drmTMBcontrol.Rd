@@ -18,7 +18,7 @@ drmTMBcontrol(
 
 \item{eval.max}{maximum number of evaluations of the objective function, see \code{\link{nlminb}}.}
 
-\item{smallsample}{if TRUE (default), gaussian models without random effects use the unbiased
+\item{smallsample}{if TRUE (default), gaussian and lognormal models without random effects use the unbiased
 residual variance with n - p residual degrees of freedom and t quantiles, as lm, nls and drc; if
 FALSE, the maximum likelihood estimate and normal quantiles. See \code{\link{drmTMB}}.}
 }

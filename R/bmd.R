@@ -9,7 +9,7 @@
 #' @param bmr the benchmark response, see \code{def}; a vector gives a BMD for each value
 #' @param def the definition of the benchmark response, see Details: "excess" (extra) risk or
 #'   "additional" (added) risk for quantal responses, "relative" deviation, or "sd", the change in
-#'   standard deviations of the response (gaussian family, models without random effects)
+#'   standard deviations of the response (gaussian and lognormal families, models without random effects)
 #' @param linfct a matrix of linear functions to identify the parameters of the dose-response curve,
 #'   or a list of such matrices, as in \code{\link{ed}}; each matrix is paired with an entry of bmr
 #' @param newdata a data frame with the covariates of the curves, as an alternative to linfct, as in
@@ -29,13 +29,17 @@
 #'   \item additional (added) risk: mu0 + bmr, or mu0 - bmr for a decreasing curve;
 #'   \item relative deviation: mu0 (1 + bmr), or mu0 (1 - bmr) for a decreasing curve;
 #'   \item sd: mu0 + bmr sigma, or mu0 - bmr sigma for a decreasing curve, with the residual standard
-#'     deviation sigma (for weights of 1).
+#'     deviation sigma (for weights of 1); for the lognormal family, mu0 exp(bmr sigma), or
+#'     mu0 exp(-bmr sigma), with the standard deviation sigma of log(y), as in BMDS.
 #' }
 #' The definitions excess and additional are for responses that are proportions (binomial,
 #' beta-binomial and beta families). For excess risk, the BMD of a curve from zero to one is the
 #' effective dose \code{ed(x, 100*bmr)}. The response at dose zero, and sigma, are estimated, and their
 #' uncertainty is included in the standard errors and confidence intervals. Curves that do not reach
 #' the response give NA, with a warning.
+#'
+#' For the lognormal family, mu0 is the median at dose zero; as the mean is the median times a constant,
+#' the relative BMD is the same for the median and the mean.
 #'
 #' With random effects, the BMD depends on the curve it refers to. The conditional BMD is that of the
 #' typical curve, with all random effects at zero, as the effective doses of \code{\link{ed}} with
@@ -67,7 +71,7 @@ bmd <- function(x, bmr=0.1, def=c("excess", "additional", "relative", "sd"), lin
   }
   terms <- x$reterms
   if (def == "sd"){
-    if (x$family != "gaussian") stop("def=\"sd\" is only available for the gaussian family.")
+    if (!(x$family %in% c("gaussian", "lognormal"))) stop("def=\"sd\" is only available for the gaussian and lognormal families.")
     if (length(terms) > 0) stop("def=\"sd\" is not available for models with random effects: the standard deviation of the response depends on the random effects.")
   }
   if (!is.numeric(bmr) || length(bmr) == 0 || any(!is.finite(bmr)) || any(bmr <= 0)) stop("bmr must be positive.")
@@ -152,7 +156,8 @@ bmd <- function(x, bmr=0.1, def=c("excess", "additional", "relative", "sd"), lin
     if (all(A[setdiff(1:5, which(lnk[1:2] == 1)), ] == 0)) A[] <- 0
     act <- which(colSums(A != 0) > 0)
     quad <- bmdnodes(ncoef, act, nodes)
-    info[[i]] <- list(def=def, bmr=bmr[i], inc=bmdinc(x, lpv), A=A, E=quad$E, wq=quad$w, sfac=sfac)
+    # lognormal: bmr standard deviations of log(y)
+    info[[i]] <- list(def=if (def == "sd" && x$family == "lognormal") "logsd" else def, bmr=bmr[i], inc=bmdinc(x, lpv), A=A, E=quad$E, wq=quad$w, sfac=sfac)
     edl[i] <- bmdvalue(x, info[[i]], lpv, theta, ls)
     if (is.na(edl[i])){
       grad[i, ] <- NA
@@ -160,7 +165,7 @@ bmd <- function(x, bmr=0.1, def=c("excess", "additional", "relative", "sd"), lin
     }
     x0 <- if (length(quad$w) > 0) edl[i] else if (m$ed %in% "polynomial") edl[i] else 0
     eobj <- MakeADFun(list(model="drcBMD", mod=mod, lnk=as.integer(lnk), alpha=alphavalue(x$alpha), smooth=smoothwidth(x$smooth),
-                           def=match(def, c("excess", "additional", "relative", "sd")), bmr=bmr[i], inc=as.integer(info[[i]]$inc),
+                           def=match(info[[i]]$def, c("excess", "additional", "relative", "sd", "logsd")), bmr=bmr[i], inc=as.integer(info[[i]]$inc),
                            sfac=sfac, x0=x0, tnp=as.integer(tnp), A=A, E=quad$E, wq=quad$w),
                       list(b=as.vector(linfct[[i]] %*% pv), u=as.vector(W[[i]] %*% uhat), theta=theta, log_sigma=ls),
                       ADreport=TRUE, DLL="drcTMB_TMBExports", silent=TRUE)
@@ -202,7 +207,8 @@ bmdtarget <- function(def, bmr, inc, mu0, sigma){
          excess=if (inc > 0) mu0 + bmr*(1 - mu0) else mu0*(1 - bmr),
          additional=mu0 + inc*bmr,
          relative=mu0*(1 + inc*bmr),
-         sd=mu0 + inc*bmr*sigma)
+         sd=mu0 + inc*bmr*sigma,
+         logsd=mu0*exp(inc*bmr*sigma))
 }
 
 # level of F at the BMD of the curve with linear predictors lpv (without averaging over random
