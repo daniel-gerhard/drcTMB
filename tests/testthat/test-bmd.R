@@ -43,6 +43,39 @@ test_that("excess risk BMD equals the effective dose of a quantal curve to one",
   expect_equal(unname(coef(bmd(fm, 0.1))), unname(coef(ed(fm, 10))), tolerance=1e-8)
 })
 
+test_that("BMDs and BMDLs agree with the bmd package", {
+  skip_if_not_installed("drc")
+  skip_if_not_installed("bmd")
+  # bmd recognises the drc model functions by their name, which must not carry the drc:: prefix
+  W1.4 <- drc::W1.4
+  LL.4 <- drc::LL.4
+  d <- simquantal()
+  d$p <- d$y/d$n
+  fd <- drc::drm(p ~ dose, weights=n, data=d, type="binomial", fct=W1.4(fixed=c(NA, NA, 1, NA)))
+  ft <- drmTMB(cbind(y, n - y) ~ dose, data=d, family="binomial", model="weibull1", start=c(b2=1, b5=0), fix=c(b2=TRUE, b5=TRUE))
+  for (def in c("excess", "additional")){
+    rd <- bmd::bmd(fd, 0.1, def=def, backgType="modelBased", display=FALSE)
+    rp <- bmd::bmd(fd, 0.1, def=def, backgType="modelBased", display=FALSE, interval="profile", profileProgressInfo=FALSE)
+    b <- bmd(ft, 0.1, def=def)
+    expect_equal(unname(coef(b)), unname(rd$Results[1]), tolerance=1e-5)
+    expect_equal(sqrt(vcov(b)[1, 1]), unname(rd$SE[1]), tolerance=1e-4)
+    expect_equal(confint(b, level=0.9, progress=FALSE)[1, 1], unname(rp$Results[2]), tolerance=1e-4)
+  }
+  # continuous relative deviation; bmd profiles with the chi-square cutoff, not the small-sample one
+  data(ryegrass, package="drcData", envir=environment())
+  fd <- drc::drm(rootl ~ conc, data=ryegrass, fct=LL.4())
+  ft <- drmTMB(rootl ~ conc, data=ryegrass, model="loglogistic", start=c(b5=0), fix=c(b5=TRUE))
+  rd <- bmd::bmd(fd, 0.1, def="relative", backgType="modelBased", display=FALSE)
+  rp <- bmd::bmd(fd, 0.1, def="relative", backgType="modelBased", display=FALSE, interval="profile",
+                 profileProgressInfo=FALSE, profileGridSize=200)
+  b <- bmd(ft, 0.1, def="relative")
+  expect_equal(unname(coef(b)), unname(rd$Results[1]), tolerance=1e-5)
+  expect_equal(sqrt(vcov(b)[1, 1]), unname(rd$SE[1]), tolerance=1e-4)
+  expect_equal(suppressMessages(confint(b, level=0.9, method="wald"))[1, 1], unname(rd$Results[2]), tolerance=1e-5)
+  ft$rdf <- NULL
+  expect_equal(confint(bmd(ft, 0.1, def="relative"), level=0.9, progress=FALSE)[1, 1], unname(rp$Results[2]), tolerance=1e-4)
+})
+
 test_that("BMD in standard deviations includes the uncertainty of sigma", {
   d <- simgauss("loglogistic")
   f <- fit4(y ~ dose, data=d, model="loglogistic")
