@@ -4,9 +4,9 @@
 \name{drcTMB-package}
 \alias{drcTMB}
 \alias{drcTMB-package}
-\title{drcTMB: Fitting dose-response curves using the Template Model Builder}
+\title{drcTMB: Fitting Dose-Response Curves Using the Template Model Builder}
 \description{
-Provides a simple user-interface for fitting non-linear mixed-effects models for dose-response analysis.
+Fits non-linear dose-response models, optionally with random effects, by maximum likelihood using the Template Model Builder ('TMB'), with the Laplace approximation for the random effects. The log-logistic, Weibull, hormesis and threshold models of the 'drc' package are available, and the response can follow a Gaussian, Poisson, binomial, beta, beta-binomial or negative binomial distribution. Effective doses and their standard errors are derived by automatic differentiation.
 }
 \author{
 \strong{Maintainer}: Daniel Gerhard \email{00gerhard@gmail.com} (\href{https://orcid.org/0000-0002-9336-3454}{ORCID})

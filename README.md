@@ -129,6 +129,20 @@ confint(effdose)
 #> 75:lf3 4.332774 6.110914
 ```
 
+Benchmark doses, the doses at which the response has changed from the
+response at dose zero by a benchmark response, are estimated by `bmd()`,
+with the definitions excess and additional risk for proportions,
+relative deviation, and standard deviations; the BMDL is the lower limit
+of `confint(bmd(mod), level = 0.9)`.
+
+``` r
+bmd(mod, bmr = 0.1, def = "relative")
+#> Benchmark doses, relative deviation:
+#> 
+#>         Estimate Std.Error
+#> 0.1:lf1     1.34     0.189
+```
+
 Simultaneous confidence intervals can be constructed through the package
 multcomp. For gaussian models without random effects, the residual
 degrees of freedom of the model give multivariate t quantiles
@@ -146,13 +160,13 @@ confint(effdose_glht)
 #> 
 #> Fit: NULL
 #> 
-#> Quantile = 2.4947
+#> Quantile = 2.4925
 #> 95% family-wise confidence level
 #>  
 #> 
 #> Linear Hypotheses:
 #>           Estimate lwr    upr   
-#> ED25 == 0 2.0918   1.6261 2.5576
-#> ED50 == 0 3.2634   2.7734 3.7533
-#> ED75 == 0 5.0910   4.0401 6.1419
+#> ED25 == 0 2.0918   1.6265 2.5572
+#> ED50 == 0 3.2634   2.7738 3.7529
+#> ED75 == 0 5.0910   4.0410 6.1410
 ```

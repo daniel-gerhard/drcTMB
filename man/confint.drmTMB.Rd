@@ -63,6 +63,10 @@ reported on their natural scale; Wald intervals for them are computed on the log
 correlation of a term with two random effects is reported as a correlation; the parameters of
 larger correlation matrices on the unconstrained scale of \code{coef}.
 
+For benchmark doses of \code{\link{bmd}}, profile intervals are available for BMDs that are not averaged
+over random effects; marginal BMDs that are averaged over random effects have Wald and bootstrap
+intervals. The BMDL is the lower limit at \code{level=0.90}.
+
 Profile and bootstrap intervals for effective doses are for the population curves, and bootstrap
 intervals also for the curves of fitted groups (\code{newdata} in \code{\link{ed}}), with the random
 effects of the groups drawn from their conditional distribution at each bootstrap fit; for these,

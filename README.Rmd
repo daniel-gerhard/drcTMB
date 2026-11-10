@@ -74,6 +74,11 @@ Profile likelihood confidence intervals of the effective doses are computed by `
 confint(effdose)
 ```
 
+Benchmark doses, the doses at which the response has changed from the response at dose zero by a benchmark response, are estimated by `bmd()`, with the definitions excess and additional risk for proportions, relative deviation, and standard deviations; the BMDL is the lower limit of `confint(bmd(mod), level = 0.9)`.
+```{r, message=FALSE}
+bmd(mod, bmr = 0.1, def = "relative")
+```
+
 Simultaneous confidence intervals can be constructed through the package multcomp. For gaussian models without random effects, the residual degrees of freedom of the model give multivariate t quantiles (`df.residual()` is `NULL` otherwise, and multcomp then uses the normal distribution).
 ```{r, message=FALSE, warning=FALSE}
 library(multcomp)

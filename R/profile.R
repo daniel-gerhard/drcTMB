@@ -222,6 +222,8 @@ profile.edTMB <- function(fitted, parm=NULL, level=0.99, maxit=100, progress=int
   if (anyNA(est[parm])) stop("the effective doses ", paste(names(est)[parm][is.na(est[parm])], collapse=", "), " are NA.")
   absolute <- identical(fitted$type, "absolute")
   peak <- identical(fitted$type, "peak")
+  isbmd <- identical(fitted$type, "bmd")
+  if (isbmd && !bmdprofile(fitted, parm)) stop("profiles are not available for marginal BMDs averaged over random effects, or for the BMDs of the ", fit$model, " model: its response at dose zero depends on b4.")
   pv0 <- fit$start
   pv0[!fit$fix] <- fit$opt$par[seq_len(sum(!fit$fix))]
   if (peak && any(unlist(fitted$q[parm]) == 2)) stop("profiles are not available for the response at the peak.")
@@ -251,6 +253,9 @@ profile.edTMB <- function(fitted, parm=NULL, level=0.99, maxit=100, progress=int
   msfree <- c(rep(1:5, sapply(fit$Xs, ncol))[free] %in% 3:5, rep(FALSE, length(par0) - nf))
   # free coefficients of the rate b3 of the nec model
   b3free <- c(rep(1:5, sapply(fit$Xs, ncol))[free] == 3, rep(FALSE, length(par0) - nf))
+  # log residual standard deviation, for BMDs in standard deviations
+  ils <- which(names(par0) == "log_sigma")
+  lsval <- function(par) if (length(ils) > 0) par[[ils]] else 0
 
   pb <- progressbar(length(parm), progress)
   prof <- lapply(parm, function(i){
@@ -269,7 +274,7 @@ profile.edTMB <- function(fitted, parm=NULL, level=0.99, maxit=100, progress=int
     kp <- which.max(abs(w4))
     k <- free[kp]
     if (any(L[setdiff(3:5, ps), k] != 0)) stop("the coefficient ", fit$coefnames[k], " of b", ps, " must not enter ", paste("b", setdiff(3:5, ps), sep="", collapse=" or "), " in linfct.")
-    if ((absolute || m$ed %in% "hormesis") && (L[1, k] != 0 || L[2, k] != 0)) stop("the coefficient ", fit$coefnames[k], " of b4 must not enter b1 or b2 in linfct.")
+    if ((absolute || isbmd || m$ed %in% "hormesis") && (L[1, k] != 0 || L[2, k] != 0)) stop("the coefficient ", fit$coefnames[k], " of b4 must not enter b1 or b2 in linfct.")
 
     # full parameter vector from the reduced one (without coefficient k) at effective dose ed
     pvfull <- function(par){
@@ -277,36 +282,44 @@ profile.edTMB <- function(fitted, parm=NULL, level=0.99, maxit=100, progress=int
       pv[free] <- par[seq_len(nf)]
       pv
     }
-    # b4 (parameter ps) on the scale of its coefficients, from b1, b2 (absolute effective doses, hormesis
-    # models), b3 and b5 in lpv; for peaks, ed is the dose of the peak
-    b4fun <- function(ed, lpv){
+    # level of F at the effective dose; for BMDs from the response at dose zero and the log residual
+    # standard deviation ls
+    qlev <- function(lpv, ls) if (isbmd) bmdlevel(fit, fitted$bmd[[i]], lpv, ls) else edq(fit, q, lpv, absolute)
+    # b4 (parameter ps) on the scale of its coefficients, from b1, b2 (absolute effective doses, BMDs,
+    # hormesis models), b3 and b5 in lpv; for peaks, ed is the dose of the peak
+    b4fun <- function(ed, lpv, ls=0){
       b <- linkpars(lnk, lpv)
-      if (m$ed %in% "polynomial") return(linkfun(lnk[ps], msbeta(edq(fit, q, lpv, absolute), ed, b, ps)))
+      if (m$ed %in% "polynomial") return(linkfun(lnk[ps], msbeta(qlev(lpv, ls), ed, b, ps)))
       b4 <- if (peak && !is.null(m$peak)) m$peak$b4(ed, b)
             else if (peak) peakb4(mod, ed, b[3], hormc(fit, lpv), fit$alpha)
-            else edb4(mod, edq(fit, q, lpv, absolute), ed, b[3], b[5], hormc(fit, lpv), fit$alpha, smoothwidth(fit$smooth))
+            else edb4(mod, qlev(lpv, ls), ed, b[3], b[5], hormc(fit, lpv), fit$alpha, smoothwidth(fit$smooth))
       linkfun(lnk[4], b4)
     }
     expand <- function(x, ed){
       par <- append(x, 0, after=kp - 1)
       pv <- pvfull(par)
       lpv <- as.vector(L %*% pv)
-      b4 <- b4fun(ed, lpv)
+      b4 <- b4fun(ed, lpv, lsval(par))
       par[kp] <- (b4 - sum(L[ps, -k] * pv[-k])) / L[ps, k]
       list(par=par, lpv=lpv)
     }
     # derivatives of the full parameter vector w.r.t. the reduced one: coefficient k depends on the
     # other coefficients of b4 and, through the effective dose, on b3 and b5, and for absolute
-    # effective doses on b1 and b2
+    # effective doses and BMDs on b1 and b2, and for BMDs in standard deviations on the log residual
+    # standard deviation
     jacobian <- function(e, ed){
       h <- 1e-6
+      ls <- lsval(e$par)
       oth <- setdiff(1:5, ps)
       d <- sapply(oth, function(j){
         hj <- replace(numeric(5), j, h)
-        (b4fun(ed, e$lpv + hj) - b4fun(ed, e$lpv - hj)) / (2*h)
+        (b4fun(ed, e$lpv + hj, ls) - b4fun(ed, e$lpv - hj, ls)) / (2*h)
       })
       J <- diag(length(par0))[, -kp, drop=FALSE]
       J[kp, seq_len(nf - 1)] <- ((colSums(d * L[oth, free, drop=FALSE]) - L[ps, free]) / L[ps, k])[-kp]
+      if (isbmd && identical(fitted$bmd[[i]]$def, "sd") && length(ils) > 0){
+        J[kp, ils - 1] <- (b4fun(ed, e$lpv, ls + h) - b4fun(ed, e$lpv, ls - h)) / (2*h) / L[ps, k]
+      }
       J
     }
     # hormesis models: the effective dose is on the decreasing part of the curve, above the peak;
@@ -413,8 +426,12 @@ msbeta <- function(q, ed, b, pb){
 
 # effective dose, or dose or response at the peak, of entry i of the edTMB object for the curve
 # parameters lpv (b1-b5 on the scale of the linear predictors); NA if not defined
-edvalue <- function(object, i, lpv){
+edvalue <- function(object, i, lpv, par=NULL){
   fit <- object$fit
+  if (identical(object$type, "bmd")){
+    bp <- bmdpars(fit, par)
+    return(bmdvalue(fit, object$bmd[[i]], lpv, bp$theta, bp$ls))
+  }
   mod <- modelindex(fit$model)
   b <- linkpars(linkindex(fit$link), lpv)
   if (identical(object$type, "peak")){
@@ -459,6 +476,10 @@ edb4 <- function(mod, q, ed, b3, b5, c5=0, alpha=NULL, smooth=0){
 #' reported on their natural scale; Wald intervals for them are computed on the log scale. The
 #' correlation of a term with two random effects is reported as a correlation; the parameters of
 #' larger correlation matrices on the unconstrained scale of \code{coef}.
+#'
+#' For benchmark doses of \code{\link{bmd}}, profile intervals are available for BMDs that are not averaged
+#' over random effects; marginal BMDs that are averaged over random effects have Wald and bootstrap
+#' intervals. The BMDL is the lower limit at \code{level=0.90}.
 #'
 #' Profile and bootstrap intervals for effective doses are for the population curves, and bootstrap
 #' intervals also for the curves of fitted groups (\code{newdata} in \code{\link{ed}}), with the random
@@ -523,6 +544,10 @@ confint.edTMB <- function(object, parm=NULL, level=0.95, method=c("profile", "wa
       message("Wald intervals: ", method, " intervals are only available for population effective doses, ",
               "ed(..., random=FALSE, residual=FALSE), or effective doses of fitted groups.")
       method <- "wald"
+    } else if (method == "profile" && identical(object$type, "bmd") && !bmdprofile(object, parm)){
+      message("Wald intervals: profile intervals are not available for marginal BMDs averaged over random effects, ",
+              "or for models whose response at dose zero depends on b4; use method=\"boot\" for bootstrap intervals.")
+      method <- "wald"
     } else if (method == "profile" && any(edflag(object, "conditional")[parm])){
       message("Wald intervals: profile intervals are not available for effective doses of fitted groups; ",
               "use method=\"boot\" for bootstrap intervals.")
@@ -555,7 +580,7 @@ confint.edTMB <- function(object, parm=NULL, level=0.95, method=c("profile", "wa
         pv[!fit$fix] <- par[seq_len(nb)]
         lpv <- as.vector(object$linfct[[i]] %*% pv)
         if (isTRUE(object$conditional[[i]])) lpv <- lpv + as.vector(object$uweights[[i]] %*% par[r])
-        edvalue(object, i, lpv)
+        edvalue(object, i, lpv, par)
       })
     })
     ci <- t(apply(matrix(eds, ncol=length(parm)), 2, quantile, probs=c((1 - level)/2, (1 + level)/2), na.rm=TRUE, names=FALSE))

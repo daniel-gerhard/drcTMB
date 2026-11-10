@@ -15,7 +15,10 @@ print.edTMB <- function(x, ...){
     vc <- x$variance
     std <- sqrt(diag(vc))
     rdat <- data.frame(Estimate=ests, Std.Error=std)
-    cat(if (identical(x$type, "peak")) "Peak of the hormesis curves, dose and response:\n\n" else "Effective dose estimates:\n\n")
+    cat(if (identical(x$type, "peak")) "Peak of the hormesis curves, dose and response:\n\n"
+        else if (identical(x$type, "bmd")) paste("Benchmark doses, ", c(excess="excess risk", additional="additional risk", relative="relative deviation", sd="standard deviations")[[x$def]],
+                                                 if (length(x$fit$reterms) > 0) paste(",", x$scale, "BMD"), ":\n\n", sep="")
+        else "Effective dose estimates:\n\n")
     print(rdat, digits=3)
     invisible(x)
 }
