@@ -378,6 +378,21 @@ With random effects, the BMD can refer to two different curves: the typical curv
 bmd(vmod, bmr = 0.1, def = "relative")
 ```
 
+### Model averaging
+
+The BMD can depend considerably on the dose-response model and the distribution, as for the normal and lognormal fits of the ryegrass data above. Instead of selecting one model, `bmdma()` averages over several models fitted to the same data, with AIC weights, as recommended by EFSA (2017). With `average = "curve"` (the default), the BMD is that of the averaged curve, the AIC-weighted mean of the fitted curves; with `average = "bmd"`, the AIC-weighted mean of the BMDs of the models. The BMDL is the lower limit of a bootstrap percentile interval: each bootstrap sample is simulated from a model drawn with its weight, all models are fitted to it, and the weights and the averaged BMD are computed again. Lognormal models get the weight zero in samples with non-positive responses.
+
+```{r, message=FALSE}
+wmod <- drmTMB(rootl ~ conc, data = ryegrass, model = "weibull1",
+               start = c(b1 = 0, b5 = 0), fix = c(b1 = TRUE, b5 = TRUE))
+w2mod <- drmTMB(rootl ~ conc, data = ryegrass, model = "weibull2",
+                start = c(b1 = 0, b5 = 0), fix = c(b1 = TRUE, b5 = TRUE))
+(ma <- bmdma(LL = mod, W1 = wmod, W2 = w2mod, LLlognormal = lmod, bmr = 0.05,
+             def = "relative", nsim = 200, seed = 1, progress = FALSE))
+```
+
+For `average = "bmd"`, `confint(ma, method = "buckland")` gives Wald intervals with the standard error of Buckland et al. (1997), which combines the standard errors of the models with the spread of their BMDs, without a bootstrap.
+
 
 ### Model functions
 

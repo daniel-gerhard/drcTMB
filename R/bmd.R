@@ -245,9 +245,14 @@ bmdvalue <- function(fit, info, lpv, theta, ls){
   sm <- smoothwidth(fit$smooth)
   mm <- function(d) sum(info$wq * drcmeanR(mod, d, B[, 1], B[, 2], B[, 3], B[, 4], B[, 5], fit$alpha, sm))
   target <- bmdtarget(info$def, info$bmr, info$inc, mm(0), info$sfac*exp(ls))
-  g <- function(d) info$inc * (mm(d) - target)
-  # bracket the root, starting from the BMD of the curve lpv, or from the mean positive dose
+  # start from the BMD of the curve lpv, or from the mean positive dose
   x0 <- if (isTRUE(xc > 0)) xc else mean(fit$obj$env$data$x[fit$obj$env$data$x > 0])
+  bmdroot(function(d) info$inc * (mm(d) - target), x0)
+}
+
+# root of the increasing function g of the dose, bracketed by halving and doubling the dose x0; NA if
+# no bracket is found
+bmdroot <- function(g, x0){
   lo <- hi <- x0
   for (k in 1:60){
     if (isTRUE(g(lo) < 0)) break

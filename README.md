@@ -133,7 +133,8 @@ Benchmark doses, the doses at which the response has changed from the
 response at dose zero by a benchmark response, are estimated by `bmd()`,
 with the definitions excess and additional risk for proportions,
 relative deviation, and standard deviations; the BMDL is the lower limit
-of `confint(bmd(mod), level = 0.9)`.
+of `confint(bmd(mod), level = 0.9)`. `bmdma()` averages BMDs over
+several models with AIC weights, with bootstrap BMDLs.
 
 ``` r
 bmd(mod, bmr = 0.1, def = "relative")
