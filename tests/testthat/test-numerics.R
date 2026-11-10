@@ -170,3 +170,32 @@ test_that("a non-finite objective at the estimates gives a warning", {
                         start=c(b1=0, b2=1, b5=0), fix=c(b1=TRUE, b2=TRUE, b5=TRUE)),
                  "not finite")
 })
+
+test_that("beta and beta-binomial likelihoods are invalid for means outside (0, 1)", {
+  set.seed(1)
+  d <- simgroups(ng=10, nrep=3, seed=1)
+  u <- rnorm(10, 0, 0.5)
+  P <- 0.1 + (plogis(qlogis(0.9) + u[d$grp]) - 0.1)/(1 + exp(1.5*(log(pmax(d$dose, 1e-9)) - log(3))))
+  d$k <- rbinom(nrow(d), 30, rbeta(nrow(d), P*200, (1 - P)*200))
+  d$n <- 30
+  d$yb <- rbeta(nrow(d), P*200, (1 - P)*200)
+
+  # without random effects: the log-likelihood of dbeta inside, not finite outside
+  f <- fit4(yb ~ dose, data=d, family="beta", model="loglogistic")
+  mu <- predict(f)
+  phi <- residpar(f)
+  expect_equal(as.numeric(logLik(f)), sum(dbeta(d$yb, mu*phi, (1 - mu)*phi, log=TRUE)), tolerance=1e-8)
+  p <- f$opt$par
+  p[1] <- -98
+  expect_false(is.finite(f$obj$fn(p)))
+
+  # lgamma is finite for negative arguments: a restart at a large precision and a small variance of the
+  # random effects ran off to b1 = -1990 with a negative log-likelihood of -43363 for counts
+  fb <- suppressWarnings(fit4(cbind(k, n - k) ~ dose, rform=b2 ~ 1 | grp, data=d, family="betabinomial", model="loglogistic", link=c(b2="logit")))
+  p <- fb$opt$par
+  p[names(p) == "log_sigma"] <- 8
+  p[names(p) == "theta"] <- -1
+  o <- suppressWarnings(nlminb(p, fb$obj$fn, fb$obj$gr))
+  expect_gte(o$objective, fb$opt$objective - 1e-4)
+  expect_gt(fb$opt$objective, 0)
+})
