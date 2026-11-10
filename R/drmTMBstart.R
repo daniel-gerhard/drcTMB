@@ -417,8 +417,10 @@ drmTMBobj <- function(dd, start, fix, rform=NULL){
   re <- if (is.null(rform)) reterms(NULL, length(dd$y)) else dd$re
   tnp <- vapply(re$terms, function(tm) length(tm$pars), integer(1))
   tnl <- vapply(re$terms, function(tm) length(tm$levels), integer(1))
-  # log standard deviations and transformed correlations for each term; random effects at zero
-  stheta <- unlist(lapply(tnp, function(np) c(rep(0.001, np), rep(0, np*(np-1)/2))))
+  # log standard deviations and transformed correlations for each term, from fits of each group;
+  # random effects at zero
+  vs <- if (length(re$terms) > 0) varstart(dd, start, re) else list(theta=numeric(0))
+  stheta <- vs$theta
   up <- rep(0, sum(tnp*tnl))
   dlist <- list(model="drcTMB", y=dd$y, x=dd$x, w=dd$w, bn=dd$bn, fam=dd$fam, mod=dd$mod, alpha=alphavalue(dd$alpha), smooth=smoothwidth(dd$smooth), lnk=as.integer(dd$lnk),
                 tnp=tnp, tnl=tnl, tpar=as.integer(unlist(lapply(re$terms, function(tm) tm$pars)) - 1),
@@ -430,9 +432,9 @@ drmTMBobj <- function(dd, start, fix, rform=NULL){
 
   # log_sigma: residual sd (gaussian, of log(y) for lognormal), precision (beta, betabinomial), size theta (nbinom2) or dispersion phi
   # (nbinom1); fixed for poisson and binomial
-  if (dd$family == "gaussian") slsigma <- if (is.null(rform)) 1 else 0
+  if (dd$family == "gaussian") slsigma <- if (is.null(rform)) 1 else vs$log_sigma
   # lognormal: sd of log(y), an upper bound of the residual sd
-  if (dd$family == "lognormal") slsigma <- log(max(sqrt(sum(dd$w * (log(dd$y) - sum(dd$w * log(dd$y))/sum(dd$w))^2)/sum(dd$w)), 1e-3))
+  if (dd$family == "lognormal") slsigma <- if (!is.null(rform)) vs$log_sigma else log(max(sqrt(sum(dd$w * (log(dd$y) - sum(dd$w * log(dd$y))/sum(dd$w))^2)/sum(dd$w)), 1e-3))
   if (dd$family == "beta") slsigma <- 10
   if (dd$family %in% c("nbinom2", "nbinom1")) slsigma <- 0
   if (dd$family == "betabinomial") slsigma <- 2
@@ -449,8 +451,144 @@ drmTMBobj <- function(dd, start, fix, rform=NULL){
     }
   }
   if (dd$family %in% c("poisson", "binomial")) lmap$log_sigma <- factor(NA)
+  if (!(dd$family %in% c("poisson", "binomial"))) parameters$log_sigma <- sigmastart(datalist, parameters, lmap, rform)
 
   MakeADFun(datalist, parameters, map=lmap, random=if (!is.null(rform)) "u", DLL="drcTMB_TMBExports", silent=TRUE)
+}
+
+# starting value of log_sigma (residual sd, precision, size or dispersion), on the scale of the data:
+# the maximum likelihood estimate with the coefficients and the variances of the random effects at
+# their starting values, starting from the family default; with random effects, the random effects are
+# integrated out (Laplace approximation), so that the variation between groups is left to them. The
+# family default is kept if the fit fails or is not better.
+sigmastart <- function(datalist, parameters, lmap, rform){
+  ls0 <- parameters$log_sigma
+  map1 <- lmap
+  for (i in 1:5){
+    b <- paste("b", i, sep="")
+    map1[[b]] <- factor(rep(NA, length(parameters[[b]])))
+  }
+  map1$theta <- factor(rep(NA, length(parameters$theta)))
+  if (is.null(rform)) map1$u <- factor(rep(NA, length(parameters$u)))
+  res <- tryCatch({
+    obj1 <- MakeADFun(datalist, parameters, map=map1, random=if (!is.null(rform)) "u", DLL="drcTMB_TMBExports", silent=TRUE)
+    f0 <- obj1$fn(ls0)
+    o <- suppressWarnings(nlminb(ls0, obj1$fn, obj1$gr, lower=ls0 - 20, upper=ls0 + 20))
+    if (is.finite(o$objective) && (!is.finite(f0) || o$objective < f0)) o$par else ls0
+  }, error=function(e) ls0)
+  unname(res)
+}
+
+
+# starting values of the variance parameters of the random effect terms re, on the scale of the data:
+# with the curve at the starting values, the deviations of each group are estimated by one Gauss-Newton
+# step, a weighted least squares fit of the residuals of the group on the derivatives of the mean
+# w.r.t. the linear predictors of the parameters with random coefficients (times the covariate of
+# a random slope); exact for random asymptotes with the identity link. The standard deviations and
+# correlations of the deviations start theta, the residual standard deviation of these fits log_sigma
+# (gaussian, and lognormal on the log scale). Starting values that are too small leave the optimiser
+# in the flat likelihood near zero variance, e.g. with standard deviations of 1 for a response of
+# thousands; the deviations include their estimation error, which errs on the safe side.
+varstart <- function(dd, start, re){
+  npi <- dd$npi
+  eta <- sapply(1:5, function(k) as.vector(dd$Xs[[k]] %*% start[npi == k]))
+  eta <- matrix(eta, nrow=length(dd$y))
+  meanfun <- function(eta) drcmeanR(dd$mod, dd$x, linkfun(dd$lnk[1], eta[, 1], inverse=TRUE), linkfun(dd$lnk[2], eta[, 2], inverse=TRUE),
+                                    linkfun(dd$lnk[3], eta[, 3], inverse=TRUE), linkfun(dd$lnk[4], eta[, 4], inverse=TRUE),
+                                    linkfun(dd$lnk[5], eta[, 5], inverse=TRUE), alphavalue(dd$alpha), smoothwidth(dd$smooth))
+  mu <- meanfun(eta)
+  # response on the scale of the mean (proportions for binomial counts), on the log scale for lognormal
+  binom <- dd$family %in% c("binomial", "betabinomial")
+  lognorm <- dd$family == "lognormal"
+  y <- if (binom) dd$y/pmax(dd$bn, 1) else dd$y
+  w <- dd$w * (if (binom) dd$bn else 1)
+  r <- if (lognorm) log(y) - log(mu) else y - mu
+  # derivatives of the mean (log mean for lognormal) w.r.t. the linear predictors of b1-b5
+  rpars <- sort(unique(unlist(lapply(re$terms, function(tm) tm$pars))))
+  D <- matrix(0, length(y), 5)
+  for (k in rpars){
+    h <- 1e-5 * pmax(1, abs(eta[, k]))
+    ep <- em <- eta
+    ep[, k] <- eta[, k] + h
+    em[, k] <- eta[, k] - h
+    D[, k] <- (if (lognorm) log(meanfun(ep)) - log(meanfun(em)) else meanfun(ep) - meanfun(em)) / (2*h)
+  }
+  ok <- is.finite(r) & is.finite(w) & w > 0 & apply(is.finite(D), 1, all)
+
+  # fallback scale of the random coefficients of each parameter: 10% of the parameter, or of the
+  # difference of the asymptotes for b1 and b2, on the identity scale; 0.2 on the log and logit scales
+  b <- vapply(1:5, function(k) linkfun(dd$lnk[k], start[npi == k][1], inverse=TRUE), numeric(1))
+  fscale <- vapply(1:5, function(k){
+    if (dd$lnk[k] != 1) return(0.2)
+    s <- if (k <= 2) abs(b[2] - b[1]) else abs(b[k])
+    if (!is.finite(s) || s == 0) 1 else 0.1*s
+  }, numeric(1))
+
+  zoff <- 0
+  rss <- 0
+  rdf <- 0
+  theta <- unlist(lapply(re$terms, function(tm){
+    np <- length(tm$pars)
+    nl <- length(tm$levels)
+    nc <- length(tm$cnms)
+    Zt <- lapply(seq_len(nc), function(c) re$Z[, zoff + (c - 1)*nl + seq_len(nl), drop=FALSE])
+    zoff <<- zoff + nc*nl
+    # fallback for slopes: per unit of the covariate
+    cov <- vapply(seq_len(np), function(j){
+      z <- Zt[[tm$zcol[j]]]@x
+      if (tm$cnms[tm$zcol[j]] == "(Intercept)" || length(z) < 2 || sd(z) == 0) 1 else sd(z)
+    }, numeric(1))
+    fb <- fscale[tm$pars] / cov
+    est <- matrix(NA, nl, np)
+    for (l in seq_len(nl)){
+      M <- sapply(seq_len(np), function(j) as.vector(Zt[[tm$zcol[j]]][, l]) * D[, tm$pars[j]])
+      M <- matrix(M, ncol=np)
+      i <- which(ok & rowSums(M != 0) > 0)
+      if (length(i) <= np) next
+      fit <- lm.wfit(M[i, , drop=FALSE], r[i], w[i])
+      if (fit$rank < np) next
+      est[l, ] <- fit$coefficients
+      rss <<- rss + sum(w[i] * fit$residuals^2)
+      rdf <<- rdf + length(i) - np
+    }
+    use <- rowSums(is.na(est)) == 0
+    sds <- if (sum(use) >= 2) apply(est[use, , drop=FALSE], 2, sd) else rep(NA, np)
+    # at least 10% of the fallback scale, to start away from zero variance
+    sds <- ifelse(is.finite(sds), pmax(sds, 0.1*fb), fb)
+    cpar <- numeric(np*(np - 1)/2)
+    if (np > 1 && sum(use) > np){
+      R <- suppressWarnings(cor(est[use, , drop=FALSE]))
+      if (all(is.finite(R))){
+        # shrink towards zero, away from singular correlation matrices
+        R <- 0.9*R + 0.1*diag(np)
+        C <- t(chol(R))
+        L <- C / diag(C)
+        cpar <- t(L)[upper.tri(L)]
+      }
+    }
+    c(log(sds), cpar)
+  }))
+  ls <- if (rdf > 0 && rss > 0) log(sqrt(rss/rdf)) else 0
+  list(theta=unname(theta), log_sigma=ls)
+}
+
+
+# a random effect standard deviation that ends close to zero may be stuck in the flat likelihood near
+# zero variance rather than estimated as zero: refit once with these standard deviations at their
+# starting values, and keep the better fit
+retryvariances <- function(obj, opt, terms, lower, upper, ctrl){
+  it <- which(names(obj$par) == "theta")
+  isd <- it[unlist(lapply(terms, function(tm){
+    np <- length(tm$pars)
+    c(rep(TRUE, np), rep(FALSE, np*(np - 1)/2))
+  }))]
+  small <- isd[opt$par[isd] < obj$par[isd] + log(1e-3)]
+  if (length(small) == 0 || !is.finite(opt$objective)) return(opt)
+  p <- opt$par
+  p[small] <- obj$par[small]
+  opt2 <- tryCatch(suppressWarnings(nlminb(start=p, objective=obj$fn, gradient=obj$gr, lower=lower, upper=upper, control=ctrl)),
+                   error=function(e) NULL)
+  if (!is.null(opt2) && is.finite(opt2$objective) && opt2$objective < opt$objective - 1e-6) opt2 else opt
 }
 
 
