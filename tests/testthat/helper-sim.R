@@ -71,3 +71,13 @@ drcpeak <- function(fit, range=c(-10, 5)){
   o <- optimize(function(lx) -fm(exp(lx)), range, tol=1e-12)
   c(exp(o$minimum), -o$objective)
 }
+
+# grouped gaussian data with random effects on the upper asymptote and log b4
+simbmdgroups <- function(seed=3){
+  set.seed(seed)
+  d <- simgroups(ng=12)
+  u2 <- rnorm(12, 0, 0.8)
+  u4 <- rnorm(12, 0, 0.5)
+  d$y <- with(d, 1 + (8 + u2[grp] - 1)/(1 + exp(1.5*(log(pmax(dose, 1e-12)) - log(3) - u4[grp])))) + rnorm(nrow(d), 0, 0.3)
+  d
+}
