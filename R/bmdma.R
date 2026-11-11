@@ -1,7 +1,7 @@
 #' Model-averaged benchmark dose
 #'
 #' Benchmark doses (see \code{\link{bmd}}) averaged over several dose-response models fitted to the
-#' same data, with AIC weights, and bootstrap confidence intervals: the BMDL is the lower limit of the
+#' same data, with AIC or BIC weights, and bootstrap confidence intervals: the BMDL is the lower limit of the
 #' two-sided 90\% interval, \code{confint(bmdma(...))}.
 #'
 #' @param ... drmTMB objects, fitted to the same response, doses and weights; the models and families
@@ -11,8 +11,9 @@
 #'   curves, and the BMD of the marginal or conditional curve with random effects, as in
 #'   \code{\link{bmd}}; newdata cannot give fitted groups of random effects, and \code{def="sd"} with
 #'   \code{average="curve"} needs gaussian families
-#' @param average "curve" (default) for the BMD of the model-averaged curve, the AIC-weighted mean of the
-#'   curves of the models, or "bmd" for the AIC-weighted mean of the BMDs of the models
+#' @param average "curve" (default) for the BMD of the model-averaged curve, the weighted mean of the
+#'   curves of the models, or "bmd" for the weighted mean of the BMDs of the models
+#' @param weights the information criterion of the model weights, "AIC" (default) or "BIC"
 #' @param nsim number of bootstrap samples; 0 for no bootstrap
 #' @param seed an optional seed for the random number generator
 #' @param progress logical, show a progress bar
@@ -23,7 +24,9 @@
 #' @param method "boot" for bootstrap percentile intervals, or "buckland" for Wald intervals with the
 #'   standard error of Buckland et al. (1997), for \code{average="bmd"} only
 #'
-#' @details Model k gets the weight exp(-AIC_k/2), relative to the sum over the models. With
+#' @details Model k gets the weight exp(-IC_k/2), relative to the sum over the models, with the
+#' information criterion IC_k, AIC_k = -2 logLik_k + 2 df_k or BIC_k = -2 logLik_k + log(n) df_k, with
+#' the number of observations n (\code{nobs}), as in Ritz, Gerhard and Hothorn (2013). With
 #' \code{average="curve"}, the BMD is that of the averaged curve, the weighted mean of the curves (the
 #' marginal mean curves with \code{scale="marginal"} and random effects), with the benchmark response
 #' relative to the averaged response at dose zero, as in EFSA (2017); with \code{def="sd"}, the standard
@@ -43,11 +46,14 @@
 #' @references Buckland, S. T., Burnham, K. P. and Augustin, N. H. (1997). Model selection: an integral
 #'   part of inference. Biometrics 53, 603-618.
 #'
+#'   Ritz, C., Gerhard, D. and Hothorn, L. A. (2013). A unified framework for benchmark dose estimation
+#'   applied to mixed models and model averaging. Statistics in Biopharmaceutical Research 5, 79-90.
+#'
 #'   EFSA Scientific Committee (2017). Update: use of the benchmark dose approach in risk assessment.
 #'   EFSA Journal 15(1), 4658.
 #'
 #' @return bmdma returns a bmdma object, a list with the averaged BMDs (\code{estimates}), the table of
-#'   the models (\code{models}: model, family, logLik, df, AIC, weight), the \code{\link{bmd}} results
+#'   the models (\code{models}: model, family, logLik, df, AIC or BIC, weight), the \code{\link{bmd}} results
 #'   of the models (\code{bmds}), the averaged BMDs of the bootstrap samples (\code{boot}, with NA rows
 #'   for samples left out), their weights (\code{bootweights}, NA for failed fits) and the models the
 #'   samples were simulated from (\code{source}), and the arguments. coef returns the averaged BMDs and
@@ -55,11 +61,12 @@
 #' @export
 #' @aliases bmdma print.bmdma coef.bmdma confint.bmdma
 bmdma <- function(..., bmr=0.1, def=c("excess", "additional", "relative", "sd"), newdata=NULL,
-                  scale=c("marginal", "conditional"), average=c("curve", "bmd"), nodes=NULL,
+                  scale=c("marginal", "conditional"), average=c("curve", "bmd"), weights=c("AIC", "BIC"), nodes=NULL,
                   nsim=500, seed=NULL, progress=interactive()){
   def <- match.arg(def)
   scale <- match.arg(scale)
   average <- match.arg(average)
+  weights <- match.arg(weights)
   fits <- list(...)
   nms <- names(fits)
   exprs <- vapply(as.list(substitute(list(...)))[-1], function(e) paste(deparse(e), collapse=""), character(1))
@@ -97,14 +104,16 @@ bmdma <- function(..., bmr=0.1, def=c("excess", "additional", "relative", "sd"),
     stop("the curves of the models change in different directions; the averaged curve has no BMD.")
   }
 
-  # AIC weights
+  # AIC or BIC weights
   ll <- vapply(fits, function(f) -f$opt$objective, numeric(1))
   df <- vapply(fits, function(f) length(f$opt$par), numeric(1))
-  aic <- -2*ll + 2*df
-  w <- maweights(aic)
+  pen <- if (weights == "AIC") 2 else log(nobs(fits[[1]]))
+  ic <- -2*ll + pen*df
+  w <- maweights(ic)
   models <- data.frame(model=vapply(fits, function(f) f$model, character(1)),
                        family=vapply(fits, function(f) f$family, character(1)),
-                       logLik=ll, df=df, AIC=aic, weight=w, row.names=names(fits))
+                       logLik=ll, df=df, IC=ic, weight=w, row.names=names(fits))
+  names(models)[5] <- weights
 
   # averaged BMDs, from the BMDs of the models, or by the root of the averaged curve starting at the
   # averaged BMDs
@@ -151,9 +160,9 @@ bmdma <- function(..., bmr=0.1, def=c("excess", "additional", "relative", "sd"),
       outs[r, ] <- !supp
       fail[r, ] <- supp & !ok
       if (!any(ok)) next
-      aicr <- vapply(opts[ok], function(o) 2*o$objective + 2*length(o$par), numeric(1))
+      icr <- vapply(opts[ok], function(o) 2*o$objective + pen*length(o$par), numeric(1))
       bw[r, !supp] <- 0
-      bw[r, ok] <- wr <- maweights(aicr)
+      bw[r, ok] <- wr <- maweights(icr)
       boot[r, ] <- vapply(seq_len(nbmd), function(i){
         cvr <- lapply(which(ok), function(k) bmdcurve(bmds[[k]], i, opts[[k]]$par))
         if (average == "bmd") bmdmean(vapply(cvr, function(cr) cr$bmd(), numeric(1)), wr)
@@ -170,7 +179,7 @@ bmdma <- function(..., bmr=0.1, def=c("excess", "additional", "relative", "sd"),
   }
 
   res <- list(estimates=ma, models=models, bmds=bmds, boot=boot, bootweights=bw, source=src,
-              bmr=bmds[[1]]$q, def=def, scale=scale, average=average, nsim=nsim, seed=seed)
+              bmr=bmds[[1]]$q, def=def, scale=scale, average=average, weights=weights, nsim=nsim, seed=seed)
   class(res) <- "bmdma"
   res
 }
@@ -234,9 +243,9 @@ confint.bmdma <- function(object, parm=NULL, level=0.90, method=c("boot", "buckl
   ci
 }
 
-# AIC weights
-maweights <- function(aic){
-  w <- exp(-(aic - min(aic))/2)
+# weights of the models with information criteria ic
+maweights <- function(ic){
+  w <- exp(-(ic - min(ic))/2)
   w / sum(w)
 }
 
