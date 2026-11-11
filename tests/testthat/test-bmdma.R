@@ -24,6 +24,11 @@ test_that("the averaged curve BMD is the root of the AIC-weighted mean curve", {
     r <- uniroot(function(d) m(d) - target, c(0.01, 16), tol=1e-12)$root
     expect_equal(unname(coef(ma)[i]), r, tolerance=1e-6)
   }
+  # BIC weights
+  mb <- bmdma(LL=fs$LL, W1=fs$W1, W2=fs$W2, bmr=0.1, weights="BIC", nsim=0)
+  bic <- vapply(fs, BIC, numeric(1))
+  expect_equal(mb$models$BIC, unname(bic))
+  expect_equal(mb$models$weight, unname(exp(-bic/2)/sum(exp(-bic/2))), tolerance=1e-10)
   # the BMDs of the models are those of bmd
   expect_equal(unname(coef(ma$bmds$W1)), unname(coef(bmd(fs$W1, c(0.05, 0.1)))))
 })
