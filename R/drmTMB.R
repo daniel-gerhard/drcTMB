@@ -15,6 +15,7 @@
 #' @param smooth smoothing of the threshold of the nec model: the width of the smoothed threshold relative to the smallest interval between doses, a number of at least 0; 0 is an exact threshold. The default is 0.1 with random effects on b4, and 0 otherwise. Only for the nec model, see Details.
 #' @param link links of the parameters b1-b5: NULL for the defaults of the model, a single link for the asymptotes b1 and b2, or links named by parameter, e.g. c(b1="logit", b2="logit", b4="log"), where the parameters not named keep their defaults. b1 and b2 have the link "identity" (default), "log" or "logit"; b4 has "identity" (default) or "log" for the models with a positive b4 (not logistic, gompertz, multistage, exponential and power); b5 has the log link for the asymmetry of logistic and loglogistic and the shape of nec; the other parameters have the identity link. The coefficients, and start, fix, lower, upper and linfct of \code{\link{ed}}, are on the scale of the links, see Details.
 #' @param prior NULL (default) for maximum likelihood without priors, or a named list of prior distributions (see \code{\link{priors}}), e.g. list(b2=normal(8, 2), b4=pert(0.5, 3, 10), sd=half_normal(1)): by parameter b1-b5, for parameters with a single coefficient, on the scale of the parameter (after the inverse link); by coefficient name, e.g. "b4:herbicideB", on the scale of the coefficient (the link); "sd" for all standard deviations of the random effects, or "sd:b1|group" for one of them; and "sigma" (gaussian, lognormal), "phi" (beta, nbinom1, betabinomial) or "theta" (nbinom2) for the residual parameter, on their natural scale. See Details.
+#' @param bmdpar NULL (default) for the standard parameterisation, or a list with a benchmark response bmr and its definition def as in \code{\link{bmd}}, e.g. list(bmr=0.1, def="relative"), for the BMD parameterisation: b4 is replaced by the log benchmark dose, coefficient log_bmd, and computed from it. See Details.
 #' @param gsl a vector of lower bounds for a grid search, same length as start; NA for the default range. If gsl, gsu and gsn are all NULL, no grid search is performed. See \code{\link{drmTMBstart}}.
 #' @param gsu a vector of upper bounds for a grid search, same length as start; NA for the default range.
 #' @param gsn number of grid points for each parameter, a single number or a vector with the same length as start. \code{gsn=10} alone runs a grid search over the default ranges.
@@ -152,10 +153,27 @@
 #' without the priors, so that AIC and \code{\link{anova.drmTMB}} are approximate for fits with priors.
 #' Small-sample inference is not used with priors. Refits of \code{\link{bootstrap}} keep the priors.
 #'
+#' With \code{bmdpar}, the model is fitted in the BMD parameterisation, as in the Bayesian benchmark dose
+#' modelling of EFSA (2022): the coefficient of b4 is replaced by log_bmd, the log benchmark dose of the
+#' curve of the intercepts (the conditional BMD of \code{\link{bmd}}, with the random effects at zero), and
+#' b4 is computed from it and b1-b3 and b5. Without priors, this is the same model as the standard one, with
+#' the same likelihood, and exp(log_bmd) is the BMD of \code{bmd(fit, bmr, def, scale="conditional")} of
+#' the standard fit, by maximum likelihood (\code{smallsample} is not used). A prior for the BMD is given
+#' as \code{prior=list(bmd=...)}, on the dose scale. The standard model is fitted first, for the starting
+#' values and the direction of the curve. The parameterisation needs a model whose response at dose zero
+#' does not depend on b4 (not logistic, gompertz, the hormesis models, haldane, constant, or the smoothed
+#' threshold of nec), b4 with a single coefficient and without random effects, and b1-b3 and b5 without
+#' covariates; random effects on b1-b3 and b5 are allowed. For multistage and nec, the computed b4 keeps its
+#' default lower bound 0. \code{coef}, \code{vcov}, \code{summary}, \code{logLik}, \code{confint},
+#' \code{simulate} and \code{\link{bootstrap}} are available for these fits; \code{ed}, \code{bmd},
+#' \code{peak} and \code{predict} need the standard parameterisation.
+#'
 #' @return A drmTMB object
 #' @export
 
-drmTMB <- function(form, fform=NULL, rform=NULL, data, start=NULL, fix=NULL, weights=NULL, lower=-Inf, upper=Inf, family="gaussian", model="logistic", alpha=NULL, smooth=NULL, link=NULL, prior=NULL, gsl=NULL, gsu=NULL, gsn=NULL, control=list()){
+drmTMB <- function(form, fform=NULL, rform=NULL, data, start=NULL, fix=NULL, weights=NULL, lower=-Inf, upper=Inf, family="gaussian", model="logistic", alpha=NULL, smooth=NULL, link=NULL, prior=NULL, bmdpar=NULL, gsl=NULL, gsu=NULL, gsn=NULL, control=list()){
+  start0 <- start
+  fix0 <- fix
   # control list
   control <- do.call(drmTMBcontrol, control)
   dd <- drmTMBdata(form, fform=fform, rform=rform, data=data, weights=weights, family=family, model=model, alpha=alpha, smooth=smooth, link=link)
@@ -166,6 +184,24 @@ drmTMB <- function(form, fform=NULL, rform=NULL, data, start=NULL, fix=NULL, wei
     stop("give the values of the fixed parameters in start, e.g. start=c(b5=0), fix=c(b5=TRUE).")
   }
   fix[dd$npi %in% unusedpars(dd$mod)] <- TRUE
+
+  # BMD parameterisation: the standard model is fitted first; its estimates, and the log BMD of the
+  # curve of the intercepts, are the starting values
+  if (!is.null(bmdpar)){
+    dd$bmd <- bmdparcheck(bmdpar, dd, fix)
+    # the default lower bound 0 of b4 only applies without user bounds
+    dd$bmd$b4pos <- dd$bmd$b4pos && identical(lower, -Inf)
+    f0 <- drmTMB(form, fform=fform, rform=rform, data=data, start=start0, fix=fix0, weights=weights, lower=lower, upper=upper,
+                 family=family, model=model, alpha=alpha, smooth=smooth, link=link, prior=prior[names(prior) != "bmd"],
+                 gsl=gsl, gsu=gsu, gsn=gsn, control=control)
+    b0 <- suppressWarnings(bmd(f0, dd$bmd$bmr, dd$bmd$def, scale="conditional"))
+    if (is.na(coef(b0))) stop("the curve of the standard fit does not reach the benchmark response; the BMD parameterisation needs a finite BMD.")
+    start <- f0$start
+    start[!fix] <- f0$opt$par[seq_len(sum(!fix))]
+    start[dd$npi == 4] <- log(coef(b0))
+    dd$bmd$inc <- b0$bmd[[1]]$inc
+    dd$bmd$code <- match(b0$bmd[[1]]$def, c("excess", "additional", "relative", "sd", "logsd"))
+  }
 
   # starting values for parameters with NA in start
   method <- if (is.null(gsl) & is.null(gsu) & is.null(gsn)) "lm" else "grid"
@@ -183,6 +219,11 @@ drmTMB <- function(form, fform=NULL, rform=NULL, data, start=NULL, fix=NULL, wei
   if (length(lower) == 1) lower <- rep(lower, length(start))
   if (length(upper) == 1) upper <- rep(upper, length(start))
   if (length(lower) != length(start) || length(upper) != length(start)) stop("lower and upper must be a single value or have the same length as start.")
+  # BMD parameterisation: the log BMD in place of b4 is unbounded
+  if (!is.null(dd$bmd)){
+    lower[dd$npi == 4] <- -Inf
+    upper[dd$npi == 4] <- Inf
+  }
 
   # priors; starting values of coefficients outside the support of their prior at its center
   pd <- priordata(prior, dd, fix, lower, upper, coefnames(dd$Xs))
@@ -193,6 +234,11 @@ drmTMB <- function(form, fform=NULL, rform=NULL, data, start=NULL, fix=NULL, wei
   }
 
   obj <- drmTMBobj(dd, start, fix, rform=rform)
+  # BMD parameterisation: start at the estimates of the standard fit
+  if (!is.null(dd$bmd)){
+    obj$par[] <- f0$opt$par
+    obj$par[cumsum(!fix)[dd$npi == 4]] <- start[dd$npi == 4]
+  }
 
   # bounds apply to the free coefficients, and to the variance parameters with a prior of bounded support
   lower <- c(lower[!fix], rep(-Inf, length(obj$par) - sum(!fix)))
@@ -232,6 +278,10 @@ drmTMB <- function(form, fform=NULL, rform=NULL, data, start=NULL, fix=NULL, wei
   res$fform <- dd$fform
   res$fterms <- dd$fterms
   res$coefnames <- coefnames(dd$Xs)
+  if (!is.null(dd$bmd)){
+    res$coefnames[dd$npi == 4] <- "log_bmd"
+    res$bmdpar <- dd$bmd[c("bmr", "def", "inc")]
+  }
   res$rform <- rform
   res$reterms <- dd$re$terms
   res$estimates <- opt$par
@@ -254,7 +304,7 @@ drmTMB <- function(form, fform=NULL, rform=NULL, data, start=NULL, fix=NULL, wei
   res$ssdrl <- suppressWarnings(summary(res$sdrl))
   # residual degrees of freedom for small-sample inference of gaussian and lognormal models without
   # random effects (lognormal: gaussian for log(y)): observations with positive weights minus free coefficients
-  if (isTRUE(control$smallsample) && family %in% c("gaussian", "lognormal") && length(dd$re$terms) == 0 && is.null(pd$table)){
+  if (isTRUE(control$smallsample) && family %in% c("gaussian", "lognormal") && length(dd$re$terms) == 0 && is.null(pd$table) && is.null(dd$bmd)){
     rdf <- sum(dd$w > 0) - sum(!fix)
     if (rdf > 0) res$rdf <- rdf else warning("no residual degrees of freedom; the standard errors use the maximum likelihood estimate of the residual variance.", call.=FALSE)
   }

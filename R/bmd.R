@@ -63,6 +63,7 @@ bmd <- function(x, bmr=0.1, def=c("excess", "additional", "relative", "sd"), lin
                 scale=c("marginal", "conditional"), nodes=NULL){
   def <- match.arg(def)
   scale <- match.arg(scale)
+  nobmdpar(x, "bmd")
   mod <- modelindex(x$model)
   m <- drcmodel(mod)
   if (is.na(m$ed) || m$ed %in% "hormesis") stop("benchmark doses are not available for the ", x$model, " model.")

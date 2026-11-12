@@ -321,6 +321,52 @@ Type simobs(int fam, Type f, Type bn, Type phi){
   }
 }
 
+// response at the benchmark dose: the response mu0 at dose zero changed by the benchmark response bmr in
+// the direction inc of the curve (1 increasing, -1 decreasing)
+// def: 1 = excess (extra) risk, 2 = additional (added) risk, 3 = relative deviation, 4 = standard deviations
+template<class Type>
+Type bmdtarget(int def, Type bmr, int inc, Type mu0, Type sigma){
+  switch (def){
+  case 1:
+    return inc > 0 ? Type(mu0 + bmr * (1 - mu0)) : Type(mu0 * (1 - bmr));
+  case 2:
+    return mu0 + Type(inc) * bmr;
+  case 3:
+    return mu0 * (1 + Type(inc) * bmr);
+  case 4:
+    return mu0 + Type(inc) * bmr * sigma;
+  case 5:
+    // lognormal: bmr standard deviations of log(y)
+    return mu0 * exp(Type(inc) * bmr * sigma);
+  default:
+    return mu0;
+  }
+}
+
+// b4 of the curve with benchmark dose bmd (BMD parameterisation of drcTMB): the response at dose zero, b1,
+// or b2 for a decreasing curve of a log-dose model, and the target of the benchmark response (see
+// bmdtarget) give the level q (see drclevel); then b4 by the inverse of the effective dose, for the role
+// of b4: 1 = scale (the effective dose is b4 h), 2 = threshold (b4 + h), 3 = coefficient of b4 x^b3
+// (exponential, power), 4 = coefficient of x^2 of the multistage polynomial
+template<class Type>
+Type bmdb4(int mod, int role, Type bmd, Type f1, Type f2, Type f3, Type f5, int def, Type bmr, int inc, Type sigma, Type smooth){
+  bool logdose = mod >= 2 && mod <= 5;
+  Type mu0 = logdose ? Type(CppAD::CondExpLt(f3, Type(0), f2, f1)) : f1;
+  Type q = drclevel(mod, bmdtarget(def, bmr, inc, mu0, sigma), f1, f2);
+  switch (role){
+  case 1:
+    return bmd / drced(mod, q, f1, f2, f3, Type(1), f5, Type(0), smooth);
+  case 2:
+    return bmd - drced(mod, q, f1, f2, f3, Type(0), f5, Type(0), smooth);
+  case 3:
+    return q / pow(bmd, f3);
+  case 4:
+    return (-log(1 - q) - f3 * bmd - f5 * bmd * bmd * bmd) / (bmd * bmd);
+  default:
+    return 0;
+  }
+}
+
 // log density of a prior at z (see priors in R): 1 = normal(h0, h1), 2 = student t (location h0, scale h1,
 // df h2), 3 = lognormal(h0, h1), 4 = PERT on (h0, h1) with beta shapes h2 and h3, 5 = half normal (scale h0),
 // 6 = half student t (scale h0, df h1)

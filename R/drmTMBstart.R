@@ -462,8 +462,11 @@ drmTMBobj <- function(dd, start, fix, rform=NULL){
   tnp <- vapply(re$terms, function(tm) length(tm$pars), integer(1))
   tnl <- vapply(re$terms, function(tm) length(tm$levels), integer(1))
   # log standard deviations and transformed correlations for each term, from fits of each group;
-  # random effects at zero
-  vs <- if (length(re$terms) > 0) varstart(dd, start, re) else list(theta=numeric(0))
+  # random effects at zero; the BMD parameterisation starts at the estimates of the standard fit (see
+  # drmTMB), so placeholders
+  bmdp <- !is.null(dd$bmd)
+  vs <- if (bmdp) list(theta=numeric(sum(tnp + tnp*(tnp - 1)/2)), log_sigma=0)
+        else if (length(re$terms) > 0) varstart(dd, start, re) else list(theta=numeric(0))
   stheta <- vs$theta
   up <- rep(0, sum(tnp*tnl))
   dlist <- list(model="drcTMB", y=dd$y, x=dd$x, w=dd$w, bn=dd$bn, fam=dd$fam, mod=dd$mod, alpha=alphavalue(dd$alpha), smooth=smoothwidth(dd$smooth), lnk=as.integer(dd$lnk),
@@ -475,7 +478,11 @@ drmTMBobj <- function(dd, start, fix, rform=NULL){
   # priors, without those on the variances of the random effects for a fit without them
   pd <- if (is.null(dd$prior)) priordata(NULL)$data else dd$prior
   if (length(re$terms) == 0) pd <- priorsubset(pd, pd$prwhat != 1)
-  datalist <- c(dlist, dd$Xs, list(xp=numeric(0)), Xp, list(Zp=re$Z[0, , drop=FALSE]), pd)
+  bm <- dd$bmd
+  bdat <- if (is.null(bm)) list(bmdpar=0L, b4role=0L, bdef=0L, bbmr=0, binc=1L)
+          else list(bmdpar=1L, b4role=as.integer(bm$role), bdef=as.integer(bm$code), bbmr=bm$bmr, binc=as.integer(bm$inc))
+  bdat$b4pos <- as.integer(!is.null(bm) && isTRUE(bm$b4pos))
+  datalist <- c(dlist, dd$Xs, list(xp=numeric(0)), Xp, list(Zp=re$Z[0, , drop=FALSE]), bdat, pd)
 
   # log_sigma: residual sd (gaussian, of log(y) for lognormal), precision (beta, betabinomial), size theta (nbinom2) or dispersion phi
   # (nbinom1); fixed for poisson and binomial
@@ -498,7 +505,7 @@ drmTMBobj <- function(dd, start, fix, rform=NULL){
     }
   }
   if (dd$family %in% c("poisson", "binomial")) lmap$log_sigma <- factor(NA)
-  if (!(dd$family %in% c("poisson", "binomial"))) parameters$log_sigma <- sigmastart(datalist, parameters, lmap, rform)
+  if (!(dd$family %in% c("poisson", "binomial")) && !bmdp) parameters$log_sigma <- sigmastart(datalist, parameters, lmap, rform)
 
   MakeADFun(datalist, parameters, map=lmap, random=if (!is.null(rform)) "u", DLL="drcTMB_TMBExports", silent=TRUE)
 }

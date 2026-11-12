@@ -161,9 +161,15 @@ priordata <- function(prior, dd, fix, lower, upper, coefnames){
   }
   linkrng <- function(l) switch(l, c(-Inf, Inf), c(0, Inf), c(0, 1))
   parname <- paste("b", 1:5, sep="")
+  if (!is.null(dd$bmd)) coefnames[npi == 4] <- "log_bmd"
   for (nm in names(prior)){
     p <- prior[[nm]]
-    if (nm %in% parname){
+    if (nm == "bmd" && !is.null(dd$bmd)){
+      id <- which(npi == 4)
+      add(nm, 0L, id - 1L, 2L, p, c(0, Inf), nm)
+    } else if (nm == "b4" && !is.null(dd$bmd)){
+      stop("b4 is computed from the BMD in the BMD parameterisation; give a prior for the BMD (bmd) instead.")
+    } else if (nm %in% parname){
       k <- match(nm, parname)
       id <- which(npi == k)
       if (all(fix[id])) stop("the prior for ", nm, " is for a fixed or unused parameter.")
@@ -214,7 +220,7 @@ priordata <- function(prior, dd, fix, lower, upper, coefnames){
   data <- lapply(data, unname)
   table <- data.frame(parameter=vapply(entries, function(e) e$label, character(1)),
                       prior=vapply(entries, function(e) e$p$name, character(1)),
-                      scale=vapply(entries, function(e) if (e$what == 0 && !(e$label %in% parname)) "link" else "natural", character(1)),
+                      scale=vapply(entries, function(e) if (e$what == 0 && !(e$label %in% c(parname, "bmd"))) "link" else "natural", character(1)),
                       stringsAsFactors=FALSE, row.names=NULL)
   list(data=data, lower=bnd[, 1], upper=bnd[, 2], center=vapply(entries, function(e) e$center, numeric(1)), table=table)
 }

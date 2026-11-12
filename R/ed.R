@@ -36,6 +36,7 @@
 #'
 ed <- function(x, respLev=50, linfct=NULL, newdata=NULL, random=TRUE, residual=FALSE, type=c("relative", "absolute")){
   type <- match.arg(type)
+  nobmdpar(x, "ed")
   if (is.na(drcmodel(x$model)$ed)) stop("the ", x$model, " model has no effective doses.")
   if (drcmodel(x$model)$ed %in% "unbounded" && type == "relative") stop("the ", x$model, " model has no upper asymptote, so no relative effective doses; use type=\"absolute\" with responses in respLev, or bmd().")
   edcore(x, respLev, linfct, newdata, random, residual, type)
@@ -63,6 +64,7 @@ ed <- function(x, respLev=50, linfct=NULL, newdata=NULL, random=TRUE, residual=F
 #' @return an edTMB object
 #' @export
 peak <- function(x, linfct=NULL, newdata=NULL, random=TRUE){
+  nobmdpar(x, "peak")
   m <- drcmodel(x$model)
   if (is.null(m$hormesis) && is.null(m$peak)) stop("peak is only available for the hormesis and substrate inhibition models ", modelswith(function(m) !is.null(m$hormesis) || !is.null(m$peak)), ".")
   # the dose (1) and the response (2) at the peak of every curve

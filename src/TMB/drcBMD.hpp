@@ -3,28 +3,6 @@
 #undef TMB_OBJECTIVE_PTR
 #define TMB_OBJECTIVE_PTR obj
 
-// response at the benchmark dose: the response mu0 at dose zero changed by the benchmark response bmr in
-// the direction inc of the curve (1 increasing, -1 decreasing)
-// def: 1 = excess (extra) risk, 2 = additional (added) risk, 3 = relative deviation, 4 = standard deviations
-template<class Type>
-Type bmdtarget(int def, Type bmr, int inc, Type mu0, Type sigma){
-  switch (def){
-  case 1:
-    return inc > 0 ? Type(mu0 + bmr * (1 - mu0)) : Type(mu0 * (1 - bmr));
-  case 2:
-    return mu0 + Type(inc) * bmr;
-  case 3:
-    return mu0 * (1 + Type(inc) * bmr);
-  case 4:
-    return mu0 + Type(inc) * bmr * sigma;
-  case 5:
-    // lognormal: bmr standard deviations of log(y)
-    return mu0 * exp(Type(inc) * bmr * sigma);
-  default:
-    return mu0;
-  }
-}
-
 // marginal mean at dose x: the mean over the random effects, by quadrature with the linear predictors
 // eta0 + Z.col(k) of b1-b5 and weights wq(k)
 template<class Type>
