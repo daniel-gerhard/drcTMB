@@ -197,7 +197,8 @@ bmd <- function(x, bmr=0.1, def=c("excess", "additional", "relative", "sd"), lin
 bmdinc <- function(fit, lpv){
   m <- drcmodel(fit$model)
   b <- linkpars(linkindex(fit$link), lpv)
-  s <- sign(b[2] - b[1]) * (if (m$b3 %in% "steepness" && b[3] < 0) -1 else 1)
+  s <- if (m$ed %in% "unbounded") sign(m$mean(1, b[1], b[3], b[4]) - b[1])
+       else sign(b[2] - b[1]) * (if (m$b3 %in% "steepness" && b[3] < 0) -1 else 1)
   if (s == 0) 1 else s
 }
 
@@ -215,7 +216,7 @@ bmdtarget <- function(def, bmr, inc, mu0, sigma){
 # effects), with log residual standard deviation ls
 bmdlevel <- function(fit, info, lpv, ls){
   b <- linkpars(linkindex(fit$link), lpv)
-  (bmdtarget(info$def, info$bmr, info$inc, bmdmu0(fit, b), info$sfac*exp(ls)) - b[1]) / (b[2] - b[1])
+  edlevel(drcmodel(fit$model), bmdtarget(info$def, info$bmr, info$inc, bmdmu0(fit, b), info$sfac*exp(ls)), b)
 }
 
 # response at dose zero of the curve with parameters b (b1-b5): the asymptote at dose zero, which does
@@ -235,7 +236,7 @@ bmdvalue <- function(fit, info, lpv, theta, ls){
   mod <- modelindex(fit$model)
   b <- linkpars(linkindex(fit$link), lpv)
   q <- bmdlevel(fit, info, lpv, ls)
-  xc <- if (is.finite(q) && q > 0 && q < 1) edfun(mod, q, b[3], b[4], b[5], smooth=smoothwidth(fit$smooth)) else NA
+  xc <- if (edreach(drcmodel(mod), q, b)) edfun(mod, q, b[3], b[4], b[5], smooth=smoothwidth(fit$smooth)) else NA
   if (length(info$wq) == 0) return(if (isTRUE(xc > 0)) xc else NA)
 
   # marginal mean at dose d, over the linear predictors lpv + Z of the quadrature nodes

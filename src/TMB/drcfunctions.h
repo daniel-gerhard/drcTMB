@@ -28,7 +28,7 @@ Type hormg(int mod, Type x, Type alpha){
 // mod: 1 = logistic, 2 = loglogistic, 3 = weibull1, 4 = weibull2, 5 = lognormal,
 //      6 = michaelismenten, 7 = asymptoticregression, 8 = exponentialdecay, 9 = gompertz,
 //      10 = constant, 11 = braincousens, 12 = cedergreen, 13 = gamma, 14 = multistage, 15 = nec,
-//      16 = haldane
+//      16 = haldane, 17 = exponential, 18 = power
 // f(x) = f1 + (f2 - f1) * F(x), with F increasing from 0 to 1 in its argument. The parameters f1-f5 are
 // on their original scale, after the inverse links; the asymmetry f5 of logistic and loglogistic and the
 // shape f5 of nec are positive, with the log link by default.
@@ -45,11 +45,20 @@ Type hormg(int mod, Type x, Type alpha){
 // haldane (substrate inhibition): F(x) = x / (f4 + x + f5 x^2), f1 at dose zero, f2 the maximal response
 // without inhibition, f4 the half-saturation constant and f5 = 1/Ki the inhibition; f5 = 0 is
 // michaelismenten. F is not monotone: the curve has its peak at x = sqrt(f4 / f5).
+// exponential, power (no upper asymptote, as in PROAST and BMDS): f(x) = f1 exp(f4 x^f3) and
+// f(x) = f1 + f4 x^f3, with f1 the response at dose zero, f3 > 0 the power and f4 the coefficient, whose
+// sign gives the direction of the curve; f2 and f5 are not used.
 // braincousens, cedergreen (hormesis): f(x) = f1 + (f2 - f1 + f5 * g(x)) * F(x), with the
 // loglogistic F and the hormesis term g(x) = x or exp(-1/x^alpha); f5 = 0 is the loglogistic model.
 template<class Type>
 Type drcmean(int mod, Type x, Type f1, Type f2, Type f3, Type f4, Type f5, Type alpha, Type smooth){
   if (mod == 10) return f1;
+  if (mod == 17 || mod == 18){
+    // at dose zero without the power, whose derivative w.r.t. f3 is not finite there
+    if (x == 0) return f1;
+    Type p = f4 * pow(x, f3);
+    return mod == 17 ? Type(f1 * exp(p)) : Type(f1 + p);
+  }
   bool logdose = (mod >= 2 && mod <= 5) || mod == 11 || mod == 12;
   // log-dose models at dose zero: the asymptote approached at low doses
   if (logdose && x == 0){
@@ -121,7 +130,17 @@ Type drcmean(int mod, Type x, Type f1, Type f2, Type f3, Type f4, Type f5, Type 
   return f1 + (f2 - f1) * F;
 }
 
-// effective dose: inverse of drcmean, the dose at which F equals q
+// level at the response y, the argument q of drced: the level of F, (y - f1) / (f2 - f1); for the
+// models without an upper asymptote (17, 18) the term f4 x^f3 of the mean, log(y / f1) or y - f1
+template<class Type>
+Type drclevel(int mod, Type y, Type f1, Type f2){
+  if (mod == 17) return log(y / f1);
+  if (mod == 18) return y - f1;
+  return (y - f1) / (f2 - f1);
+}
+
+// effective dose: inverse of drcmean, the dose at which F equals q; for the models 17 and 18 the dose at
+// which f4 x^f3 equals q (r must be zero, see drclevel)
 // r: shift on the response scale (residual); smooth: smoothing width of the threshold of nec
 template<class Type>
 Type drced(int mod, Type q, Type f1, Type f2, Type f3, Type f4, Type f5, Type r, Type smooth){
@@ -155,6 +174,10 @@ Type drced(int mod, Type q, Type f1, Type f2, Type f3, Type f4, Type f5, Type r,
     break;
   case 13:
     ed = f4 * qgamma(qr, f3);
+    break;
+  case 17:
+  case 18:
+    ed = pow(q / f4, 1/f3);
     break;
   case 15: {
     // dose above the threshold, without smoothing; inverse of the smoothing: t + smooth log(1 - exp(-t / smooth))

@@ -20,7 +20,7 @@ interface, and specifying a nonlinear model through the `model`
 argument. Available models include “logistic”, “loglogistic”,
 “weibull1”, “weibull2”, “lognormal”, “gamma” and “multistage”, the
 threshold model “nec”, the hormesis models “braincousens” and
-“cedergreen”, and the substrate inhibition model “haldane”.
+“cedergreen”, the substrate inhibition model “haldane”, and the models “exponential” and “power” of PROAST and BMDS, without an upper asymptote.
 
 Each of these models has the same parameter names, b1 for the lower and
 b2 for the upper asymptote, b3 for the steepness, b4 for the location of

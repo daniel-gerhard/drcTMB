@@ -174,6 +174,11 @@ lmstart <- function(dd, start, fix){
     return(projectstart(dd, start, fix, c(linkfun(dd$lnk[1], linkrange(dd$lnk[1], ybar, dd$family)), 0, 0, 0, 0)))
   }
 
+  # exponential and power: for given power b3 the mean is linear in b1 and b4 (exponential: log mean, in
+  # log b1), so profile the residual sum of squares of the mean responses over b3, by least squares on
+  # the linearised scale with given b1 or b4 as offsets
+  if (m$start == "power") return(powerstart(dd, start, fix, xd, yd))
+
   # asymptotes on the mean scale: for the models with steepness b3, b1 is the lower and b2 the
   # upper asymptote; for michaelismenten, asymptoticregression, exponentialdecay, gamma, multistage and
   # nec, b1 is approached at dose zero and b2 at high doses
@@ -296,6 +301,45 @@ lmstart <- function(dd, start, fix){
   projectstart(dd, start, fix, pooled)
 }
 
+# starting values of the exponential and power models from the mean responses yd at the doses xd: b1
+# and b4 by least squares of yd (power) or log(yd) (exponential, non-positive means at half the smallest
+# positive one) on x^b3, for powers b3 on a grid from 0.1 to 10 (or given), the one with the smallest
+# residual sum of squares of yd
+powerstart <- function(dd, start, fix, xd, yd){
+  npi <- dd$npi
+  expo <- dd$model == "exponential"
+  kn <- sapply(c(1, 3, 4), function(i) fix[npi == i][1] | !is.na(start[npi == i][1]))
+  kv <- sapply(c(1, 3, 4), function(i) if (kn[match(i, c(1, 3, 4))]) linkfun(dd$lnk[i], start[npi == i][1], inverse=TRUE) else NA)
+  z <- yd
+  if (expo){
+    pos <- yd[yd > 0]
+    z <- log(pmax(yd, if (length(pos) > 0) min(pos)/2 else 1))
+  }
+  # doses relative to the largest one, for numerical stability; b4 = c / max(x)^b3
+  xm <- max(xd)
+  if (!(xm > 0)) xm <- 1
+  b3grid <- if (kn[2]) kv[2] else c(1, exp(seq(log(0.1), log(10), length.out=41)))
+  cand <- lapply(b3grid, function(b3){
+    g <- (xd/xm)^b3
+    a1 <- if (kn[1]) (if (expo) log(kv[1]) else kv[1]) else NA
+    c4 <- if (kn[3]) kv[3]*xm^b3 else NA
+    off <- (if (kn[1]) a1 else 0) + (if (kn[3]) c4*g else 0)
+    X <- cbind(1, g)[, c(!kn[1], !kn[3]), drop=FALSE]
+    if (ncol(X) > 0){
+      cf <- qr.coef(qr(X), z - off)
+      cf[is.na(cf)] <- 0
+      if (!kn[1]) a1 <- cf[1]
+      if (!kn[3]) c4 <- cf[ncol(X)]
+    }
+    eta <- a1 + c4*g
+    mu <- if (expo) exp(eta) else eta
+    list(rss=sum((yd - mu)^2), b1=if (expo) exp(a1) else a1, b3=b3, b4=c4/xm^b3)
+  })
+  best <- cand[[which.min(sapply(cand, function(cd) if (is.finite(cd$rss)) cd$rss else Inf))]]
+  f1 <- linkrange(dd$lnk[1], best$b1, dd$family)
+  projectstart(dd, start, fix, c(linkfun(dd$lnk[1], f1), 0, linkfun(dd$lnk[3], best$b3), linkfun(dd$lnk[4], best$b4), 0))
+}
+
 # asymptotes f1 and f2 of the mean responses yd at the values g of F, by least squares; given
 # asymptotes (known1, known2) are kept. Returns the residual sum of squares and both asymptotes.
 asymfit <- function(yd, g, f1, f2, known1, known2){
@@ -377,7 +421,7 @@ gridrange <- function(dd, start){
 
   # b3: keep the sign of the starting value, steepness between 1/4 and 4 times
   i3 <- single(3)
-  if (!is.null(i3) & m$b3 %in% c("steepness", "shape", "rate")){
+  if (!is.null(i3) & m$b3 %in% c("steepness", "shape", "rate", "power")){
     b3 <- start[i3]
     if (b3 == 0) b3 <- 1
     rng[[i3]] <- list(lower=b3/4, upper=b3*4, log=TRUE)
@@ -699,6 +743,13 @@ relabels <- function(tm){
 # the hormesis models; smooth: the smoothing width of a threshold
 drcmeanR <- function(mod, x, f1, f2, f3, f4, f5, alpha=NULL, smooth=0){
   m <- drcmodel(mod)
+  if (!is.null(m$mean)){
+    # f1 at dose zero, where the power is not needed
+    out <- m$mean(x, f1, f3, f4)
+    z <- rep_len(x == 0, length(out))
+    out[z] <- rep_len(f1, length(out))[z]
+    return(out)
+  }
   if (is.null(m$F)) return(f1 + 0*x)
   t <- f3 * (if (m$logdose) log(x) - log(f4) else x - f4)
   Fx <- m$F(t, x, f3, f4, f5, smooth)
@@ -724,7 +775,7 @@ parlinks <- function(link, m, model){
     out[names(link)] <- link
   }
   if (out[["b4"]] == "log" && m$b4 %in% "location") stop("the log link for b4 needs a positive b4; b4 of the ", model, " model is a location on the dose scale.")
-  if (out[["b4"]] == "log" && m$b4 %in% "coefficient") stop("the log link for b4 is not available for the ", model, " model; b4 is a coefficient of its polynomial.")
+  if (out[["b4"]] == "log" && m$b4 %in% "coefficient") stop("the log link for b4 is not available for the ", model, " model; b4 is a coefficient of ", if (m$ed %in% "polynomial") "its polynomial." else "b4 x^b3, of either sign.")
   for (p in names(out)){
     if (!(out[[p]] %in% allowed[[p]])) stop("the ", out[[p]], " link is not available for ", p, " of the ", model, " model; ",
                                              if (length(allowed[[p]]) == 1) "it has the " else "one of ", paste(allowed[[p]], collapse=", "),

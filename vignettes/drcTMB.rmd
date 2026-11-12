@@ -378,6 +378,17 @@ With random effects, the BMD can refer to two different curves: the typical curv
 bmd(vmod, bmr = 0.1, def = "relative")
 ```
 
+The continuous models of PROAST and BMDS include the exponential and power models, which have no upper asymptote: `model = "exponential"`, $b_1 \exp(b_4 x^{b_3})$, and `model = "power"`, $b_1 + b_4 x^{b_3}$, with the response $b_1$ at dose zero, the power $b_3 > 0$, and the coefficient $b_4$, negative for a decreasing curve. Fixing the power at 1 gives the exponential model 2 (exp2), and estimating it exp3. For the ryegrass data, the power is needed, but the log-logistic model fits better.
+
+```{r, message=FALSE}
+emod2 <- drmTMB(rootl ~ conc, data = ryegrass, model = "exponential",
+                start = c(b3 = 1), fix = c(b3 = TRUE))
+emod3 <- drmTMB(rootl ~ conc, data = ryegrass, model = "exponential")
+anova(emod2, emod3)
+AIC(mod, emod3)
+confint(bmd(emod3, bmr = 0.05, def = "relative"), level = 0.9)
+```
+
 ### Model averaging
 
 The BMD can depend considerably on the dose-response model and the distribution, as for the normal and lognormal fits of the ryegrass data above. Instead of selecting one model, `bmdma()` averages over several models fitted to the same data, with AIC weights, as recommended by EFSA (2017), or BIC weights (`weights = "BIC"`), which favour simpler models. With `average = "curve"` (the default), the BMD is that of the averaged curve, the AIC-weighted mean of the fitted curves; with `average = "bmd"`, the AIC-weighted mean of the BMDs of the models. The BMDL is the lower limit of a bootstrap percentile interval: each bootstrap sample is simulated from a model drawn with its weight, all models are fitted to it, and the weights and the averaged BMD are computed again. Lognormal models get the weight zero in samples with non-positive responses.
@@ -396,7 +407,7 @@ For `average = "bmd"`, `confint(ma, method = "buckland")` gives Wald intervals w
 
 ### Model functions
 
-All models are of the form $f(x) = b_1 + (b_2 - b_1) F(x)$, with a function $F$ increasing from 0 to 1. For the models with steepness parameter $b_3$, $b_1$ is the lower and $b_2$ the upper asymptote, and the curve is increasing for $b_3 > 0$ and decreasing for $b_3 < 0$.
+All models except exponential and power are of the form $f(x) = b_1 + (b_2 - b_1) F(x)$, with a function $F$ increasing from 0 to 1. For the models with steepness parameter $b_3$, $b_1$ is the lower and $b_2$ the upper asymptote, and the curve is increasing for $b_3 > 0$ and decreasing for $b_3 < 0$.
 
 #### logistic
 
@@ -471,6 +482,12 @@ $$ f(x) = b_1 + \frac{(b_2 - b_1) x}{b_4 + x + b_5 x^2} $$
 Both names refer to the same model; an increasing curve is an asymptotic regression and a decreasing curve an exponential decay.
 
 $$ f(x) = b_1 + \left( b_2 - b_1 \right) \left( 1 - \exp \left( \frac{-x}{b_4} \right) \right) $$
+
+#### exponential and power
+
+The exponential and power models of PROAST and BMDS have no upper asymptote: $b_1$ is the response at dose zero, $b_3 > 0$ the power (bounded below by 0 by default) and $b_4$ the coefficient, whose sign gives the direction of the curve; $b_2$ and $b_5$ are not used. Fixing $b_3$ at 1 gives the exponential model 2 (exp2) of PROAST and BMDS, and the exponential model with $b_3$ estimated is exp3. Relative effective doses are not defined; `ed(type = "absolute")` and `bmd()` give absolute effective doses and benchmark doses.
+
+$$ f(x) = b_1 \exp \left( b_4 x^{b_3} \right) \qquad f(x) = b_1 + b_4 x^{b_3} $$
 
 #### constant
 

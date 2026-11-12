@@ -75,7 +75,7 @@ Type drcBMD(objective_function<Type>* obj) {
     Type f4 = linkinv(lnk(3), eta0(3));
     Type f5 = linkinv(lnk(4), eta0(4));
     Type mu0 = drcmean(mod, Type(0), f1, f2, f3, f4, f5, alpha, smooth);
-    Type qf = (bmdtarget(def, bmr, inc, mu0, sigma) - f1) / (f2 - f1);
+    Type qf = drclevel(mod, bmdtarget(def, bmr, inc, mu0, sigma), f1, f2);
     bmd = mod == 14 ? msed(qf, f1, f2, f3, f4, f5, Type(0), Type(x0)) : drced(mod, qf, f1, f2, f3, f4, f5, Type(0), smooth);
   } else {
     // Cholesky factor C of the block-diagonal covariance of the random coefficients: for each term

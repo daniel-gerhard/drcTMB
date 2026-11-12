@@ -26,7 +26,10 @@ Type drcED(objective_function<Type>* obj) {
   Type f4 = linkinv(lnk(3), eta(3));
   Type f5 = linkinv(lnk(4), eta(4));
   // level of F at which the curve reaches the response q
-  Type qf = absolute == 1 ? Type((q - f1) / (f2 - f1)) : q;
+  // exponential and power: absolute effective doses only, with the residual in the response
+  bool unb = mod == 17 || mod == 18;
+  Type qf = absolute == 1 ? drclevel(mod, unb ? Type(q - r) : Type(q), f1, f2) : q;
+  Type rr = unb ? Type(0) : r;
   Type ed;
   if (target > 0){
     // haldane: the peak in closed form
@@ -37,7 +40,7 @@ Type drcED(objective_function<Type>* obj) {
   } else if (mod == 14){
     ed = msed(qf, f1, f2, f3, f4, f5, r, Type(exp(s0)));
   } else {
-    ed = drced(mod, qf, f1, f2, f3, f4, f5, r, smooth);
+    ed = drced(mod, qf, f1, f2, f3, f4, f5, rr, smooth);
   }
   ADREPORT(ed);
   return 0;
