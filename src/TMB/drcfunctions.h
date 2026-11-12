@@ -321,4 +321,36 @@ Type simobs(int fam, Type f, Type bn, Type phi){
   }
 }
 
+// log density of a prior at z (see priors in R): 1 = normal(h0, h1), 2 = student t (location h0, scale h1,
+// df h2), 3 = lognormal(h0, h1), 4 = PERT on (h0, h1) with beta shapes h2 and h3, 5 = half normal (scale h0),
+// 6 = half student t (scale h0, df h1)
+template<class Type>
+Type lpdfprior(int type, Type z, vector<Type> h){
+  Type ninf = Type(-std::numeric_limits<double>::infinity());
+  switch (type){
+  case 1:
+    return dnorm(z, h(0), h(1), true);
+  case 2:
+    return dt(Type((z - h(0)) / h(1)), h(2), true) - log(h(1));
+  case 3: {
+    // -Inf outside the support (at a bound of the parameter), evaluated at a positive value
+    Type zc = CppAD::CondExpGt(z, Type(0), z, Type(1));
+    return CppAD::CondExpGt(z, Type(0), Type(dnorm(Type(log(zc)), h(0), h(1), true) - log(zc)), ninf);
+  }
+  case 4: {
+    Type t = (z - h(0)) / (h(1) - h(0));
+    Type inside = CppAD::CondExpGt(t, Type(0), CppAD::CondExpLt(t, Type(1), Type(1), Type(0)), Type(0));
+    Type tc = CppAD::CondExpGt(inside, Type(0.5), t, Type(0.5));
+    Type ld = (h(2) - 1) * log(tc) + (h(3) - 1) * log(1 - tc) - lgamma(h(2)) - lgamma(h(3)) + lgamma(Type(h(2) + h(3))) - log(h(1) - h(0));
+    return CppAD::CondExpGt(inside, Type(0.5), ld, ninf);
+  }
+  case 5:
+    return log(Type(2)) + dnorm(z, Type(0), h(0), true);
+  case 6:
+    return log(Type(2)) + dt(Type(z / h(0)), h(1), true) - log(h(0));
+  default:
+    return 0;
+  }
+}
+
 #endif

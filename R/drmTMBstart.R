@@ -472,7 +472,10 @@ drmTMBobj <- function(dd, start, fix, rform=NULL){
                 simre=1L, Z=re$Z)
   # no predictions: see predictse
   Xp <- setNames(lapply(dd$Xs, function(X) X[0, , drop=FALSE]), paste("Xp", 1:5, sep=""))
-  datalist <- c(dlist, dd$Xs, list(xp=numeric(0)), Xp, list(Zp=re$Z[0, , drop=FALSE]))
+  # priors, without those on the variances of the random effects for a fit without them
+  pd <- if (is.null(dd$prior)) priordata(NULL)$data else dd$prior
+  if (length(re$terms) == 0) pd <- priorsubset(pd, pd$prwhat != 1)
+  datalist <- c(dlist, dd$Xs, list(xp=numeric(0)), Xp, list(Zp=re$Z[0, , drop=FALSE]), pd)
 
   # log_sigma: residual sd (gaussian, of log(y) for lognormal), precision (beta, betabinomial), size theta (nbinom2) or dispersion phi
   # (nbinom1); fixed for poisson and binomial

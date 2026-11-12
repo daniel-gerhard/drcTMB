@@ -346,6 +346,19 @@ We can additionally include the residual variance in the standard error estimati
 ```
 
 
+## Priors
+
+The argument `prior` adds prior distributions, so that the estimates are posterior modes. Priors are given by parameter (b1-b5, with a single coefficient, on the scale of the parameter after the link), by coefficient name (on the scale of the link), for the standard deviations of the random effects (`sd`, or e.g. `"sd:b2|exper"`), and for the residual standard deviation (`sigma`). Available distributions are `normal()`, `student_t()`, `lognormal()`, `pert()` (as used by EFSA for benchmark dose modelling), `half_normal()` and `half_student_t()`; see `?priors`. Weakly informative priors on standard deviations keep them away from zero in experiments with few groups. Without `prior`, the fit is by maximum likelihood.
+
+```{r}
+pmod <- drmTMB(rootl ~ conc, data = ryegrass, model = "loglogistic",
+               start = c(b1 = 0, b5 = 0), fix = c(b1 = TRUE, b5 = TRUE),
+               prior = list(b2 = normal(8, 1), b4 = pert(0.5, 3, 10), sigma = half_normal(1)))
+summary(pmod)
+```
+
+`logLik()` gives the log-likelihood at the posterior mode, without the priors; standard errors and intervals are from the log posterior.
+
 ## Benchmark doses
 
 The benchmark dose (BMD) is the dose at which the response has changed from the response at dose zero by the benchmark response (BMR). Unlike an effective dose, it does not refer to the asymptote at high doses. The function `bmd()` offers the definitions `"excess"` (extra) risk, (p(BMD) - p0)/(1 - p0) = BMR, and `"additional"` (added) risk, p(BMD) - p0 = BMR, for proportions; the `"relative"` deviation from the response at dose zero, the default of EFSA for continuous responses; and, for gaussian and lognormal models without random effects, `"sd"`, a change by BMR residual standard deviations (of log(y) for lognormal, as in BMDS), the default of the US EPA for continuous responses without a biologically motivated BMR. The uncertainty of the estimated response at dose zero, and of the residual standard deviation, is included. The BMDL, the lower limit of a two-sided 90% interval, is the reference point of a risk assessment.
