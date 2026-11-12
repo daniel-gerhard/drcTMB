@@ -33,6 +33,11 @@ Type drcTMB(objective_function<Type>* obj) {
   DATA_MATRIX(Xp4);
   DATA_MATRIX(Xp5);
   DATA_SPARSE_MATRIX(Zp);  // random effects of the fitted levels; zero rows for population predictions
+  DATA_IVECTOR(prwhat);    // priors: 0 = coefficient of b1-b5, 1 = theta, 2 = log_sigma; length zero without priors
+  DATA_IVECTOR(pridx);     // index (from 0) in the coefficients b1-b5, concatenated, or in theta
+  DATA_IVECTOR(prtrans);   // from the parameter to the scale of the prior: 1 identity, 2 exp, 3 inverse logit
+  DATA_IVECTOR(prtype);    // distribution, see lpdfprior
+  DATA_MATRIX(prhyp);      // hyperparameters (columns 0-3) and the log probability of the range of the parameter (column 4)
   PARAMETER_VECTOR(b1);
   PARAMETER_VECTOR(b2);
   PARAMETER_VECTOR(b3);
@@ -54,6 +59,24 @@ Type drcTMB(objective_function<Type>* obj) {
 
   Type nll = 0;
   int n = y.size();
+
+  // priors: the negative log density of each prior at its parameter, on the scale of the prior, with the
+  // log Jacobian of the transformation from the parameter, renormalised to the range of the parameter
+  Type nlprior = 0;
+  int npr = prwhat.size();
+  if (npr > 0){
+    vector<Type> ball(b1.size() + b2.size() + b3.size() + b4.size() + b5.size());
+    ball << b1, b2, b3, b4, b5;
+    for (int k = 0; k < npr; k++){
+      Type v = prwhat(k) == 0 ? ball(pridx(k)) : (prwhat(k) == 1 ? theta(pridx(k)) : log_sigma);
+      Type z = linkinv(prtrans(k), v);
+      Type logjac = prtrans(k) == 2 ? v : (prtrans(k) == 3 ? Type(log(z) + log(1 - z)) : Type(0));
+      vector<Type> h = prhyp.row(k);
+      nlprior -= lpdfprior(prtype(k), z, h) + logjac - prhyp(k, 4);
+    }
+  }
+  REPORT(nlprior);
+  nll += nlprior;
 
   // random effects: column k of Zu is added to the linear predictor of b(k+1)
   // term t has tnl(t) levels and tnp(t) random coefficients (intercepts or slopes) of the parameters

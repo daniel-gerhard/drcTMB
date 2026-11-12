@@ -63,6 +63,9 @@ anova.drmTMB <- function(object, ..., test=c("Chisq", "F", "boot"), nsim=1000, s
   dat <- lapply(fits, function(f) f$obj$env$data[c("y", "bn", "w")])
   if (!all(vapply(dat[-1], identical, logical(1), dat[[1]]))) stop("the models are not all fitted to the same data.")
 
+  if (any(vapply(fits, function(f) !is.null(f$prior), logical(1)))){
+    message("some models have priors: their log-likelihoods are at the posterior modes, so the tests are approximate.")
+  }
   ll <- lapply(fits, logLik)
   np <- vapply(ll, function(l) attr(l, "df"), numeric(1))
   ord <- order(np)

@@ -52,7 +52,8 @@ print.drmTMB <- function(x, digits=max(3L, getOption("digits") - 3L), ...){
   cat("Model:  ", x$model, if (!is.null(x$alpha)) paste(" (alpha = ", x$alpha, ")", sep=""), smoothtext(x$smooth), "\n", sep="")
   cat("Family: ", x$family, ", ", linktext(x$link, x$model), "\n", sep="")
 
-  cat("\nCoefficients:\n")
+  printprior(x$prior)
+  cat("\nCoefficients", if (!is.null(x$prior)) " (posterior modes)", ":\n", sep="")
   print.default(format(coef(x)[seq_len(sum(!x$fix))], digits=digits), print.gap=2L, quote=FALSE)
   printfixed(userfixed(x), digits)
   printre(recov(x), digits)
@@ -134,7 +135,7 @@ summary.drmTMB <- function(object, ...){
               coefficients=coefs, fixed=userfixed(object), varcor=vcs, residpar=residpar(object), rdf=object$rdf,
               singular=singular, dispersion=dispersion, atbound=atbound(object),
               convergence=object$opt$convergence, message=object$opt$message,
-              maxgrad=max(abs(gr)), pdHess=object$sdrl$pdHess)
+              maxgrad=max(abs(gr)), pdHess=object$sdrl$pdHess, prior=object$prior)
   class(res) <- "summary.drmTMB"
   res
 }
@@ -157,7 +158,8 @@ print.summary.drmTMB <- function(x, digits=max(3L, getOption("digits") - 3L), ..
   cat("Log-likelihood: ", format(as.numeric(x$logLik), digits=digits), " (df = ", attr(x$logLik, "df"), ")",
       ", AIC: ", format(x$AIC, digits=digits), ", BIC: ", format(x$BIC, digits=digits), "\n", sep="")
 
-  cat("\nCoefficients:\n")
+  printprior(x$prior)
+  cat("\nCoefficients", if (!is.null(x$prior)) " (posterior modes)", ":\n", sep="")
   printCoefmat(x$coefficients, digits=digits)
   if (length(x$atbound) > 0) cat("At a bound: ", paste(names(x$atbound), "=", format(x$atbound, digits=digits), collapse=", "),
                                   "; the standard errors and Wald intervals do not account for the bound.\n", sep="")
@@ -183,7 +185,9 @@ print.summary.drmTMB <- function(x, digits=max(3L, getOption("digits") - 3L), ..
 #' @export
 logLik.drmTMB <- function(object, ...){
   # degrees of freedom: free coefficients and variance parameters
-  structure(-object$opt$objective, df=length(object$opt$par), nobs=nobs(object), class="logLik")
+  # with priors, the objective is the negative log posterior: the log-likelihood leaves out the priors
+  nlp <- if (is.null(object$nlprior)) 0 else object$nlprior
+  structure(-(object$opt$objective - nlp), df=length(object$opt$par), nobs=nobs(object), class="logLik")
 }
 
 #' @rdname drmTMB-methods
@@ -775,6 +779,14 @@ smoothtext <- function(smooth){
   if (smoothwidth(smooth) == 0) return(NULL)
   paste(", threshold smoothed over width ", format(smooth[["width"]], digits=3), " (", format(smooth[["relative"]], digits=3),
         " times the smallest interval between doses)", sep="")
+}
+
+# the priors of a fit (see priordata), if any
+printprior <- function(prior){
+  if (is.null(prior)) return(invisible(NULL))
+  cat("\nPriors:\n")
+  for (i in seq_len(nrow(prior))) cat("  ", prior$parameter[i], " ~ ", prior$prior[i], if (prior$scale[i] == "link") " (on the scale of the link)", "\n", sep="")
+  invisible(NULL)
 }
 
 # links of a fit, as text: of the asymptotes, and of b4 if it is not the identity; the default log link

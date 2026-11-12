@@ -19,6 +19,7 @@ drmTMB(
   alpha = NULL,
   smooth = NULL,
   link = NULL,
+  prior = NULL,
   gsl = NULL,
   gsu = NULL,
   gsn = NULL,
@@ -53,6 +54,8 @@ drmTMB(
 \item{smooth}{smoothing of the threshold of the nec model: the width of the smoothed threshold relative to the smallest interval between doses, a number of at least 0; 0 is an exact threshold. The default is 0.1 with random effects on b4, and 0 otherwise. Only for the nec model, see Details.}
 
 \item{link}{links of the parameters b1-b5: NULL for the defaults of the model, a single link for the asymptotes b1 and b2, or links named by parameter, e.g. c(b1="logit", b2="logit", b4="log"), where the parameters not named keep their defaults. b1 and b2 have the link "identity" (default), "log" or "logit"; b4 has "identity" (default) or "log" for the models with a positive b4 (not logistic, gompertz, multistage, exponential and power); b5 has the log link for the asymmetry of logistic and loglogistic and the shape of nec; the other parameters have the identity link. The coefficients, and start, fix, lower, upper and linfct of \code{\link{ed}}, are on the scale of the links, see Details.}
+
+\item{prior}{NULL (default) for maximum likelihood without priors, or a named list of prior distributions (see \code{\link{priors}}), e.g. list(b2=normal(8, 2), b4=pert(0.5, 3, 10), sd=half_normal(1)): by parameter b1-b5, for parameters with a single coefficient, on the scale of the parameter (after the inverse link); by coefficient name, e.g. "b4:herbicideB", on the scale of the coefficient (the link); "sd" for all standard deviations of the random effects, or "sd:b1|group" for one of them; and "sigma" (gaussian, lognormal), "phi" (beta, nbinom1, betabinomial) or "theta" (nbinom2) for the residual parameter, on their natural scale. See Details.}
 
 \item{gsl}{a vector of lower bounds for a grid search, same length as start; NA for the default range. If gsl, gsu and gsn are all NULL, no grid search is performed. See \code{\link{drmTMBstart}}.}
 
@@ -184,4 +187,20 @@ and prediction intervals use t quantiles with n - p degrees of freedom, and the 
 the coefficients and effective doses an F-based cutoff. The log-likelihood, the estimate log_sigma in
 \code{coef}, AIC, \code{anova}, \code{simulate} and \code{\link{bootstrap}} remain maximum likelihood.
 The other families and models with random effects use maximum likelihood and normal quantiles.
+
+With \code{prior}, the estimates are the posterior mode: the objective is the negative log
+posterior, the negative log-likelihood (with the random effects integrated out by the Laplace
+approximation) minus the log densities of the priors. A prior for a parameter after the inverse link
+(b1-b5) or for a standard deviation or residual parameter, which are optimised on the log scale, is a
+density on that scale; the log Jacobian of the transformation is added, so that the prior is the
+density of the parameter as given. Priors with a bounded support (pert, and lognormal and the half
+distributions for b1-b5) bound the parameter; a prior whose support extends beyond the range of
+the parameter, given by its link and by \code{lower} and \code{upper}, is truncated to the range.
+Parameters without a prior have a flat (improper) prior on the scale of their coefficients, the
+scale of the link (e.g. on log(b4) with the log link for b4), and the standard deviations of the
+random effects and the residual parameter on the log scale; their bounds still apply.
+The standard errors and Wald intervals are from the curvature of the log posterior, and profile
+intervals profile the log posterior. \code{logLik} returns the log-likelihood at the posterior mode,
+without the priors, so that AIC and \code{\link{anova.drmTMB}} are approximate for fits with priors.
+Small-sample inference is not used with priors. Refits of \code{\link{bootstrap}} keep the priors.
 }
