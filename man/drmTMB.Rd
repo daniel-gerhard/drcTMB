@@ -36,23 +36,23 @@ drmTMB(
 
 \item{start}{a vector with starting values for each model coefficient. NA entries are replaced by the starting values of \code{\link{drmTMBstart}}. Alternatively, a vector named by parameter, e.g. c(b1=0, b5=0), gives the same starting value to all coefficients of each named parameter.}
 
-\item{fix}{a logical vector with one entry for each model coefficient. If TRUE, a model coefficient is fixed to its value in start. Alternatively, a vector named by parameter, e.g. c(b1=TRUE, b5=TRUE), fixes all coefficients of the named parameters; their values must then be given in start, e.g. start=c(b1=0, b5=0). Parameters not used by the model (b5 except for logistic, loglogistic, braincousens, cedergreen, multistage, nec and haldane, b3 for michaelismenten, asymptoticregression, exponentialdecay and haldane, b2-b5 for constant) are always fixed, at 0 unless given in start.}
+\item{fix}{a logical vector with one entry for each model coefficient. If TRUE, a model coefficient is fixed to its value in start. Alternatively, a vector named by parameter, e.g. c(b1=TRUE, b5=TRUE), fixes all coefficients of the named parameters; their values must then be given in start, e.g. start=c(b1=0, b5=0). Parameters not used by the model (b5 except for logistic, loglogistic, braincousens, cedergreen, multistage, nec and haldane, b3 for michaelismenten, asymptoticregression, exponentialdecay and haldane, b2 and b5 for exponential and power, b2-b5 for constant) are always fixed, at 0 unless given in start.}
 
 \item{weights}{a vector of weights, one for each row of data.}
 
-\item{lower}{lower bounds for the model coefficients b1-b5, a single value or a vector with the same length as start. Bounds of fixed coefficients are ignored; variance parameters are unbounded. For the multistage model, the default is 0 for the coefficients b3-b5 without covariates in fform, and for the nec model 0 for the rate b3 and, with the identity link for b4, the threshold b4 without covariates, see Details.}
+\item{lower}{lower bounds for the model coefficients b1-b5, a single value or a vector with the same length as start. Bounds of fixed coefficients are ignored; variance parameters are unbounded. For the multistage model, the default is 0 for the coefficients b3-b5 without covariates in fform, for the nec model 0 for the rate b3 and, with the identity link for b4, the threshold b4 without covariates, and for the exponential and power models 0 for the power b3 without covariates, see Details.}
 
 \item{upper}{upper bounds for the model coefficients b1-b5, a single value or a vector with the same length as start.}
 
 \item{family}{Specify the distributional assumptions. One of "gaussian", "lognormal", "binomial", "betabinomial", "beta", "poisson", "nbinom2", and "nbinom1". For the lognormal family, log(y) is normal with mean log f(x) and standard deviation sigma: the curve f is the median of a positive response, with a constant coefficient of variation, as in PROAST and BMDS; the mean is f(x) exp(sigma^2/2). The negative binomial families are for overdispersed counts, with variance mu (1 + mu/theta) for nbinom2 and mu (1 + phi) for nbinom1, and the beta-binomial family for overdispersed binomial counts, with variance n mu (1 - mu) (1 + (n - 1)/(phi + 1)) for n trials, as in glmmTMB.}
 
-\item{model}{Specify the nonlinear model. One of "logistic", "loglogistic", "weibull1", "weibull2", "lognormal", "michaelismenten", "asymptoticregression", "exponentialdecay", "gompertz", "gamma", "multistage", "nec", "braincousens", "cedergreen", "haldane", "constant". The nec model has a threshold, the braincousens and cedergreen models describe hormesis, the haldane model substrate inhibition, and the constant model has no dose effect, see Details.}
+\item{model}{Specify the nonlinear model. One of "logistic", "loglogistic", "weibull1", "weibull2", "lognormal", "michaelismenten", "asymptoticregression", "exponentialdecay", "gompertz", "gamma", "multistage", "nec", "braincousens", "cedergreen", "haldane", "exponential", "power", "constant". The nec model has a threshold, the exponential and power models have no upper asymptote, the braincousens and cedergreen models describe hormesis, the haldane model substrate inhibition, and the constant model has no dose effect, see Details.}
 
 \item{alpha}{the exponent of the hormesis term of the cedergreen model, a positive number, e.g. 1, 0.5 or 0.25 as the models CRS.4a, CRS.4b and CRS.4c of drc (CRS.5a-c with b1 estimated); only for the cedergreen model. See Details.}
 
 \item{smooth}{smoothing of the threshold of the nec model: the width of the smoothed threshold relative to the smallest interval between doses, a number of at least 0; 0 is an exact threshold. The default is 0.1 with random effects on b4, and 0 otherwise. Only for the nec model, see Details.}
 
-\item{link}{links of the parameters b1-b5: NULL for the defaults of the model, a single link for the asymptotes b1 and b2, or links named by parameter, e.g. c(b1="logit", b2="logit", b4="log"), where the parameters not named keep their defaults. b1 and b2 have the link "identity" (default), "log" or "logit"; b4 has "identity" (default) or "log" for the models with a positive b4 (not logistic, gompertz and multistage); b5 has the log link for the asymmetry of logistic and loglogistic and the shape of nec; the other parameters have the identity link. The coefficients, and start, fix, lower, upper and linfct of \code{\link{ed}}, are on the scale of the links, see Details.}
+\item{link}{links of the parameters b1-b5: NULL for the defaults of the model, a single link for the asymptotes b1 and b2, or links named by parameter, e.g. c(b1="logit", b2="logit", b4="log"), where the parameters not named keep their defaults. b1 and b2 have the link "identity" (default), "log" or "logit"; b4 has "identity" (default) or "log" for the models with a positive b4 (not logistic, gompertz, multistage, exponential and power); b5 has the log link for the asymmetry of logistic and loglogistic and the shape of nec; the other parameters have the identity link. The coefficients, and start, fix, lower, upper and linfct of \code{\link{ed}}, are on the scale of the links, see Details.}
 
 \item{gsl}{a vector of lower bounds for a grid search, same length as start; NA for the default range. If gsl, gsu and gsn are all NULL, no grid search is performed. See \code{\link{drmTMBstart}}.}
 
@@ -69,8 +69,8 @@ A drmTMB object
 Fit a drmTMB model
 }
 \details{
-All models are of the form f(x) = b1 + (b2 - b1) F(x), with a function F increasing
-from 0 to 1. For the models with steepness b3 (logistic, loglogistic, weibull1, weibull2,
+All models, except exponential and power, are of the form f(x) = b1 + (b2 - b1) F(x), with a
+function F increasing from 0 to 1. For the models with steepness b3 (logistic, loglogistic, weibull1, weibull2,
 lognormal, gompertz), F depends on b3 (x - b4) or b3 (log(x) - log(b4)); b1 is the lower and b2
 the upper asymptote, and b3 is positive for an increasing and negative for a decreasing curve.
 For michaelismenten, asymptoticregression and exponentialdecay (b3 and b5 are not used),
@@ -142,6 +142,19 @@ michaelismenten model, so that \code{\link{anova.drmTMB}} tests for inhibition (
 the boundary under the null hypothesis, the chi-square test is conservative). The curve rises to its
 peak at the dose sqrt(b4/b5) and then decreases, so that effective doses are not defined;
 \code{\link{peak}} gives the dose and the response at the peak.
+
+The exponential and power models of PROAST and BMDS have no upper asymptote:
+f(x) = b1 exp(b4 x^b3) and f(x) = b1 + b4 x^b3, with b1 the response at dose zero, b3 > 0 the power
+and b4 the coefficient, whose sign gives the direction of the curve; b2 and b5 are not used. b4 = 0
+is the constant model, and b3 = 1 gives the exponential model 2 of PROAST and BMDS (exp2, e.g.
+\code{start=c(b3=1), fix=c(b3=TRUE)}), so that \code{\link{anova.drmTMB}} tests the power; the
+exponential model with b3 estimated is exp3 (PROAST: a exp(b x^d); BMDS: a exp(sign (b x)^d) with
+b4 = sign b^b3). The power b3 is bounded below by 0 by default (if \code{lower} is not given, without
+covariates in fform); BMDS restricts the power of its power model to b3 >= 1 by default, which can be
+set by \code{lower}. Without an upper asymptote, relative effective doses are not defined:
+\code{\link{ed}} gives absolute effective doses (\code{type="absolute"}), and \code{\link{bmd}} benchmark
+doses. For the exponential model, the log link for b1, \code{link=c(b1="log")}, makes the model
+linear on the log scale, with log(b1) the intercept.
 
 The linear-quadratic model of radiobiology, S = exp(-alpha x - beta x^2), is the multistage model of
 degree 2 with b1 = 1 and b2 = 0: alpha = b3 and beta = b4, e.g.

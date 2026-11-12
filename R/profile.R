@@ -441,7 +441,9 @@ edvalue <- function(object, i, lpv, par=NULL){
     return(drcmeanR(mod, exp(s), b[1], b[2], b[3], b[4], b[5], fit$alpha))
   }
   q <- edq(fit, object$q[[i]], lpv, identical(object$type, "absolute"))
-  if (!is.finite(q) || q <= 0 || q > 1 || (q == 1 && !(drcmodel(mod)$ed %in% "hormesis"))) return(NA)
+  m <- drcmodel(mod)
+  if (m$ed %in% "unbounded") return(if (edreach(m, q, b)) edfun(mod, q, b[3], b[4], b[5]) else NA)
+  if (!is.finite(q) || q <= 0 || q > 1 || (q == 1 && !(m$ed %in% "hormesis"))) return(NA)
   edfun(mod, q, b[3], b[4], b[5], hormc(fit, lpv), fit$alpha, smoothwidth(fit$smooth))
 }
 
@@ -453,6 +455,7 @@ edfun <- function(mod, q, b3, b4, b5, c5=0, alpha=NULL, smooth=0){
   m <- drcmodel(mod)
   if (m$ed %in% "hormesis") return(exp(hormroot(mod, q, b3, b4, c5, alpha)))
   if (m$ed %in% "polynomial") return(msroot(q, c(b3, b4, b5)))
+  if (m$ed %in% "unbounded") return((q / b4)^(1 / b3))
   h <- m$edh(q, b3, b5, smooth)
   if (m$b4 %in% c("location", "threshold")) b4 + h else b4 * h
 }
@@ -462,6 +465,7 @@ edfun <- function(mod, q, b3, b4, b5, c5=0, alpha=NULL, smooth=0){
 edb4 <- function(mod, q, ed, b3, b5, c5=0, alpha=NULL, smooth=0){
   m <- drcmodel(mod)
   if (m$ed %in% "hormesis") return(edb4(modelindex("loglogistic"), q/(1 + c5*hormg(mod, ed, alpha)), ed, b3, 1))
+  if (m$ed %in% "unbounded") return(q / ed^b3)
   h <- m$edh(q, b3, b5, smooth)
   if (m$b4 %in% c("location", "threshold")) ed - h else ed / h
 }

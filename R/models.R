@@ -19,28 +19,34 @@ linstart <- function(z, logdose){
 #
 # b1-b5: role of each parameter, NA if the model does not use it (it is then always fixed)
 #   b1, b2: "asymptote", or "mean" for the constant model; the lower and upper asymptote for a steepness
-#           b3, otherwise the asymptotes at dose zero and at high doses
-#   b3: "steepness" (its sign gives the direction of the curve), "shape", "rate", or "coefficient" of a
+#           b3, otherwise the asymptotes at dose zero and at high doses; b1 "intercept": the response at
+#           dose zero of a model without asymptotes
+#   b3: "steepness" (its sign gives the direction of the curve), "shape", "rate", "power", or "coefficient" of a
 #       polynomial
 #   b4: "location" on the dose scale, "scale" (a positive dose, the effective dose is b4 h), "threshold" (a
-#       positive dose, the effective dose is b4 + h), or "coefficient" of a polynomial
+#       positive dose, the effective dose is b4 + h), or "coefficient" of a polynomial or of b4 x^b3
 #   b5: "asymmetry" or "shape" (both positive, with the log link), "hormesis" effect, "inhibition", or
 #       "coefficient" of a polynomial
 # The functions F and edh take b3-b5 on their original scale, after the inverse links (see modellinks).
 # logdose: F depends on the dose through t = b3 (log x - log b4) instead of t = b3 (x - b4)
 # F(t, x, b3, b4, b5, smooth): increasing from 0 to 1; NULL for the constant model
 # ed: how effective doses are computed: "closed" by edh, "hormesis" numerically above the peak,
-#   "polynomial" as the root of the polynomial; NA for none
+#   "polynomial" as the root of the polynomial, "unbounded" absolute only (see mean, level); NA for none
 # edh(q, b3, b5, smooth): effective dose at level q of F, b4 h, or b4 + h for a location or threshold b4
 # start: starting values in lmstart: "linear" from a linearised F (linear), "asymptotic" from the residual
 #   sum of squares profiled over b4, "inhibition" profiled over b4 and b5, "threshold", "polynomial",
-#   "constant"
+#   "constant", "power" (profiled over b3, linear in b1 and b4)
 # linear(x, q): starting values of b3 and b4 from the doses x and the values q of F
 # lower0: parameters bounded below by 0 by default, if they have a single coefficient (b4 only with the
 #   identity link)
 # alpha: the model needs the exponent alpha of its hormesis term
 # hormesis: hormesis term g(x, alpha) of f1 + (f2 - f1 + f5 g) F, its first and second derivatives dg and
 #   d2g w.r.t. the log dose, and the largest b3 of a decreasing curve that the model is meant for
+# mean, level: the models without an upper asymptote (exponential, power), f(x) = mean(x, b1, b3, b4) =
+#   g^-1(b1, b4 x^b3) with b1 the response at dose zero, b3 > 0 the power and b4 the coefficient (any
+#   sign, the direction of the curve); level(y, b1) = g(y, b1) = b4 x^b3 at the dose x with response y,
+#   which replaces the level of F, (y - b1)/(b2 - b1), of the other models; ed "unbounded": only absolute
+#   effective doses, (level/b4)^(1/b3)
 # peak: the dose of the peak of the curve in closed form, dose(b) from the parameters b1-b5, NA without a
 #   peak, and its inverse b4(pk, b), the b4 of a curve with its peak at dose pk (as in the TMB template)
 drcmodels <- list(
@@ -121,7 +127,13 @@ drcmodels <- list(
                F=function(t, x, b3, b4, b5, smooth) x / (b4 + x + b5*x^2),
                ed=NA, start="inhibition", lower0=5,
                peak=list(dose=function(b) if (isTRUE(b[5] > 0 && b[4] > 0)) sqrt(b[4]/b[5]) else NA,
-                         b4=function(pk, b) pk^2*b[5]))
+                         b4=function(pk, b) pk^2*b[5])),
+  exponential=list(b1="intercept", b2=NA, b3="power", b4="coefficient", b5=NA, logdose=FALSE,
+                   mean=function(x, f1, f3, f4) f1 * exp(f4 * x^f3), level=function(y, f1) log(y / f1),
+                   ed="unbounded", start="power", lower0=3),
+  power=list(b1="intercept", b2=NA, b3="power", b4="coefficient", b5=NA, logdose=FALSE,
+             mean=function(x, f1, f3, f4) f1 + f4 * x^f3, level=function(y, f1) y - f1,
+             ed="unbounded", start="power", lower0=3)
 )
 
 # links of the parameters b1-b5 of a model m (see drcmodels): the possible links of each parameter, the

@@ -782,7 +782,7 @@ smoothtext <- function(smooth){
 linktext <- function(link, model){
   m <- drcmodel(model)
   asym <- unique(link[if (is.na(m$b2)) "b1" else c("b1", "b2")])
-  out <- if (length(asym) == 1) paste(asym, "link for the asymptotes") else paste(link[["b1"]], "link for b1,", link[["b2"]], "link for b2")
+  out <- if (is.na(m$b2)) paste(asym, "link for b1") else if (length(asym) == 1) paste(asym, "link for the asymptotes") else paste(link[["b1"]], "link for b1,", link[["b2"]], "link for b2")
   if (link[["b4"]] != "identity") out <- paste(out, ", ", link[["b4"]], " link for b4", sep="")
   out
 }

@@ -6,7 +6,7 @@
 #' @param newdata a data frame with the values of the covariates in fform, one row for each dose-response curve, as an alternative to linfct; the dose is not needed. With grouping variables of the random effects, the curves of fitted groups, see Details. The effective doses are computed at each level of respLev for each row, named by the covariate and group values (or by the row names of newdata, if set).
 #' @param random logical, if TRUE, the effective doses of rows of newdata with fitted groups are conditional on their random effects, and for the other random effect terms, the variance-covariance matrix of the random effects is included in the standard error estimation. If FALSE, the effective doses are for the population curves.
 #' @param residual logical, if TRUE, the residual variance is included in the standard error estimation (gaussian family only)
-#' @param type "relative" (default) for effective doses relative to the asymptotes, or "absolute" for the doses at which the curves reach the responses in respLev, on the scale of the response (proportions for binomial, beta-binomial and beta). Absolute effective doses depend on the asymptotes, and on their random effects; responses outside the range of a curve give NA, with a warning.
+#' @param type "relative" (default) for effective doses relative to the asymptotes, or "absolute" for the doses at which the curves reach the responses in respLev, on the scale of the response (proportions for binomial, beta-binomial and beta). Absolute effective doses depend on the asymptotes, and on their random effects; responses outside the range of a curve give NA, with a warning. The exponential and power models, without an upper asymptote, have absolute effective doses only.
 #'
 #' @details Without random effects, or with \code{random=FALSE}, the effective doses are those of the
 #' population curves, with all random effects at zero, and their standard errors include the
@@ -37,6 +37,7 @@
 ed <- function(x, respLev=50, linfct=NULL, newdata=NULL, random=TRUE, residual=FALSE, type=c("relative", "absolute")){
   type <- match.arg(type)
   if (is.na(drcmodel(x$model)$ed)) stop("the ", x$model, " model has no effective doses.")
+  if (drcmodel(x$model)$ed %in% "unbounded" && type == "relative") stop("the ", x$model, " model has no upper asymptote, so no relative effective doses; use type=\"absolute\" with responses in respLev, or bmd().")
   edcore(x, respLev, linfct, newdata, random, residual, type)
 }
 
@@ -168,7 +169,7 @@ edcore <- function(x, respLev, linfct, newdata, random, residual, type){
     } else if (absolute){
       q <- respLev[i]
       qf <- edq(x, q, lpv + u, TRUE)
-      if (!is.finite(qf) || qf <= 0 || qf >= 1){
+      if (!edreach(m, qf, b)){
         edl[i] <- NA
         grad[i, ] <- NA
         ql[i] <- q
@@ -246,7 +247,22 @@ edcore <- function(x, respLev, linfct, newdata, random, residual, type){
 edq <- function(fit, q, lpv, absolute){
   if (!absolute) return(q)
   b <- linkpars(linkindex(fit$link), lpv)
-  (q - b[1]) / (b[2] - b[1])
+  edlevel(drcmodel(fit$model), q, b)
+}
+
+# level of F at the response y of the curve with parameters b (b1-b5), (y - b1)/(b2 - b1); for the models
+# without an upper asymptote (exponential, power), the term b4 x^b3 of their mean at the response y
+edlevel <- function(m, y, b){
+  if (!is.null(m$level)) return(m$level(y, b[1]))
+  (y - b[1]) / (b[2] - b[1])
+}
+
+# whether a curve of model m with parameters b reaches the level q of F (see edlevel) at a positive dose:
+# 0 < q < 1, or for the models without an upper asymptote q of the sign of the coefficient b4
+edreach <- function(m, q, b){
+  if (!is.finite(q)) return(FALSE)
+  if (m$ed %in% "unbounded") return(isTRUE(q / b[4] > 0))
+  q > 0 && q < 1
 }
 
 # hormesis models: the size of the hormesis effect b5 relative to the difference of the asymptotes,
