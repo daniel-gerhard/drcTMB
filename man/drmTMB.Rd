@@ -196,6 +196,9 @@ density on that scale; the log Jacobian of the transformation is added, so that 
 density of the parameter as given. Priors with a bounded support (pert, and lognormal and the half
 distributions for b1-b5) bound the parameter; a prior whose support extends beyond the range of
 the parameter, given by its link and by \code{lower} and \code{upper}, is truncated to the range.
+Parameters without a prior have a flat (improper) prior on the scale of their coefficients, the
+scale of the link (e.g. on log(b4) with the log link for b4), and the standard deviations of the
+random effects and the residual parameter on the log scale; their bounds still apply.
 The standard errors and Wald intervals are from the curvature of the log posterior, and profile
 intervals profile the log posterior. \code{logLik} returns the log-likelihood at the posterior mode,
 without the priors, so that AIC and \code{\link{anova.drmTMB}} are approximate for fits with priors.
