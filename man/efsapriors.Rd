@@ -26,7 +26,8 @@ efsapriors(
 
 \item{data}{a data.frame}
 
-\item{model}{one of "weibull2", "weibull1", "loglogistic", "lognormal", "gamma", "multistage"}
+\item{model}{one of "weibull2", "weibull1", "loglogistic", "lognormal", "gamma", "multistage", and for
+the binomial family "probit" and "logit"}
 
 \item{family}{"gaussian", "lognormal" or "binomial"}
 
@@ -46,8 +47,8 @@ or the highest dose}
 \item{...}{not used}
 }
 \value{
-an efsapriors object, a list with the arguments model, family, curvelink, start, fix, prior and
-bmdpar of \code{drmTMB}, the direction of the curve (increasing) and whether it levels off (flat)
+an efsapriors object, a list with the EFSA model (name), the arguments model, family,
+curvelink, start, fix, prior and bmdpar of \code{drmTMB}, the direction of the curve (increasing) and whether it levels off (flat)
 }
 \description{
 The default (weakly informative) priors of the Bayesian benchmark dose modelling of EFSA (2022), as in
@@ -60,16 +61,19 @@ fits a set of models with these priors and averages them.
 \details{
 The models are those of EFSA (2022) available in drcTMB: weibull2 (exponential), weibull1 (inverse
 exponential), loglogistic (Hill), lognormal (log-normal), gamma, and multistage of degree 2 (quadratic
-exponential, LMS two-stage). Families: "gaussian" (normal distribution), "lognormal" (fitted with
-\code{curvelink="log"}: the curve is the log of the median, as the lognormal models of EFSA) and
-"binomial" (quantal responses, with b2 fixed at 1).
+exponential, LMS two-stage), and for quantal responses also probit and logit (the probit and logistic
+models of EFSA, pnorm(b1 + b4 x^b3) and plogis(b1 + b4 x^b3): the power model with
+\code{curvelink="probit"} or \code{"logit"}). Families: "gaussian" (normal distribution), "lognormal"
+(fitted with \code{curvelink="log"}: the curve is the log of the median, as the lognormal models of
+EFSA) and "binomial" (quantal responses, with b2 fixed at 1).
 
 Default priors, with the response means at dose zero (y0) and at the highest dose (yN) (geometric means
 for lognormal), the benchmark response q and the highest dose dN:
 \itemize{
 \item background, increasing curve: pert(0.001, y0, 2 y0); decreasing: pert(0.5 y0, y0, 2 y0);
 quantal: pert(max(L/2, 1/(10 n0)), max(p0, 1/(5 n0)), min(3 U/2, 1 - 1/(10 n0))) with the observed
-proportion p0 of the n0 controls and its confidence interval (L, U) of prop.test; shape 4.
+proportion p0 of the n0 controls and its confidence interval (L, U) of prop.test; shape 4. For the
+probit and logit models the prior is on the background probability pnorm(b1) or plogis(b1).
 \item maximum response (continuous): increasing pert(y0 (1.01 + q), yN, 2 yN), or pert(y0 (1.01 + q),
 3 yN, 6 yN) if the curve does not level off at the high doses; decreasing pert(0.5 yN, yN,
 y0 (1 - q - 0.01)), or pert(0.1 yN, 0.5 yN, y0 (1 - q - 0.01)); shape 4. Whether the curve levels off
@@ -80,7 +84,8 @@ the mode of the background; here it is on the maximum response (the asymptote) i
 uniform.
 \item steepness d: |b3| lognormal(1, 1) (EFSA truncates log d at 5, which removes a probability of
 3e-5 and is left out) or, with \code{dprior="alternative"}, lognormal(0.4, sqrt(0.5)), for a
-sensitivity analysis; for decreasing curves of the log-dose models b3 is negative, with the prior
+sensitivity analysis (the power b3 of the probit and logit models has the same prior); for
+decreasing curves of the log-dose models b3 is negative, with the prior
 \code{negate(lognormal(...))}. The multistage model of degree 2 in the BMD parameterisation is the
 quadratic exponential model of EFSA, with the technical parameter log_d (in place of b3), with the
 prior normal(0, 1) of EFSA.

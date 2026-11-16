@@ -9,16 +9,19 @@
 #'
 #' The models are those of EFSA (2022) available in drcTMB: weibull2 (exponential), weibull1 (inverse
 #' exponential), loglogistic (Hill), lognormal (log-normal), gamma, and multistage of degree 2 (quadratic
-#' exponential, LMS two-stage). Families: "gaussian" (normal distribution), "lognormal" (fitted with
-#' \code{curvelink="log"}: the curve is the log of the median, as the lognormal models of EFSA) and
-#' "binomial" (quantal responses, with b2 fixed at 1).
+#' exponential, LMS two-stage), and for quantal responses also probit and logit (the probit and logistic
+#' models of EFSA, pnorm(b1 + b4 x^b3) and plogis(b1 + b4 x^b3): the power model with
+#' \code{curvelink="probit"} or \code{"logit"}). Families: "gaussian" (normal distribution), "lognormal"
+#' (fitted with \code{curvelink="log"}: the curve is the log of the median, as the lognormal models of
+#' EFSA) and "binomial" (quantal responses, with b2 fixed at 1).
 #'
 #' Default priors, with the response means at dose zero (y0) and at the highest dose (yN) (geometric means
 #' for lognormal), the benchmark response q and the highest dose dN:
 #' \itemize{
 #'   \item background, increasing curve: pert(0.001, y0, 2 y0); decreasing: pert(0.5 y0, y0, 2 y0);
 #'     quantal: pert(max(L/2, 1/(10 n0)), max(p0, 1/(5 n0)), min(3 U/2, 1 - 1/(10 n0))) with the observed
-#'     proportion p0 of the n0 controls and its confidence interval (L, U) of prop.test; shape 4.
+#'     proportion p0 of the n0 controls and its confidence interval (L, U) of prop.test; shape 4. For the
+#'     probit and logit models the prior is on the background probability pnorm(b1) or plogis(b1).
 #'   \item maximum response (continuous): increasing pert(y0 (1.01 + q), yN, 2 yN), or pert(y0 (1.01 + q),
 #'     3 yN, 6 yN) if the curve does not level off at the high doses; decreasing pert(0.5 yN, yN,
 #'     y0 (1 - q - 0.01)), or pert(0.1 yN, 0.5 yN, y0 (1 - q - 0.01)); shape 4. Whether the curve levels off
@@ -29,7 +32,8 @@
 #'     uniform.
 #'   \item steepness d: |b3| lognormal(1, 1) (EFSA truncates log d at 5, which removes a probability of
 #'     3e-5 and is left out) or, with \code{dprior="alternative"}, lognormal(0.4, sqrt(0.5)), for a
-#'     sensitivity analysis; for decreasing curves of the log-dose models b3 is negative, with the prior
+#'     sensitivity analysis (the power b3 of the probit and logit models has the same prior); for
+#'     decreasing curves of the log-dose models b3 is negative, with the prior
 #'     \code{negate(lognormal(...))}. The multistage model of degree 2 in the BMD parameterisation is the
 #'     quadratic exponential model of EFSA, with the technical parameter log_d (in place of b3), with the
 #'     prior normal(0, 1) of EFSA.
@@ -43,7 +47,8 @@
 #'
 #' @param form formula of the response and the dose, as in \code{\link{drmTMB}}
 #' @param data a data.frame
-#' @param model one of "weibull2", "weibull1", "loglogistic", "lognormal", "gamma", "multistage"
+#' @param model one of "weibull2", "weibull1", "loglogistic", "lognormal", "gamma", "multistage", and for
+#'   the binomial family "probit" and "logit"
 #' @param family "gaussian", "lognormal" or "binomial"
 #' @param bmr,def the benchmark response and its definition (see \code{\link{bmd}}); by default
 #'   "relative" for gaussian and lognormal, "excess" for binomial
@@ -62,16 +67,19 @@
 #'   Compilation of NTP and published dose-response data: study of informative priors in the EFSA platform
 #'   for Bayesian benchmark dose analysis. EFSA Supporting Publications, EN-9902.
 #'
-#' @return an efsapriors object, a list with the arguments model, family, curvelink, start, fix, prior and
-#'   bmdpar of \code{drmTMB}, the direction of the curve (increasing) and whether it levels off (flat)
+#' @return an efsapriors object, a list with the EFSA model (name), the arguments model, family,
+#'   curvelink, start, fix, prior and bmdpar of \code{drmTMB}, the direction of the curve (increasing) and whether it levels off (flat)
 #' @export
 efsapriors <- function(form, data, model, family=c("gaussian", "lognormal", "binomial"), bmr=NULL, def=NULL,
                        background=NULL, maxresponse=NULL, bmd=NULL, dprior=c("default", "alternative"), extended=TRUE){
   family <- match.arg(family)
   dprior <- match.arg(dprior)
-  models <- c("weibull2", "weibull1", "loglogistic", "lognormal", "gamma", "multistage")
+  models <- c("weibull2", "weibull1", "loglogistic", "lognormal", "gamma", "multistage", "probit", "logit")
   if (length(model) != 1 || !(model %in% models)) stop("model must be one of ", paste(models, collapse=", "), ".")
   quantal <- family == "binomial"
+  # probit and logit: the power model with a probit or logit curve link, for quantal responses only
+  qlink <- model %in% c("probit", "logit")
+  if (qlink && !quantal) stop("the ", model, " model is for quantal responses (binomial family).")
   if (is.null(def)) def <- if (quantal) "excess" else "relative"
   if (is.null(bmr)) bmr <- if (quantal) 0.1 else 0.05
 
@@ -118,6 +126,7 @@ efsapriors <- function(form, data, model, family=c("gaussian", "lognormal", "bin
   }
   pr <- list()
   pr[[pbkg]] <- efsapert(background, bk, 4, "background")
+  if (qlink) pr$b1 <- oninv(pr$b1, if (model == "probit") "pnorm" else "plogis")
   # maximum response
   if (!quantal){
     mx <- if (inc){
@@ -148,7 +157,8 @@ efsapriors <- function(form, data, model, family=c("gaussian", "lognormal", "bin
     start <- c(start, b2=1)
     fix <- c(fix, b2=TRUE)
   }
-  res <- list(model=model, family=family, curvelink=if (family == "lognormal") "log" else "identity", start=start, fix=fix,
+  res <- list(name=model, model=if (qlink) "power" else model, family=family,
+              curvelink=if (qlink) model else if (family == "lognormal") "log" else "identity", start=start, fix=fix,
               prior=pr[c(intersect(c("b1", "b2"), names(pr)), "b3", "bmd", if (!quantal) "sigma")],
               bmdpar=list(bmr=bmr, def=def), increasing=inc, flat=flat)
   class(res) <- "efsapriors"
@@ -158,7 +168,7 @@ efsapriors <- function(form, data, model, family=c("gaussian", "lognormal", "bin
 #' @rdname efsapriors
 #' @export
 print.efsapriors <- function(x, ...){
-  cat("EFSA priors for the ", x$model, " model, ", x$family, " family", if (x$curvelink != "identity") paste(" (", x$curvelink, " curve link)", sep=""),
+  cat("EFSA priors for the ", x$name, " model, ", x$family, " family", if (x$curvelink != "identity") paste(" (", x$curvelink, " curve link)", sep=""),
       ", ", if (x$increasing) "increasing" else "decreasing", " curve", if (isTRUE(x$flat)) ", levelling off" else if (isFALSE(x$flat)) ", not levelling off",
       "\nBMD: ", x$bmdpar$def, ", bmr = ", format(x$bmdpar$bmr), "\n\n", sep="")
   for (nm in names(x$prior)) cat("  ", nm, " ~ ", x$prior[[nm]]$name, "\n", sep="")
@@ -210,7 +220,8 @@ fpflat <- function(x, m, inc){
 #'
 #' @param form,data formula and data, as in \code{\link{drmTMB}}
 #' @param bmr,def the benchmark response and its definition (see \code{\link{efsapriors}})
-#' @param models the models, by default all six (see \code{\link{efsapriors}})
+#' @param models the models (see \code{\link{efsapriors}}), by default all: six for continuous responses,
+#'   and eight, including probit and logit, for quantal responses
 #' @param family the families: for continuous responses "gaussian" and "lognormal" (both by default),
 #'   for quantal responses "binomial"
 #' @param ... further arguments of \code{\link{efsapriors}}: background, maxresponse, bmd, dprior, extended
@@ -223,11 +234,13 @@ fpflat <- function(x, m, inc){
 #' @return a bmdbayes object, with the fits (\code{fits}) and the priors (\code{efsa}) of the models; models
 #'   whose fit fails are left out with a warning
 #' @export
-bmdefsa <- function(form, data, bmr=NULL, def=NULL, models=c("weibull2", "weibull1", "loglogistic", "lognormal", "gamma", "multistage"),
+bmdefsa <- function(form, data, bmr=NULL, def=NULL, models=NULL,
                     family=c("gaussian", "lognormal"), ..., prior.weights=NULL, method=c("is", "laplace"), n=5000, df=4, control=list()){
   method <- match.arg(method)
   if (!all(family %in% c("gaussian", "lognormal", "binomial"))) stop("family must be gaussian and/or lognormal, or binomial.")
   if ("binomial" %in% family && length(family) > 1) stop("quantal (binomial) and continuous families cannot be averaged together.")
+  if (is.null(models)) models <- c("weibull2", "weibull1", "loglogistic", "lognormal", "gamma", "multistage",
+                                   if (identical(family, "binomial")) c("probit", "logit"))
   grid <- expand.grid(family=family, model=models, stringsAsFactors=FALSE)
   lab <- paste(grid$model, c(gaussian="N", lognormal="LN", binomial="Q")[grid$family], sep="_")
   if (!is.null(prior.weights) && length(prior.weights) != nrow(grid)) stop("prior.weights must have ", nrow(grid), " entries, one for each model and family.")
@@ -246,6 +259,7 @@ bmdefsa <- function(form, data, bmr=NULL, def=NULL, models=c("weibull2", "weibul
   if (!any(ok)) stop("none of the models could be fitted.")
   args <- c(fits[ok], list(prior.weights=if (!is.null(prior.weights)) prior.weights[ok], method=method, n=n, df=df))
   res <- do.call(bmdbayes, args)
+  res$models$model <- grid$model[ok]
   res$fits <- fits[ok]
   res$efsa <- efs
   res

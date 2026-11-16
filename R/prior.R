@@ -59,19 +59,25 @@ negate <- function(p){
   p
 }
 
-# prior p of the exponential of a parameter, e.g. of the median exp(b1) for the log curve link (see
-# efsapriors); the parameter is the log of a variable with the distribution p
-onexp <- function(p){
-  if (p$post != 1) stop("onexp needs a prior of the parameter itself.")
-  if (p$support[1] < 0) stop("the prior ", p$name, " of an exponential needs a positive support.")
+# prior p of an inverse link of a parameter (see efsapriors): of the exponential, e.g. of the median
+# exp(b1) for the log curve link, or of pnorm or plogis, e.g. of the background probability pnorm(b1)
+# for the probit curve link; the parameter is the link of a variable with the distribution p (post codes
+# 3 exp, 4 pnorm, 5 plogis, as in the TMB template)
+oninv <- function(p, inv=c("exp", "pnorm", "plogis")){
+  inv <- match.arg(inv)
+  if (p$post != 1) stop("oninv needs a prior of the parameter itself.")
+  if (p$support[1] < 0 || (inv != "exp" && p$support[2] > 1)) stop("the prior ", p$name, " of ", inv, " needs a support within ", if (inv == "exp") "(0, Inf)" else "(0, 1)", ".")
+  fun <- switch(inv, exp=log, pnorm=qnorm, plogis=qlogis)
+  ifun <- switch(inv, exp=exp, pnorm=pnorm, plogis=plogis)
   cdf0 <- p$cdf
-  p$name <- paste(p$name, " of exp", sep="")
-  p$support <- log(p$support)
-  p$center <- log(p$center)
-  p$cdf <- function(z) cdf0(exp(z))
-  p$post <- 3L
+  p$name <- paste(p$name, " of ", inv, sep="")
+  p$support <- fun(p$support)
+  p$center <- fun(p$center)
+  p$cdf <- function(z) cdf0(ifun(z))
+  p$post <- switch(inv, exp=3L, pnorm=4L, plogis=5L)
   p
 }
+onexp <- function(p) oninv(p, "exp")
 
 #' @rdname priors
 #' @export
@@ -136,9 +142,11 @@ lpdfprior <- function(p, z){
   h <- p$hyp
   # a prior of the negative or of the exponential of the parameter
   if (isTRUE(p$post == 2)) z <- -z
-  if (isTRUE(p$post == 3)){
+  if (isTRUE(p$post %in% 3:5)){
+    inv <- p$post
     p$post <- 1L
-    return(lpdfprior(p, exp(z)) + z)
+    return(switch(inv - 2, lpdfprior(p, exp(z)) + z, lpdfprior(p, pnorm(z)) + dnorm(z, log=TRUE),
+                  lpdfprior(p, plogis(z)) + plogis(z, log.p=TRUE) + plogis(-z, log.p=TRUE)))
   }
   switch(p$type,
          dnorm(z, h[1], h[2], log=TRUE),
