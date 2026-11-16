@@ -17,7 +17,11 @@
 #' objective, as in the Bayesian benchmark dose modelling of EFSA (2022). The random effects are
 #' integrated out first, so that this is a nested Laplace approximation. It is poor if the posterior
 #' mode is close to a bound, e.g. of a pert prior or a multistage coefficient at 0, which gives a
-#' warning.
+#' warning. For dose-response models with small data, the Laplace approximation of the log marginal
+#' likelihood is typically too low by 0.1 to 0.5, and by up to 0.8 with posterior modes close to the
+#' bounds of pert priors (the models of \code{\link{bmdefsa}} on the ryegrass and TCDD data), which
+#' changes the posterior model probabilities by up to about 6 percentage points; importance sampling is
+#' more accurate.
 #'
 #' \code{method="is"} estimates the marginal likelihood by adaptive importance sampling. The proposal is
 #' a multivariate t distribution with \code{df} degrees of freedom, first centred at the posterior mode
