@@ -152,9 +152,9 @@ bmd <- function(x, bmr=0.1, def=c("excess", "additional", "relative", "sd"), lin
       if (integ[i, t]) for (k in seq_len(tnp[t])) A[terms[[t]]$pars[k], coff + k] <- loads[[t]][i, k]
       coff <- coff + tnp[t]
     }
-    # random effects only on b1 and b2 with the identity link enter the mean linearly: the marginal BMD
-    # is the conditional one
-    if (all(A[setdiff(1:5, which(lnk[1:2] == 1)), ] == 0)) A[] <- 0
+    # random effects only on b1 and b2 with the identity link enter the mean linearly (without a curve
+    # link): the marginal BMD is the conditional one
+    if (clinkof(x) == 1 && all(A[setdiff(1:5, which(lnk[1:2] == 1)), ] == 0)) A[] <- 0
     act <- which(colSums(A != 0) > 0)
     quad <- bmdnodes(ncoef, act, nodes)
     # lognormal: bmr standard deviations of log(y)
@@ -165,7 +165,7 @@ bmd <- function(x, bmr=0.1, def=c("excess", "additional", "relative", "sd"), lin
       next
     }
     x0 <- if (length(quad$w) > 0) edl[i] else if (m$ed %in% "polynomial") edl[i] else 0
-    eobj <- MakeADFun(list(model="drcBMD", mod=mod, lnk=as.integer(lnk), alpha=alphavalue(x$alpha), smooth=smoothwidth(x$smooth),
+    eobj <- MakeADFun(list(model="drcBMD", mod=mod, lnk=as.integer(lnk), clink=as.integer(clinkof(x)), alpha=alphavalue(x$alpha), smooth=smoothwidth(x$smooth),
                            def=match(info[[i]]$def, c("excess", "additional", "relative", "sd", "logsd")), bmr=bmr[i], inc=as.integer(info[[i]]$inc),
                            sfac=sfac, x0=x0, tnp=as.integer(tnp), A=A, E=quad$E, wq=quad$w),
                       list(b=as.vector(linfct[[i]] %*% pv), u=as.vector(W[[i]] %*% uhat), theta=theta, log_sigma=ls),
@@ -214,10 +214,12 @@ bmdtarget <- function(def, bmr, inc, mu0, sigma){
 }
 
 # level of F at the BMD of the curve with linear predictors lpv (without averaging over random
-# effects), with log residual standard deviation ls
+# effects), with log residual standard deviation ls; with a curve link, the benchmark response is defined
+# on the scale of the response, the level on the scale of the curve
 bmdlevel <- function(fit, info, lpv, ls){
   b <- linkpars(linkindex(fit$parlink), lpv)
-  edlevel(drcmodel(fit$model), bmdtarget(info$def, info$bmr, info$inc, bmdmu0(fit, b), info$sfac*exp(ls)), b)
+  target <- bmdtarget(info$def, info$bmr, info$inc, curvemean(fit, bmdmu0(fit, b)), info$sfac*exp(ls))
+  edlevel(drcmodel(fit$model), curvefrom(fit, target), b)
 }
 
 # response at dose zero of the curve with parameters b (b1-b5): the asymptote at dose zero, which does
@@ -245,7 +247,7 @@ bmdvalue <- function(fit, info, lpv, theta, ls){
   Z <- info$A %*% recholesky(fit, theta) %*% info$E
   B <- linkpars(lnk, t(lpv + Z))
   sm <- smoothwidth(fit$smooth)
-  mm <- function(d) sum(info$wq * drcmeanR(mod, d, B[, 1], B[, 2], B[, 3], B[, 4], B[, 5], fit$alpha, sm))
+  mm <- function(d) sum(info$wq * curvemean(fit, drcmeanR(mod, d, B[, 1], B[, 2], B[, 3], B[, 4], B[, 5], fit$alpha, sm)))
   target <- bmdtarget(info$def, info$bmr, info$inc, mm(0), info$sfac*exp(ls))
   # start from the BMD of the curve lpv, or from the mean positive dose
   x0 <- if (isTRUE(xc > 0)) xc else mean(fit$obj$env$data$x[fit$obj$env$data$x > 0])

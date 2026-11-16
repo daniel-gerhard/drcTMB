@@ -50,7 +50,7 @@ print.drmTMB <- function(x, digits=max(3L, getOption("digits") - 3L), ...){
     cat("\n")
   }
   cat("Model:  ", x$model, if (!is.null(x$alpha)) paste(" (alpha = ", x$alpha, ")", sep=""), smoothtext(x$smooth), "\n", sep="")
-  cat("Family: ", x$family, ", ", linktext(x$parlink, x$model), "\n", sep="")
+  cat("Family: ", x$family, ", ", linktext(x$parlink, x$model), curvelinktext(x$curvelink), "\n", sep="")
 
   printprior(x$prior)
   cat("\nCoefficients", if (!is.null(x$prior)) " (posterior modes)", ":\n", sep="")
@@ -129,7 +129,7 @@ summary.drmTMB <- function(object, ...){
     gr[object$opt$par <= lo & gr > 0] <- 0
     gr[object$opt$par >= up & gr < 0] <- 0
   }
-  res <- list(call=object$call, model=object$model, alpha=object$alpha, smooth=object$smooth, family=object$family, parlink=object$parlink, b4log=object$parlink[["b4"]] == "log",
+  res <- list(call=object$call, model=object$model, alpha=object$alpha, smooth=object$smooth, family=object$family, parlink=object$parlink, curvelink=object$curvelink, b4log=object$parlink[["b4"]] == "log",
               direction=direction, b5=if (any(!object$fix[npi == 5]) && m$b5 %in% c("asymmetry", "shape")) m$b5,
               nobs=nobs(object), ntrials=if (object$family %in% c("binomial", "betabinomial")) sum(dat$bn), ngroups=ngroups,
               logLik=ll, AIC=AIC(object), BIC=BIC(object),
@@ -150,7 +150,7 @@ print.summary.drmTMB <- function(x, digits=max(3L, getOption("digits") - 3L), ..
     cat("\n")
   }
   cat("Model:  ", x$model, if (!is.null(x$alpha)) paste(" (alpha = ", x$alpha, ")", sep=""), smoothtext(x$smooth), if (!is.null(x$direction)) paste(",", x$direction, "curve"), "\n", sep="")
-  cat("Family: ", x$family, ", ", linktext(x$parlink, x$model), "\n", sep="")
+  cat("Family: ", x$family, ", ", linktext(x$parlink, x$model), curvelinktext(x$curvelink), "\n", sep="")
 
   cat("\nNumber of observations: ", x$nobs, sep="")
   if (!is.null(x$ntrials)) cat(", number of trials: ", x$ntrials, sep="")
@@ -350,7 +350,7 @@ preddata <- function(object, newdata, random, covs=FALSE){
   }
   Zp <- if (length(Zl) > 0) do.call(cbind, unlist(Zl, recursive=FALSE)) else Matrix::sparseMatrix(i=integer(0), j=integer(0), x=numeric(0), dims=c(n, 0))
   list(x=x, Xs=Xs, eta=eta, Zp=Zp, Zl=Zl, X=rl$X, newgroup=newgroup,
-       mod=modelindex(object$model), alpha=object$alpha, smooth=smoothwidth(object$smooth), lnk=linkindex(object$parlink))
+       mod=modelindex(object$model), alpha=object$alpha, smooth=smoothwidth(object$smooth), lnk=linkindex(object$parlink), clink=clinkof(object))
 }
 
 # design of the random effects of the fitted levels in newdata. For each term: Zl, a design block for
@@ -418,7 +418,8 @@ reloads <- function(tm, X){
 # mean function at the linear predictors eta of b1-b5
 predmean <- function(pd, eta){
   b <- linkpars(pd$lnk, eta)
-  as.vector(drcmeanR(pd$mod, pd$x, b[, 1], b[, 2], b[, 3], b[, 4], b[, 5], pd$alpha, pd$smooth))
+  f <- as.vector(drcmeanR(pd$mod, pd$x, b[, 1], b[, 2], b[, 3], b[, 4], b[, 5], pd$alpha, pd$smooth))
+  linkfun(pd$clink, f, inverse=TRUE)
 }
 
 # standard errors of the predicted means by the delta method of TMB: the mean at the new doses is
@@ -790,6 +791,13 @@ printprior <- function(prior){
   cat("\nPriors:\n")
   for (i in seq_len(nrow(prior))) cat("  ", prior$parameter[i], " ~ ", prior$prior[i], if (prior$scale[i] == "link") " (on the scale of the link)", "\n", sep="")
   invisible(NULL)
+}
+
+# link of the curve of a fit, as text; empty for the identity link
+curvelinktext <- function(curvelink){
+  if (is.null(curvelink) || curvelink == "identity") return("")
+  paste("; ", curvelink, " link of the curve, the ", if (curvelink == "log") "mean (median)" else "probability", " is ",
+        c(log="exp", logit="plogis", probit="pnorm")[[curvelink]], "(curve)", sep="")
 }
 
 # links of a fit, as text: of the asymptotes, and of b4 if it is not the identity; the default log link

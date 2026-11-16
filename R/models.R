@@ -146,9 +146,37 @@ modellinks <- function(m){
        b5=if (m$b5 %in% c("asymmetry", "shape")) "log" else "identity")
 }
 
-# index of each link, as in the TMB templates: 1 = identity, 2 = log, 3 = logit
+# index of each link, as in the TMB templates: 1 = identity, 2 = log, 3 = logit, 4 = probit (only as the
+# link of the curve)
 linkindex <- function(link){
-  match(link, c("identity", "log", "logit"))
+  match(link, c("identity", "log", "logit", "probit"))
+}
+
+# links of the curve (curvelink of drmTMB) available for each family: the mean, median or probability is
+# the inverse link of the curve
+curvelinks <- function(family){
+  switch(family, gaussian=, lognormal=, poisson=, nbinom2=, nbinom1=c("identity", "log"),
+         binomial=, betabinomial=, beta=c("identity", "logit", "probit"), "identity")
+}
+
+# index of the link of the curve of a fit (see linkindex); identity for fits without a curvelink
+clinkof <- function(fit) if (is.null(fit$curvelink)) 1L else linkindex(fit$curvelink)
+
+# the mean (median, probability) of the response from the curve f, by the inverse link of the curve
+curvemean <- function(fit, f) linkfun(clinkof(fit), f, inverse=TRUE)
+
+# the curve from the mean (median, probability) mu of the response, by the link of the curve
+curvefrom <- function(fit, mu) linkfun(clinkof(fit), mu)
+
+# response means on the scale of the curve with link clink (see linkindex), for starting values:
+# positive means for the log link, proportions inside (0.005, 0.995) for logit and probit
+curvescale <- function(clink, mu){
+  if (clink == 1) return(mu)
+  if (clink == 2){
+    pos <- mu[is.finite(mu) & mu > 0]
+    return(log(pmax(mu, if (length(pos) > 0) min(pos)/2 else 1e-4)))
+  }
+  linkfun(clink, pmin(pmax(mu, 0.005), 0.995))
 }
 
 # parameters b1-b5 from their linear predictors eta (a vector, or a matrix with a column for each
@@ -160,7 +188,7 @@ linkpars <- function(lnk, eta){
 
 # derivative of the inverse link lnk at the linear predictor eta
 dlinkinv <- function(lnk, eta){
-  switch(lnk, rep(1, length(eta)), exp(eta), plogis(eta)*(1 - plogis(eta)))
+  switch(lnk, rep(1, length(eta)), exp(eta), plogis(eta)*(1 - plogis(eta)), dnorm(eta))
 }
 
 # properties of a model, by name or index

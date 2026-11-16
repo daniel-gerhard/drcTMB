@@ -6,15 +6,15 @@
 // marginal mean at dose x: the mean over the random effects, by quadrature with the linear predictors
 // eta0 + Z.col(k) of b1-b5 and weights wq(k)
 template<class Type>
-Type margmean(int mod, vector<int> lnk, Type x, vector<Type> eta0, matrix<Type> Z, vector<Type> wq, Type alpha, Type smooth){
+Type margmean(int mod, vector<int> lnk, int clink, Type x, vector<Type> eta0, matrix<Type> Z, vector<Type> wq, Type alpha, Type smooth){
   Type m = 0;
   for (int k = 0; k < wq.size(); k++){
-    m += wq(k) * drcmean(mod, x,
+    m += wq(k) * linkinv(clink, drcmean(mod, x,
                          linkinv(lnk(0), Type(eta0(0) + Z(0, k))),
                          linkinv(lnk(1), Type(eta0(1) + Z(1, k))),
                          linkinv(lnk(2), Type(eta0(2) + Z(2, k))),
                          linkinv(lnk(3), Type(eta0(3) + Z(3, k))),
-                         linkinv(lnk(4), Type(eta0(4) + Z(4, k))), alpha, smooth);
+                         linkinv(lnk(4), Type(eta0(4) + Z(4, k))), alpha, smooth));
   }
   return m;
 }
@@ -25,6 +25,7 @@ template<class Type>
 Type drcBMD(objective_function<Type>* obj) {
   DATA_INTEGER(mod);
   DATA_IVECTOR(lnk);    // links of b1-b5: 1 = identity, 2 = log, 3 = logit
+  DATA_INTEGER(clink);  // link of the curve, see drcTMB
   DATA_SCALAR(alpha);
   DATA_SCALAR(smooth);
   DATA_INTEGER(def);    // definition of the benchmark response, see bmdtarget
@@ -52,8 +53,9 @@ Type drcBMD(objective_function<Type>* obj) {
     Type f3 = linkinv(lnk(2), eta0(2));
     Type f4 = linkinv(lnk(3), eta0(3));
     Type f5 = linkinv(lnk(4), eta0(4));
-    Type mu0 = drcmean(mod, Type(0), f1, f2, f3, f4, f5, alpha, smooth);
-    Type qf = drclevel(mod, bmdtarget(def, bmr, inc, mu0, sigma), f1, f2);
+    // response at dose zero and target on the response scale; the level of F on the scale of the curve
+    Type mu0 = linkinv(clink, drcmean(mod, Type(0), f1, f2, f3, f4, f5, alpha, smooth));
+    Type qf = drclevel(mod, linkfwd(clink, bmdtarget(def, bmr, inc, mu0, sigma)), f1, f2);
     bmd = mod == 14 ? msed(qf, f1, f2, f3, f4, f5, Type(0), Type(x0)) : drced(mod, qf, f1, f2, f3, f4, f5, Type(0), smooth);
   } else {
     // Cholesky factor C of the block-diagonal covariance of the random coefficients: for each term
@@ -85,13 +87,13 @@ Type drcBMD(objective_function<Type>* obj) {
     matrix<Type> Z = A * C * E;
     // the marginal BMD: one Newton step on the marginal mean from its root x0, which keeps its value and
     // gives the derivatives of the implicit function; the derivative w.r.t. the dose by central differences
-    Type mu0 = margmean(mod, lnk, Type(0), eta0, Z, wq, alpha, smooth);
+    Type mu0 = margmean(mod, lnk, clink, Type(0), eta0, Z, wq, alpha, smooth);
     Type target = bmdtarget(def, bmr, inc, mu0, sigma);
     Type xs = x0;
     Type h = Type(1e-5) * xs;
-    Type G = margmean(mod, lnk, xs, eta0, Z, wq, alpha, smooth) - target;
-    Type dG = (margmean(mod, lnk, Type(xs + h), eta0, Z, wq, alpha, smooth) -
-               margmean(mod, lnk, Type(xs - h), eta0, Z, wq, alpha, smooth)) / (2 * h);
+    Type G = margmean(mod, lnk, clink, xs, eta0, Z, wq, alpha, smooth) - target;
+    Type dG = (margmean(mod, lnk, clink, Type(xs + h), eta0, Z, wq, alpha, smooth) -
+               margmean(mod, lnk, clink, Type(xs - h), eta0, Z, wq, alpha, smooth)) / (2 * h);
     bmd = xs - G / dG;
   }
   ADREPORT(bmd);

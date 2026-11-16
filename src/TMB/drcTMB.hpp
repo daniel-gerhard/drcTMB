@@ -8,6 +8,7 @@ Type drcTMB(objective_function<Type>* obj) {
   DATA_INTEGER(fam);
   DATA_INTEGER(mod);
   DATA_IVECTOR(lnk);       // links of b1-b5: 1 = identity, 2 = log, 3 = logit
+  DATA_INTEGER(clink);     // link of the curve: 1 = identity, 2 = log, 3 = logit, 4 = probit; the mean (median, probability) is linkinv(clink, curve)
   DATA_SCALAR(alpha);      // exponent of the hormesis term of the cedergreen model
   DATA_SCALAR(smooth);     // smoothing width of the threshold of the nec model, 0 for an exact threshold
   DATA_IVECTOR(tnp);       // random effect terms: number of random coefficients per term
@@ -154,7 +155,7 @@ Type drcTMB(objective_function<Type>* obj) {
   Type f4bmd = 0;
   if (bmdpar == 1){
     f4bmd = bmdb4(mod, b4role, Type(exp(b4(0))), linkinv(lnk(0), b1(0)), linkinv(lnk(1), b2(0)),
-                  linkinv(lnk(2), b3(0)), linkinv(lnk(4), b5(0)), bdef, bbmr, binc, phi, smooth);
+                  linkinv(lnk(2), b3(0)), linkinv(lnk(4), b5(0)), bdef, bbmr, binc, phi, smooth, clink);
     REPORT(f4bmd);
   }
 
@@ -166,7 +167,8 @@ Type drcTMB(objective_function<Type>* obj) {
                 linkinv(lnk(2), Type(Xb3(i) + Zu(i, 2))),
                 bmdpar == 1 ? f4bmd : linkinv(lnk(3), Type(Xb4(i) + Zu(i, 3))),
                 linkinv(lnk(4), Type(Xb5(i) + Zu(i, 4))), alpha, smooth);
-    nll += -w(i) * loglik(fam, y(i), f, bn(i), phi);
+    f = linkinv(clink, f);
+    nll +=-w(i) * loglik(fam, y(i), f, bn(i), phi);
     SIMULATE {
       y(i) = simobs(fam, f, bn(i), phi);
     }
@@ -209,6 +211,7 @@ Type drcTMB(objective_function<Type>* obj) {
                       linkinv(lnk(2), Type(Xpb3(i) + Zup(i, 2))),
                       bmdpar == 1 ? f4bmd : linkinv(lnk(3), Type(Xpb4(i) + Zup(i, 3))),
                       linkinv(lnk(4), Type(Xpb5(i) + Zup(i, 4))), alpha, smooth);
+      mu(i) = linkinv(clink, mu(i));
     }
     ADREPORT(mu);
   }

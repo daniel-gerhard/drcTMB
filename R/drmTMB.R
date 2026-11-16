@@ -14,6 +14,7 @@
 #' @param alpha the exponent of the hormesis term of the cedergreen model, a positive number, e.g. 1, 0.5 or 0.25 as the models CRS.4a, CRS.4b and CRS.4c of drc (CRS.5a-c with b1 estimated); only for the cedergreen model. See Details.
 #' @param smooth smoothing of the threshold of the nec model: the width of the smoothed threshold relative to the smallest interval between doses, a number of at least 0; 0 is an exact threshold. The default is 0.1 with random effects on b4, and 0 otherwise. Only for the nec model, see Details.
 #' @param parlink links of the parameters b1-b5: NULL for the defaults of the model, a single link for the asymptotes b1 and b2, or links named by parameter, e.g. c(b1="logit", b2="logit", b4="log"), where the parameters not named keep their defaults. b1 and b2 have the link "identity" (default), "log" or "logit"; b4 has "identity" (default) or "log" for the models with a positive b4 (not logistic, gompertz, multistage, exponential and power); b5 has the log link for the asymmetry of logistic and loglogistic and the shape of nec; the other parameters have the identity link. The coefficients, and start, fix, lower, upper and linfct of \code{\link{ed}}, are on the scale of the links, see Details.
+#' @param curvelink link of the whole curve: "identity" (default), the curve is the mean (the median for the lognormal family, the probability for binomial, beta-binomial and beta); "log" (gaussian, lognormal, poisson, nbinom2, nbinom1) or "logit" and "probit" (binomial, betabinomial, beta), the mean (median, probability) is the inverse link of the curve. Unlike parlink, which applies to the linear predictors of the parameters, curvelink applies to the response; b1 and b2 are then on the scale of the curve link and keep the identity parlink. See Details.
 #' @param prior NULL (default) for maximum likelihood without priors, or a named list of prior distributions (see \code{\link{priors}}), e.g. list(b2=normal(8, 2), b4=pert(0.5, 3, 10), sd=half_normal(1)): by parameter b1-b5, for parameters with a single coefficient, on the scale of the parameter (after the inverse link); by coefficient name, e.g. "b4:herbicideB", on the scale of the coefficient (the link); "sd" for all standard deviations of the random effects, or "sd:b1|group" for one of them; and "sigma" (gaussian, lognormal), "phi" (beta, nbinom1, betabinomial) or "theta" (nbinom2) for the residual parameter, on their natural scale. See Details.
 #' @param bmdpar NULL (default) for the standard parameterisation, or a list with a benchmark response bmr and its definition def as in \code{\link{bmd}}, e.g. list(bmr=0.1, def="relative"), for the BMD parameterisation: b4 is replaced by the log benchmark dose, coefficient log_bmd, and computed from it. See Details.
 #' @param gsl a vector of lower bounds for a grid search, same length as start; NA for the default range. If gsl, gsu and gsn are all NULL, no grid search is performed. See \code{\link{drmTMBstart}}.
@@ -126,6 +127,20 @@
 #' loglogistic (weibull1), with b4 the log ED50, but it keeps observations at dose zero and reports
 #' effective doses on the dose scale. Without random effects on b4, both links give the same fit.
 #'
+#' With \code{curvelink}, the curve f(x) of the model is on the scale of a link of the response: the
+#' mean, the median for the lognormal family, or the probability is exp(f(x)) for the log link, plogis(f(x))
+#' for logit and pnorm(f(x)) for probit. The lognormal family with \code{curvelink="log"} has the curve on
+#' the scale of log(y), log(median) = f(x), the lognormal models of the Bayesian benchmark dose modelling of
+#' EFSA (2022); without it, as in PROAST and BMDS, the curve is the median. The binomial family with the
+#' power model and \code{curvelink="probit"} or \code{"logit"} gives the quantal probit and logistic models
+#' of EFSA (2022), pnorm(b1 + b4 x^b3) and plogis(b1 + b4 x^b3); with b3 fixed at 1, the probit and logit
+#' models of glm. Effective doses of \code{\link{ed}} refer to the curve f, so that b4 keeps its meaning,
+#' e.g. the ED50 of the curve; absolute effective doses take responses on the scale of the response.
+#' \code{predict}, \code{fitted}, \code{residuals} and \code{simulate} are on the scale of the response,
+#' and the benchmark doses of \code{\link{bmd}} and \code{bmdpar} are defined on the scale of the response,
+#' e.g. the relative change of the median. \code{\link{peak}} and \code{ed(residual=TRUE)} are not
+#' available with a curve link.
+#'
 #' Gaussian models without random effects are estimated by maximum likelihood, but by default
 #' (\code{smallsample=TRUE} in \code{\link{drmTMBcontrol}}) their inference follows lm, nls and drc:
 #' the residual standard deviation is the square root of the unbiased residual variance, the weighted
@@ -171,12 +186,12 @@
 #' @return A drmTMB object
 #' @export
 
-drmTMB <- function(form, fform=NULL, rform=NULL, data, start=NULL, fix=NULL, weights=NULL, lower=-Inf, upper=Inf, family="gaussian", model="logistic", alpha=NULL, smooth=NULL, parlink=NULL, prior=NULL, bmdpar=NULL, gsl=NULL, gsu=NULL, gsn=NULL, control=list()){
+drmTMB <- function(form, fform=NULL, rform=NULL, data, start=NULL, fix=NULL, weights=NULL, lower=-Inf, upper=Inf, family="gaussian", model="logistic", alpha=NULL, smooth=NULL, parlink=NULL, curvelink="identity", prior=NULL, bmdpar=NULL, gsl=NULL, gsu=NULL, gsn=NULL, control=list()){
   start0 <- start
   fix0 <- fix
   # control list
   control <- do.call(drmTMBcontrol, control)
-  dd <- drmTMBdata(form, fform=fform, rform=rform, data=data, weights=weights, family=family, model=model, alpha=alpha, smooth=smooth, parlink=parlink)
+  dd <- drmTMBdata(form, fform=fform, rform=rform, data=data, weights=weights, family=family, model=model, alpha=alpha, smooth=smooth, parlink=parlink, curvelink=curvelink)
   fixnamed <- !is.null(names(fix))
   start <- parvector(start, dd$npi, NA, "start")
   fix <- parvector(fix, dd$npi, FALSE, "fix")
@@ -192,7 +207,7 @@ drmTMB <- function(form, fform=NULL, rform=NULL, data, start=NULL, fix=NULL, wei
     # the default lower bound 0 of b4 only applies without user bounds
     dd$bmd$b4pos <- dd$bmd$b4pos && identical(lower, -Inf)
     f0 <- drmTMB(form, fform=fform, rform=rform, data=data, start=start0, fix=fix0, weights=weights, lower=lower, upper=upper,
-                 family=family, model=model, alpha=alpha, smooth=smooth, parlink=parlink, prior=prior[names(prior) != "bmd"],
+                 family=family, model=model, alpha=alpha, smooth=smooth, parlink=parlink, curvelink=curvelink, prior=prior[names(prior) != "bmd"],
                  gsl=gsl, gsu=gsu, gsn=gsn, control=control)
     b0 <- suppressWarnings(bmd(f0, dd$bmd$bmr, dd$bmd$def, scale="conditional"))
     if (is.na(coef(b0))) stop("the curve of the standard fit does not reach the benchmark response; the BMD parameterisation needs a finite BMD.")
@@ -272,6 +287,7 @@ drmTMB <- function(form, fform=NULL, rform=NULL, data, start=NULL, fix=NULL, wei
   res$alpha <- alpha
   res$smooth <- dd$smooth
   res$parlink <- dd$parlink
+  res$curvelink <- dd$curvelink
   res$start <- start
   res$fix <- fix
   res$Xs <- dd$Xs
