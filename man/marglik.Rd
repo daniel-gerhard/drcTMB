@@ -4,14 +4,14 @@
 \alias{marglik}
 \title{Marginal likelihood of a drmTMB model with priors}
 \usage{
-marglik(object, method = c("laplace", "is"), n = 2000, df = 4)
+marglik(object, method = c("laplace", "is"), n = 5000, df = 4)
 }
 \arguments{
 \item{object}{a drmTMB object, fitted with priors for all parameters}
 
 \item{method}{"laplace" (default) or "is" (importance sampling)}
 
-\item{n}{number of draws for importance sampling}
+\item{n}{number of draws of the final round of importance sampling}
 
 \item{df}{degrees of freedom of the multivariate t proposal of importance sampling}
 }
@@ -42,10 +42,15 @@ integrated out first, so that this is a nested Laplace approximation. It is poor
 mode is close to a bound, e.g. of a pert prior or a multistage coefficient at 0, which gives a
 warning.
 
-\code{method="is"} estimates the marginal likelihood by importance sampling from a multivariate t
-distribution with \code{df} degrees of freedom, centred at the posterior mode with the covariance of
-the fit as its scale matrix. Draws outside the bounds of the parameters have weight 0. The result
-reports the effective sample size of the weights and the Monte Carlo standard error of the log
-marginal likelihood; a small effective sample size (e.g. below 100) means the estimate is unreliable.
-With random effects, each draw needs an inner optimisation, so that importance sampling is slower.
+\code{method="is"} estimates the marginal likelihood by adaptive importance sampling. The proposal is
+a multivariate t distribution with \code{df} degrees of freedom, first centred at the posterior mode
+with the covariance of the fit as its scale matrix; three rounds of n/2 draws move it to the weighted
+mean and covariance of the draws, which follows skewed or curved posteriors (e.g. a strong
+correlation of the log BMD with the slope), and a final round of n draws gives the estimate. The
+proposal of each round is a mixture, with probability 0.2 of the initial proposal, so that the
+weights stay bounded in its tails. Draws outside the bounds of the parameters have weight 0. The
+result reports the effective sample size of the weights of the final round and the Monte Carlo
+standard error of the log marginal likelihood; a small effective sample size (e.g. below 100) means
+the estimate is unreliable. With random effects, each draw needs an inner optimisation, so that
+importance sampling is slower.
 }

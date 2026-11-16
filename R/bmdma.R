@@ -67,19 +67,10 @@ bmdma <- function(..., bmr=0.1, def=c("excess", "additional", "relative", "sd"),
   scale <- match.arg(scale)
   average <- match.arg(average)
   weights <- match.arg(weights)
-  fits <- list(...)
-  nms <- names(fits)
-  exprs <- vapply(as.list(substitute(list(...)))[-1], function(e) paste(deparse(e), collapse=""), character(1))
-  if (is.null(nms)) nms <- exprs
-  nms[nms == ""] <- exprs[nms == ""]
-  names(fits) <- make.unique(nms)
+  fits <- namefits(list(...), as.list(substitute(list(...)))[-1])
   K <- length(fits)
   if (K < 2) stop("give at least two fitted models.")
-  if (!all(vapply(fits, inherits, logical(1), "drmTMB"))) stop("all models must be drmTMB objects.")
-  dat <- function(f) lapply(f$obj$env$data[c("x", "y", "w", "bn")], function(v) unname(as.vector(v)))
-  for (k in 2:K) if (!isTRUE(all.equal(dat(fits[[1]]), dat(fits[[k]])))){
-    stop("the models must be fitted to the same doses, responses and weights: ", names(fits)[k], " differs from ", names(fits)[1], ".")
-  }
+  samedata(fits)
   nconv <- vapply(fits, function(f) f$opt$convergence != 0, logical(1))
   if (any(nconv)) warning("the fits of ", paste(names(fits)[nconv], collapse=", "), " did not converge; their AICs and BMDs may be unreliable.", call.=FALSE)
   if (!is.numeric(nsim) || length(nsim) != 1 || nsim < 0) stop("nsim must be a non-negative number.")
@@ -241,6 +232,26 @@ confint.bmdma <- function(object, parm=NULL, level=0.90, method=c("boot", "buckl
   }
   dimnames(ci) <- list(names(est)[parm], paste(format(100*probs, trim=TRUE, scientific=FALSE, digits=3), "%"))
   ci
+}
+
+# fitted models of the ... argument, named by their argument names or by their expressions exprs
+namefits <- function(fits, exprs){
+  nms <- names(fits)
+  ex <- vapply(exprs, function(e) paste(deparse(e), collapse=""), character(1))
+  if (is.null(nms)) nms <- ex
+  nms[nms == ""] <- ex[nms == ""]
+  names(fits) <- make.unique(nms)
+  if (!all(vapply(fits, inherits, logical(1), "drmTMB"))) stop("all models must be drmTMB objects.")
+  fits
+}
+
+# stop unless the fits have the same doses, responses and weights
+samedata <- function(fits){
+  dat <- function(f) lapply(f$obj$env$data[c("x", "y", "w", "bn")], function(v) unname(as.vector(v)))
+  for (k in seq_along(fits)[-1]) if (!isTRUE(all.equal(dat(fits[[1]]), dat(fits[[k]])))){
+    stop("the models must be fitted to the same doses, responses and weights: ", names(fits)[k], " differs from ", names(fits)[1], ".")
+  }
+  invisible(TRUE)
 }
 
 # weights of the models with information criteria ic
