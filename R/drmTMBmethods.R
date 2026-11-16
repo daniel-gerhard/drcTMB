@@ -55,6 +55,7 @@ print.drmTMB <- function(x, digits=max(3L, getOption("digits") - 3L), ...){
   printprior(x$prior)
   cat("\nCoefficients", if (!is.null(x$prior)) " (posterior modes)", ":\n", sep="")
   print.default(format(coef(x)[seq_len(sum(!x$fix))], digits=digits), print.gap=2L, quote=FALSE)
+  printbmdpar(x$bmdpar, coef(x)[["log_bmd"]], digits)
   printfixed(userfixed(x), digits)
   printre(recov(x), digits)
   printresid(x$family, residpar(x), digits)
@@ -135,7 +136,7 @@ summary.drmTMB <- function(object, ...){
               coefficients=coefs, fixed=userfixed(object), varcor=vcs, residpar=residpar(object), rdf=object$rdf,
               singular=singular, dispersion=dispersion, atbound=atbound(object),
               convergence=object$opt$convergence, message=object$opt$message,
-              maxgrad=max(abs(gr)), pdHess=object$sdrl$pdHess, prior=object$prior)
+              maxgrad=max(abs(gr)), pdHess=object$sdrl$pdHess, prior=object$prior, bmdpar=object$bmdpar)
   class(res) <- "summary.drmTMB"
   res
 }
@@ -163,7 +164,8 @@ print.summary.drmTMB <- function(x, digits=max(3L, getOption("digits") - 3L), ..
   printCoefmat(x$coefficients, digits=digits)
   if (length(x$atbound) > 0) cat("At a bound: ", paste(names(x$atbound), "=", format(x$atbound, digits=digits), collapse=", "),
                                   "; the standard errors and Wald intervals do not account for the bound.\n", sep="")
-  if (isTRUE(x$b4log)) cat("The coefficients of b4 are on the log scale.\n")
+  if (!is.null(x$bmdpar)) printbmdpar(x$bmdpar, x$coefficients["log_bmd", 1], digits)
+  else if (isTRUE(x$b4log)) cat("The coefficients of b4 are on the log scale.\n")
   if (!is.null(x$b5)) cat("The ", x$b5, " parameter b5 is on the log scale.\n", sep="")
   printfixed(x$fixed, digits)
   printre(x$varcor, digits)
@@ -265,6 +267,7 @@ predict.drmTMB <- function(object, newdata=NULL, random=TRUE, se.fit=FALSE, inte
                            type=c("response", "parameters"), scale=c("original", "link"), ...){
   interval <- match.arg(interval)
   type <- match.arg(type)
+  nobmdpar(object, "predict")
   scale <- match.arg(scale)
   if (is.null(newdata)) newdata <- object$data
   if (type == "parameters") return(predictpars(object, newdata, random, se.fit, interval, level, boot, nsim, seed, scale))
@@ -801,7 +804,7 @@ linktext <- function(link, model){
 
 # coefficients fixed by the user, named; the parameters the model does not use are always fixed
 userfixed <- function(object){
-  npi <- as.integer(sub("^b([1-5]):.*", "\\1", object$coefnames))
+  npi <- rep(1:5, vapply(object$Xs, ncol, integer(1)))
   ufix <- object$fix & !(npi %in% unusedpars(modelindex(object$model)))
   setNames(object$start[ufix], object$coefnames[ufix])
 }

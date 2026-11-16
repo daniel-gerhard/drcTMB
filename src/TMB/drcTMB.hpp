@@ -33,6 +33,12 @@ Type drcTMB(objective_function<Type>* obj) {
   DATA_MATRIX(Xp4);
   DATA_MATRIX(Xp5);
   DATA_SPARSE_MATRIX(Zp);  // random effects of the fitted levels; zero rows for population predictions
+  DATA_INTEGER(bmdpar);    // 1: BMD parameterisation, b4 holds log BMD of the curve of the intercepts (see bmdb4); 0 otherwise
+  DATA_INTEGER(b4role);    // BMD parameterisation: role of b4, see bmdb4
+  DATA_INTEGER(bdef);      // definition of the benchmark response, see bmdtarget
+  DATA_SCALAR(bbmr);       // benchmark response
+  DATA_INTEGER(binc);      // direction of the curve: 1 increasing, -1 decreasing
+  DATA_INTEGER(b4pos);     // 1: b4 must not be negative (default lower bound 0 of the standard parameterisation)
   DATA_IVECTOR(prwhat);    // priors: 0 = coefficient of b1-b5, 1 = theta, 2 = log_sigma; length zero without priors
   DATA_IVECTOR(pridx);     // index (from 0) in the coefficients b1-b5, concatenated, or in theta
   DATA_IVECTOR(prtrans);   // from the parameter to the scale of the prior: 1 identity, 2 exp, 3 inverse logit
@@ -143,13 +149,22 @@ Type drcTMB(objective_function<Type>* obj) {
   vector<Type> Xb4 = X4 * b4;
   vector<Type> Xb5 = X5 * b5;
 
+  // BMD parameterisation: b4 from the BMD and the other parameters of the curve of the intercepts
+  // (without covariates; random effects of the groups on b1-b3 and b5 are added to that curve)
+  Type f4bmd = 0;
+  if (bmdpar == 1){
+    f4bmd = bmdb4(mod, b4role, Type(exp(b4(0))), linkinv(lnk(0), b1(0)), linkinv(lnk(1), b2(0)),
+                  linkinv(lnk(2), b3(0)), linkinv(lnk(4), b5(0)), bdef, bbmr, binc, phi, smooth);
+    REPORT(f4bmd);
+  }
+
   Type f;
   for (int i = 0; i < n; i++){
     f = drcmean(mod, x(i),
                 linkinv(lnk(0), Type(Xb1(i) + Zu(i, 0))),
                 linkinv(lnk(1), Type(Xb2(i) + Zu(i, 1))),
                 linkinv(lnk(2), Type(Xb3(i) + Zu(i, 2))),
-                linkinv(lnk(3), Type(Xb4(i) + Zu(i, 3))),
+                bmdpar == 1 ? f4bmd : linkinv(lnk(3), Type(Xb4(i) + Zu(i, 3))),
                 linkinv(lnk(4), Type(Xb5(i) + Zu(i, 4))), alpha, smooth);
     nll += -w(i) * loglik(fam, y(i), f, bn(i), phi);
     SIMULATE {
@@ -158,6 +173,10 @@ Type drcTMB(objective_function<Type>* obj) {
   }
   SIMULATE {
     REPORT(y);
+  }
+  // BMD parameterisation: a computed b4 below its bound 0 is outside the parameter space
+  if (bmdpar == 1 && b4pos == 1){
+    nll = CppAD::CondExpLt(f4bmd, Type(0), Type(std::numeric_limits<double>::infinity()), nll);
   }
 
   // mean at the doses xp, for standard errors of the predictions by the delta method
@@ -188,7 +207,7 @@ Type drcTMB(objective_function<Type>* obj) {
                       linkinv(lnk(0), Type(Xpb1(i) + Zup(i, 0))),
                       linkinv(lnk(1), Type(Xpb2(i) + Zup(i, 1))),
                       linkinv(lnk(2), Type(Xpb3(i) + Zup(i, 2))),
-                      linkinv(lnk(3), Type(Xpb4(i) + Zup(i, 3))),
+                      bmdpar == 1 ? f4bmd : linkinv(lnk(3), Type(Xpb4(i) + Zup(i, 3))),
                       linkinv(lnk(4), Type(Xpb5(i) + Zup(i, 4))), alpha, smooth);
     }
     ADREPORT(mu);

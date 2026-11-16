@@ -20,6 +20,7 @@ drmTMB(
   smooth = NULL,
   link = NULL,
   prior = NULL,
+  bmdpar = NULL,
   gsl = NULL,
   gsu = NULL,
   gsn = NULL,
@@ -56,6 +57,8 @@ drmTMB(
 \item{link}{links of the parameters b1-b5: NULL for the defaults of the model, a single link for the asymptotes b1 and b2, or links named by parameter, e.g. c(b1="logit", b2="logit", b4="log"), where the parameters not named keep their defaults. b1 and b2 have the link "identity" (default), "log" or "logit"; b4 has "identity" (default) or "log" for the models with a positive b4 (not logistic, gompertz, multistage, exponential and power); b5 has the log link for the asymmetry of logistic and loglogistic and the shape of nec; the other parameters have the identity link. The coefficients, and start, fix, lower, upper and linfct of \code{\link{ed}}, are on the scale of the links, see Details.}
 
 \item{prior}{NULL (default) for maximum likelihood without priors, or a named list of prior distributions (see \code{\link{priors}}), e.g. list(b2=normal(8, 2), b4=pert(0.5, 3, 10), sd=half_normal(1)): by parameter b1-b5, for parameters with a single coefficient, on the scale of the parameter (after the inverse link); by coefficient name, e.g. "b4:herbicideB", on the scale of the coefficient (the link); "sd" for all standard deviations of the random effects, or "sd:b1|group" for one of them; and "sigma" (gaussian, lognormal), "phi" (beta, nbinom1, betabinomial) or "theta" (nbinom2) for the residual parameter, on their natural scale. See Details.}
+
+\item{bmdpar}{NULL (default) for the standard parameterisation, or a list with a benchmark response bmr and its definition def as in \code{\link{bmd}}, e.g. list(bmr=0.1, def="relative"), for the BMD parameterisation: b4 is replaced by the log benchmark dose, coefficient log_bmd, and computed from it. See Details.}
 
 \item{gsl}{a vector of lower bounds for a grid search, same length as start; NA for the default range. If gsl, gsu and gsn are all NULL, no grid search is performed. See \code{\link{drmTMBstart}}.}
 
@@ -203,4 +206,19 @@ The standard errors and Wald intervals are from the curvature of the log posteri
 intervals profile the log posterior. \code{logLik} returns the log-likelihood at the posterior mode,
 without the priors, so that AIC and \code{\link{anova.drmTMB}} are approximate for fits with priors.
 Small-sample inference is not used with priors. Refits of \code{\link{bootstrap}} keep the priors.
+
+With \code{bmdpar}, the model is fitted in the BMD parameterisation, as in the Bayesian benchmark dose
+modelling of EFSA (2022): the coefficient of b4 is replaced by log_bmd, the log benchmark dose of the
+curve of the intercepts (the conditional BMD of \code{\link{bmd}}, with the random effects at zero), and
+b4 is computed from it and b1-b3 and b5. Without priors, this is the same model as the standard one, with
+the same likelihood, and exp(log_bmd) is the BMD of \code{bmd(fit, bmr, def, scale="conditional")} of
+the standard fit, by maximum likelihood (\code{smallsample} is not used). A prior for the BMD is given
+as \code{prior=list(bmd=...)}, on the dose scale. The standard model is fitted first, for the starting
+values and the direction of the curve. The parameterisation needs a model whose response at dose zero
+does not depend on b4 (not logistic, gompertz, the hormesis models, haldane, constant, or the smoothed
+threshold of nec), b4 with a single coefficient and without random effects, and b1-b3 and b5 without
+covariates; random effects on b1-b3 and b5 are allowed. For multistage and nec, the computed b4 keeps its
+default lower bound 0. \code{coef}, \code{vcov}, \code{summary}, \code{logLik}, \code{confint},
+\code{simulate} and \code{\link{bootstrap}} are available for these fits; \code{ed}, \code{bmd},
+\code{peak} and \code{predict} need the standard parameterisation.
 }
