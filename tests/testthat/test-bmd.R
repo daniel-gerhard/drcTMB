@@ -101,7 +101,7 @@ test_that("marginal BMDs average the mean curve over the random effects", {
   expect_false(bm$integrated[[1]])
   expect_equal(coef(bm), coef(bmd(f2, 0.1, def="relative", scale="conditional")))
 
-  f <- fit4(y ~ dose, rform=b2 + b4 ~ 1 | grp, data=d, model="loglogistic", link=c(b4="log"))
+  f <- fit4(y ~ dose, rform=b2 + b4 ~ 1 | grp, data=d, model="loglogistic", parlink=c(b4="log"))
   bm <- bmd(f, c(0.05, 0.2), def="relative")
   bc <- bmd(f, c(0.05, 0.2), def="relative", scale="conditional")
   expect_true(all(bm$integrated))

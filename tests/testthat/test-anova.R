@@ -112,11 +112,11 @@ test_that("the constant model agrees with glm and lme4", {
   u <- rnorm(8, 0, 0.6)
   d$n <- 20
   d$y <- rbinom(nrow(d), d$n, plogis(0.3 + u[d$grp]))
-  b0 <- drmTMB(cbind(y, n - y) ~ dose, data=d, model="constant", family="binomial", link="logit")
+  b0 <- drmTMB(cbind(y, n - y) ~ dose, data=d, model="constant", family="binomial", parlink="logit")
   g0 <- glm(cbind(y, n - y) ~ 1, data=d, family=binomial)
   expect_equal(as.numeric(logLik(b0)), as.numeric(logLik(g0)), tolerance=1e-8)
   expect_equal(unname(coef(b0)[1]), unname(coef(g0)), tolerance=1e-6)
-  r0 <- drmTMB(cbind(y, n - y) ~ dose, rform=b1 ~ 1 | grp, data=d, model="constant", family="binomial", link="logit")
+  r0 <- drmTMB(cbind(y, n - y) ~ dose, rform=b1 ~ 1 | grp, data=d, model="constant", family="binomial", parlink="logit")
   l0 <- lme4::glmer(cbind(y, n - y) ~ 1 + (1 | grp), data=d, family=binomial, nAGQ=1)
   expect_equal(as.numeric(logLik(r0)), as.numeric(logLik(l0)), tolerance=1e-5)
   expect_equal(unname(coef(r0)[1]), unname(lme4::fixef(l0)), tolerance=1e-4)

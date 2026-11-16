@@ -18,7 +18,7 @@ drmTMB(
   model = "logistic",
   alpha = NULL,
   smooth = NULL,
-  link = NULL,
+  parlink = NULL,
   prior = NULL,
   bmdpar = NULL,
   gsl = NULL,
@@ -54,7 +54,7 @@ drmTMB(
 
 \item{smooth}{smoothing of the threshold of the nec model: the width of the smoothed threshold relative to the smallest interval between doses, a number of at least 0; 0 is an exact threshold. The default is 0.1 with random effects on b4, and 0 otherwise. Only for the nec model, see Details.}
 
-\item{link}{links of the parameters b1-b5: NULL for the defaults of the model, a single link for the asymptotes b1 and b2, or links named by parameter, e.g. c(b1="logit", b2="logit", b4="log"), where the parameters not named keep their defaults. b1 and b2 have the link "identity" (default), "log" or "logit"; b4 has "identity" (default) or "log" for the models with a positive b4 (not logistic, gompertz, multistage, exponential and power); b5 has the log link for the asymmetry of logistic and loglogistic and the shape of nec; the other parameters have the identity link. The coefficients, and start, fix, lower, upper and linfct of \code{\link{ed}}, are on the scale of the links, see Details.}
+\item{parlink}{links of the parameters b1-b5: NULL for the defaults of the model, a single link for the asymptotes b1 and b2, or links named by parameter, e.g. c(b1="logit", b2="logit", b4="log"), where the parameters not named keep their defaults. b1 and b2 have the link "identity" (default), "log" or "logit"; b4 has "identity" (default) or "log" for the models with a positive b4 (not logistic, gompertz, multistage, exponential and power); b5 has the log link for the asymmetry of logistic and loglogistic and the shape of nec; the other parameters have the identity link. The coefficients, and start, fix, lower, upper and linfct of \code{\link{ed}}, are on the scale of the links, see Details.}
 
 \item{prior}{NULL (default) for maximum likelihood without priors, or a named list of prior distributions (see \code{\link{priors}}), e.g. list(b2=normal(8, 2), b4=pert(0.5, 3, 10), sd=half_normal(1)): by parameter b1-b5, for parameters with a single coefficient, on the scale of the parameter (after the inverse link); by coefficient name, e.g. "b4:herbicideB", on the scale of the coefficient (the link); "sd" for all standard deviations of the random effects, or "sd:b1|group" for one of them; and "sigma" (gaussian, lognormal), "phi" (beta, nbinom1, betabinomial) or "theta" (nbinom2) for the residual parameter, on their natural scale. See Details.}
 
@@ -159,7 +159,7 @@ b4 = sign b^b3). The power b3 is bounded below by 0 by default (if \code{lower} 
 covariates in fform); BMDS restricts the power of its power model to b3 >= 1 by default, which can be
 set by \code{lower}. Without an upper asymptote, relative effective doses are not defined:
 \code{\link{ed}} gives absolute effective doses (\code{type="absolute"}), and \code{\link{bmd}} benchmark
-doses. For the exponential model, the log link for b1, \code{link=c(b1="log")}, makes the model
+doses. For the exponential model, the log link for b1, \code{parlink=c(b1="log")}, makes the model
 linear on the log scale, with log(b1) the intercept.
 
 The linear-quadratic model of radiobiology, S = exp(-alpha x - beta x^2), is the multistage model of
@@ -172,7 +172,7 @@ a dose-response model by \code{\link{anova.drmTMB}}, it tests for a dose effect,
 asymptote are not identifiable, so the chi-square distribution of the likelihood ratio statistic
 is only an approximation.
 
-With the log link for b4, \code{link=c(b4="log")}, the linear predictor of b4, including its random effects, is log(b4):
+With the log link for b4, \code{parlink=c(b4="log")}, the linear predictor of b4, including its random effects, is log(b4):
 the coefficients of b4 in \code{coef}, \code{start}, \code{fix}, \code{lower}, \code{upper} and
 \code{linfct} of \code{\link{ed}} are on the log scale. Random effects on b4 then vary b4 by a
 factor between groups, and the estimate of b4 is the median over the groups. For the models on the

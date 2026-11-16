@@ -44,7 +44,7 @@ test_that("profile intervals with random effects agree with lme4", {
   u <- rnorm(12, 0, 0.5)
   d$y <- rpois(nrow(d), exp(log(50) + u[d$grp] - d$dose/4))
   f <- drmTMB(y ~ dose, rform=b1 ~ 1 | grp, data=d, model="exponentialdecay", family="poisson",
-              link="log", start=c(b2=-30), fix=c(b2=TRUE))
+              parlink="log", start=c(b2=-30), fix=c(b2=TRUE))
   ci <- confint(profile(f, parm=names(coef(f))))
   expect_equal(rownames(ci), c("b1:(Intercept)", "b4:(Intercept)", "sd:b1|grp"))
 
@@ -107,7 +107,7 @@ test_that("b4 computed from the effective dose inverts ed() for all models", {
     b <- numeric(5)
     b[!f$fix] <- bcoef(f)
     b[f$fix] <- f$start[f$fix]
-    b4 <- sapply(1:3, function(i) drcTMB:::edb4(match(m, models), e$q[[i]], e$estimates[[i]], b[3], drcTMB:::linkpars(drcTMB:::linkindex(f$link), b)[5]))
+    b4 <- sapply(1:3, function(i) drcTMB:::edb4(match(m, models), e$q[[i]], e$estimates[[i]], b[3], drcTMB:::linkpars(drcTMB:::linkindex(f$parlink), b)[5]))
     expect_equal(b4, rep(b[4], 3), tolerance=1e-10, label=m)
   }
 })

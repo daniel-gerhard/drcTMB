@@ -276,7 +276,7 @@ bmdcurve <- function(b, i, par){
   pv[!fit$fix] <- par[seq_len(sum(!fit$fix))]
   lpv <- as.vector(b$linfct[[i]] %*% pv)
   bp <- bmdpars(fit, par)
-  lnk <- linkindex(fit$link)
+  lnk <- linkindex(fit$parlink)
   if (length(info$wq) > 0){
     B <- linkpars(lnk, t(lpv + info$A %*% recholesky(fit, bp$theta) %*% info$E))
     wq <- info$wq

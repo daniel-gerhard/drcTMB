@@ -83,7 +83,7 @@ test_that("lognormal models with random effects", {
   u2 <- rnorm(10, 0, 0.3)
   u4 <- rnorm(10, 0, 0.4)
   d$y <- with(d, (1 + (8*exp(u2[grp]) - 1)/(1 + exp(1.5*(log(pmax(dose, 1e-12)) - log(3) - u4[grp]))))) * exp(rnorm(nrow(d), 0, 0.15))
-  f <- fit4(y ~ dose, rform=b4 ~ 1 | grp, data=d, family="lognormal", model="loglogistic", link=c(b4="log"))
+  f <- fit4(y ~ dose, rform=b4 ~ 1 | grp, data=d, family="lognormal", model="loglogistic", parlink=c(b4="log"))
   expect_null(df.residual(f))
   expect_equal(f$opt$convergence, 0)
   bm <- bmd(f, 0.1, def="relative")

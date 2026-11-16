@@ -48,7 +48,7 @@ test_that("poisson exponential decay with random b1 agrees with glmer", {
   u <- rnorm(12, 0, 0.5)
   d$y <- rpois(nrow(d), exp(log(50) + u[d$grp] - d$dose/4))
   f1 <- drmTMB(y ~ dose, rform=b1 ~ 1 | grp, data=d, model="exponentialdecay", family="poisson",
-               link="log", start=c(b2=-30), fix=c(b2=TRUE))
+               parlink="log", start=c(b2=-30), fix=c(b2=TRUE))
   g1 <- lme4::glmer(y ~ dose + (1 | grp), data=d, family=poisson)
   b <- lme4::fixef(g1)
   expect_equal(f1$opt$objective, -as.numeric(logLik(g1)), tolerance=1e-6)
@@ -88,7 +88,7 @@ simnb <- function(seed=2){
 test_that("nbinom2 exponential decay agrees with glm.nb", {
   skip_if_not_installed("MASS")
   d <- simnb()
-  f1 <- drmTMB(y ~ dose, data=d, model="exponentialdecay", family="nbinom2", link="log", start=c(b2=-30), fix=c(b2=TRUE))
+  f1 <- drmTMB(y ~ dose, data=d, model="exponentialdecay", family="nbinom2", parlink="log", start=c(b2=-30), fix=c(b2=TRUE))
   g1 <- MASS::glm.nb(y ~ dose, data=d)
   b <- coef(g1)
   expect_equal(f1$opt$objective, -as.numeric(logLik(g1)), tolerance=1e-7)
@@ -100,7 +100,7 @@ test_that("negative binomial families with random b1 agree with glmmTMB", {
   skip_if_not_installed("glmmTMB")
   d <- simnb()
   for (fam in c("nbinom2", "nbinom1")){
-    f1 <- drmTMB(y ~ dose, rform=b1 ~ 1 | grp, data=d, model="exponentialdecay", family=fam, link="log",
+    f1 <- drmTMB(y ~ dose, rform=b1 ~ 1 | grp, data=d, model="exponentialdecay", family=fam, parlink="log",
                  start=c(b2=-30), fix=c(b2=TRUE))
     g1 <- glmmTMB::glmmTMB(y ~ dose + (1 | grp), data=d, family=get(fam, asNamespace("glmmTMB"))())
     b <- glmmTMB::fixef(g1)$cond

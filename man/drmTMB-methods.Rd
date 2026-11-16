@@ -84,7 +84,7 @@ For prediction intervals, random=TRUE gives the interval of a new observation in
 
 \item{seed}{an optional seed for the random number generator}
 
-\item{scale}{for type="parameters", the scale of the parameters: "original" (default) or "link", the scale of the coefficients, see the argument link of \code{\link{drmTMB}}.}
+\item{scale}{for type="parameters", the scale of the parameters: "original" (default) or "link", the scale of the coefficients, see the argument parlink of \code{\link{drmTMB}}.}
 }
 \value{
 Estimated model coefficients, variance-covariance matrix, or predictions.

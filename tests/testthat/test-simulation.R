@@ -46,7 +46,7 @@ test_that("fixed effects and variance components are recovered (binomial, random
   d$y <- rbinom(nrow(d), d$n, 0.05 + 0.9*plogis(1.2*(d$dose - 5 - u[d$grp])))
   # the logit link keeps the asymptotes inside (0, 1) during the optimisation
   f <- drmTMB(cbind(y, n - y) ~ dose, rform=b4 ~ 1 | grp, data=d, model="logistic", family="binomial",
-              link="logit", start=c(b5=0), fix=c(b5=TRUE))
+              parlink="logit", start=c(b5=0), fix=c(b5=TRUE))
   se <- sqrt(diag(vcov(f)))[1:4]
   expect_true(within(bcoef(f), c(qlogis(0.05), qlogis(0.95), 1.2, 5), se))
   ls <- logsd(f)

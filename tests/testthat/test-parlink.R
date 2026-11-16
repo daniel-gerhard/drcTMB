@@ -11,12 +11,12 @@ simquantal <- function(seed=1){
 test_that("the links of a fit are the defaults of the model, by parameter", {
   d <- simgauss("loglogistic")
   f <- drmTMB(y ~ dose, data=d, model="loglogistic")
-  expect_equal(f$link, c(b1="identity", b2="identity", b3="identity", b4="identity", b5="log"))
-  f <- drmTMB(y ~ dose, data=simgauss("weibull1"), model="weibull1", link="log")
-  expect_equal(f$link, c(b1="log", b2="log", b3="identity", b4="identity", b5="identity"))
+  expect_equal(f$parlink, c(b1="identity", b2="identity", b3="identity", b4="identity", b5="log"))
+  f <- drmTMB(y ~ dose, data=simgauss("weibull1"), model="weibull1", parlink="log")
+  expect_equal(f$parlink, c(b1="log", b2="log", b3="identity", b4="identity", b5="identity"))
   # the constant model does not use b2
-  f <- drmTMB(y ~ dose, data=d, model="constant", link="log")
-  expect_equal(f$link[1:2], c(b1="log", b2="identity"))
+  f <- drmTMB(y ~ dose, data=d, model="constant", parlink="log")
+  expect_equal(f$parlink[1:2], c(b1="log", b2="identity"))
   expect_equal(unname(exp(coef(f)[1])), mean(d$y), tolerance=1e-6)
 })
 
@@ -24,8 +24,8 @@ test_that("the asymptotes can have different links", {
   q <- simquantal()
   # background on the logit scale, b2 fixed at 1 on the probability scale
   f <- drmTMB(cbind(dead, n - dead) ~ dose, data=q, family="binomial", model="loglogistic",
-              link=c(b1="logit"), start=c(b2=1, b5=0), fix=c(b2=TRUE, b5=TRUE))
-  expect_equal(f$link[1:2], c(b1="logit", b2="identity"))
+              parlink=c(b1="logit"), start=c(b2=1, b5=0), fix=c(b2=TRUE, b5=TRUE))
+  expect_equal(f$parlink[1:2], c(b1="logit", b2="identity"))
   cf <- coef(f)
   nd <- data.frame(dose=c(0, 1, 3, 10))
   expect_equal(predict(f, newdata=nd), drcTMB:::drcmeanR(2, nd$dose, plogis(cf[[1]]), 1, cf[[2]], cf[[3]], 1))
@@ -42,10 +42,10 @@ test_that("the asymptotes can have different links", {
 
 test_that("link is checked", {
   d <- simgauss("loglogistic")
-  expect_error(drmTMB(y ~ dose, data=d, model="loglogistic", link="probit"), "Unknown link")
-  expect_error(drmTMB(y ~ dose, data=d, model="loglogistic", link=c("log", "log")), "single link")
-  expect_error(drmTMB(y ~ dose, data=d, model="loglogistic", link=c(b6="log")), "parameter names b1-b5")
-  expect_error(drmTMB(y ~ dose, data=d, model="loglogistic", link=c(b3="log")), "not available for b3")
-  expect_error(drmTMB(y ~ dose, data=d, model="loglogistic", link=c(b5="identity")), "not available for b5")
-  expect_error(drmTMB(y ~ dose, data=d, model="logistic", link=c(b4="log")), "positive b4")
+  expect_error(drmTMB(y ~ dose, data=d, model="loglogistic", parlink="probit"), "Unknown link")
+  expect_error(drmTMB(y ~ dose, data=d, model="loglogistic", parlink=c("log", "log")), "single link")
+  expect_error(drmTMB(y ~ dose, data=d, model="loglogistic", parlink=c(b6="log")), "parameter names b1-b5")
+  expect_error(drmTMB(y ~ dose, data=d, model="loglogistic", parlink=c(b3="log")), "not available for b3")
+  expect_error(drmTMB(y ~ dose, data=d, model="loglogistic", parlink=c(b5="identity")), "not available for b5")
+  expect_error(drmTMB(y ~ dose, data=d, model="logistic", parlink=c(b4="log")), "positive b4")
 })

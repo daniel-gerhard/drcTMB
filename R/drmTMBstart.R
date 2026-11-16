@@ -32,7 +32,7 @@
 #' @param model Specify the nonlinear model. One of "logistic", "loglogistic", "weibull1", "weibull2", "lognormal", "michaelismenten", "asymptoticregression", "exponentialdecay", "gompertz", "gamma", "multistage", "nec", "braincousens", "cedergreen", "constant".
 #' @param alpha the exponent of the hormesis term of the cedergreen model, see \code{\link{drmTMB}}.
 #' @param smooth smoothing of the threshold of the nec model, relative to the smallest interval between doses, see \code{\link{drmTMB}}; without random effects, the default is 0, an exact threshold.
-#' @param link links of the parameters b1-b5, see \code{\link{drmTMB}}.
+#' @param parlink links of the parameters b1-b5, see \code{\link{drmTMB}}.
 #' @param method one of "lm" or "grid".
 #' @param gsl a vector of lower bounds for the grid search, same length as start, on the scale of the coefficients (log scale for b4 with the log link); NA (or NULL) for the default range.
 #' @param gsu a vector of upper bounds for the grid search, same length as start; NA (or NULL) for the default range.
@@ -41,8 +41,8 @@
 #' @return a named vector of starting values
 #' @export
 #'
-drmTMBstart <- function(form, fform=NULL, data, start=NULL, fix=NULL, weights=NULL, family="gaussian", model="logistic", alpha=NULL, smooth=NULL, link=NULL, method="lm", gsl=NULL, gsu=NULL, gsn=NULL){
-  dd <- drmTMBdata(form, fform=fform, data=data, weights=weights, family=family, model=model, alpha=alpha, smooth=smooth, link=link)
+drmTMBstart <- function(form, fform=NULL, data, start=NULL, fix=NULL, weights=NULL, family="gaussian", model="logistic", alpha=NULL, smooth=NULL, parlink=NULL, method="lm", gsl=NULL, gsu=NULL, gsn=NULL){
+  dd <- drmTMBdata(form, fform=fform, data=data, weights=weights, family=family, model=model, alpha=alpha, smooth=smooth, parlink=parlink)
   if (is.null(start)) start <- rep(NA, sum(dd$npars))
   if (is.null(fix)) fix <- rep(FALSE, sum(dd$npars))
   fix[dd$npi %in% unusedpars(dd$mod)] <- TRUE
@@ -53,7 +53,7 @@ drmTMBstart <- function(form, fform=NULL, data, start=NULL, fix=NULL, weights=NU
 
 
 # model data shared by drmTMB and drmTMBstart
-drmTMBdata <- function(form, fform=NULL, rform=NULL, data, weights=NULL, family="gaussian", model="logistic", alpha=NULL, smooth=NULL, link=NULL){
+drmTMBdata <- function(form, fform=NULL, rform=NULL, data, weights=NULL, family="gaussian", model="logistic", alpha=NULL, smooth=NULL, parlink=NULL){
   fform <- fforms(fform)
   if (is.null(weights)) weights <- rep(1, nrow(data))
   if (length(weights) != nrow(data)) stop("weights must have one entry for each row of data.")
@@ -82,7 +82,7 @@ drmTMBdata <- function(form, fform=NULL, rform=NULL, data, weights=NULL, family=
   if (length(mod) != 1) stop("Unknown model: ", model)
   if (length(fam) != 1) stop("Unknown family: ", family, "; one of gaussian, lognormal, poisson, binomial, betabinomial, beta, nbinom2, nbinom1.")
   m <- drcmodel(mod)
-  link <- parlinks(link, m, model)
+  link <- parlinks(parlink, m, model)
   lnk <- linkindex(link)
   if (isTRUE(m$alpha)){
     if (is.null(alpha)) stop("the cedergreen model needs the exponent alpha of its hormesis term, e.g. alpha=1, 0.5 or 0.25 as CRS.4a, CRS.4b and CRS.4c of drc.")
@@ -126,7 +126,7 @@ drmTMBdata <- function(form, fform=NULL, rform=NULL, data, weights=NULL, family=
 
   list(y=y, x=mf[,2], w=weights, bn=bn, fam=fam, mod=mod, alpha=alpha, smooth=smooth, lnk=lnk, re=re,
        Xs=Xs, fform=fform, fterms=fterms, npars=npars, npi=rep(1:5, npars),
-       family=family, model=model, link=link, data=data)
+       family=family, model=model, parlink=link, data=data)
 }
 
 # design matrix of a parameter for data, with the terms, factor levels and contrasts of the fit
@@ -768,21 +768,21 @@ drcmeanR <- function(mod, x, f1, f2, f3, f4, f5, alpha=NULL, smooth=0){
 }
 
 # links of the parameters b1-b5 of model m (see drcmodels), named: the defaults of the model (see
-# modellinks), replaced by link, a single link for the asymptotes b1 and b2 or links named by parameter
-parlinks <- function(link, m, model){
+# modellinks), replaced by parlink, a single link for the asymptotes b1 and b2 or links named by parameter
+parlinks <- function(parlink, m, model){
   allowed <- modellinks(m)
   out <- vapply(allowed, function(a) a[1], character(1))
-  if (!is.null(link)){
-    if (!is.character(link)) stop("link must be a character vector.")
-    if (is.null(names(link))){
-      if (length(link) != 1) stop("link must be a single link for the asymptotes b1 and b2, or named by parameter, e.g. c(b1=\"logit\", b4=\"log\").")
-      link <- c(b1=link, b2=link)[if (is.na(m$b2)) 1 else 1:2]
+  if (!is.null(parlink)){
+    if (!is.character(parlink)) stop("parlink must be a character vector.")
+    if (is.null(names(parlink))){
+      if (length(parlink) != 1) stop("parlink must be a single link for the asymptotes b1 and b2, or named by parameter, e.g. c(b1=\"logit\", b4=\"log\").")
+      parlink <- c(b1=parlink, b2=parlink)[if (is.na(m$b2)) 1 else 1:2]
     }
-    if (any(!(names(link) %in% names(out))) || any(duplicated(names(link)))) stop("the names of link must be distinct parameter names b1-b5.")
-    for (p in names(link)){
-      if (is.na(linkindex(link[[p]]))) stop("Unknown link: ", link[[p]], "; one of identity, log, logit.")
+    if (any(!(names(parlink) %in% names(out))) || any(duplicated(names(parlink)))) stop("the names of parlink must be distinct parameter names b1-b5.")
+    for (p in names(parlink)){
+      if (is.na(linkindex(parlink[[p]]))) stop("Unknown link: ", parlink[[p]], "; one of identity, log, logit.")
     }
-    out[names(link)] <- link
+    out[names(parlink)] <- parlink
   }
   if (out[["b4"]] == "log" && m$b4 %in% "location") stop("the log link for b4 needs a positive b4; b4 of the ", model, " model is a location on the dose scale.")
   if (out[["b4"]] == "log" && m$b4 %in% "coefficient") stop("the log link for b4 is not available for the ", model, " model; b4 is a coefficient of ", if (m$ed %in% "polynomial") "its polynomial." else "b4 x^b3, of either sign.")

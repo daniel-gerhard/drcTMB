@@ -40,7 +40,7 @@ test_that("the BMD parameterisation for quantal responses", {
   p <- 0.05 + 0.95/(1 + exp(-1.5*(log(pmax(dq$dose, 1e-8)) - log(5))))
   dq$y <- rbinom(nrow(dq), dq$n, p)
   q <- list(form=cbind(y, n - y) ~ dose, data=dq, family="binomial")
-  expect_bmdpar_equal(c(q, list(model="loglogistic", link=c(b1="logit"), start=c(b2=1, b5=0), fix=c(b2=TRUE, b5=TRUE))), 0.1, "excess")
+  expect_bmdpar_equal(c(q, list(model="loglogistic", parlink=c(b1="logit"), start=c(b2=1, b5=0), fix=c(b2=TRUE, b5=TRUE))), 0.1, "excess")
   expect_bmdpar_equal(c(q, list(model="weibull1", start=c(b2=1), fix=c(b2=TRUE))), 0.05, "additional")
   # multistage: the computed coefficient b4 keeps its lower bound 0
   r <- expect_bmdpar_equal(c(q, list(model="multistage", start=c(b2=1), fix=c(b2=TRUE))), 0.1, "excess")

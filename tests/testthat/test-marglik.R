@@ -33,7 +33,7 @@ test_that("one parameter: Laplace and importance sampling match the exact integr
   set.seed(1)
   d <- data.frame(x=rep(0:4, each=3))
   d$y <- rpois(nrow(d), 4)
-  f <- drmTMB(y ~ x, data=d, family="poisson", model="constant", link=c(b1="log"), prior=list(b1=lognormal(log(3), 0.5)))
+  f <- drmTMB(y ~ x, data=d, family="poisson", model="constant", parlink=c(b1="log"), prior=list(b1=lognormal(log(3), 0.5)))
   ex <- logintegrate(function(l) sapply(l, function(m) sum(dpois(d$y, m, log=TRUE)) + dlnorm(m, log(3), 0.5, log=TRUE)), 0, 50, 30)
   ml <- marglik(f)
   expect_s3_class(ml, "drcmarglik")
@@ -66,7 +66,7 @@ test_that("two parameters: the gaussian constant model with priors for the mean 
 })
 
 test_that("nonlinear model: importance sampling matches adaptive quadrature", {
-  fr <- drmTMB(rootl ~ conc, data=ryegrass, model="loglogistic", start=c(b5=0), fix=c(b5=TRUE), link=c(b4="log"),
+  fr <- drmTMB(rootl ~ conc, data=ryegrass, model="loglogistic", start=c(b5=0), fix=c(b5=TRUE), parlink=c(b4="log"),
                prior=list(b1=normal(0, 1), b2=normal(8, 2), b3=normal(-2, 2), b4=lognormal(log(3), 1), sigma=lognormal(log(0.5), 1)))
   # quadrature with 7 nodes is within 0.01 of 15 nodes for this fit
   ref <- aghq(fr, 7)

@@ -13,7 +13,7 @@
 #' @param model Specify the nonlinear model. One of "logistic", "loglogistic", "weibull1", "weibull2", "lognormal", "michaelismenten", "asymptoticregression", "exponentialdecay", "gompertz", "gamma", "multistage", "nec", "braincousens", "cedergreen", "haldane", "exponential", "power", "constant". The nec model has a threshold, the exponential and power models have no upper asymptote, the braincousens and cedergreen models describe hormesis, the haldane model substrate inhibition, and the constant model has no dose effect, see Details.
 #' @param alpha the exponent of the hormesis term of the cedergreen model, a positive number, e.g. 1, 0.5 or 0.25 as the models CRS.4a, CRS.4b and CRS.4c of drc (CRS.5a-c with b1 estimated); only for the cedergreen model. See Details.
 #' @param smooth smoothing of the threshold of the nec model: the width of the smoothed threshold relative to the smallest interval between doses, a number of at least 0; 0 is an exact threshold. The default is 0.1 with random effects on b4, and 0 otherwise. Only for the nec model, see Details.
-#' @param link links of the parameters b1-b5: NULL for the defaults of the model, a single link for the asymptotes b1 and b2, or links named by parameter, e.g. c(b1="logit", b2="logit", b4="log"), where the parameters not named keep their defaults. b1 and b2 have the link "identity" (default), "log" or "logit"; b4 has "identity" (default) or "log" for the models with a positive b4 (not logistic, gompertz, multistage, exponential and power); b5 has the log link for the asymmetry of logistic and loglogistic and the shape of nec; the other parameters have the identity link. The coefficients, and start, fix, lower, upper and linfct of \code{\link{ed}}, are on the scale of the links, see Details.
+#' @param parlink links of the parameters b1-b5: NULL for the defaults of the model, a single link for the asymptotes b1 and b2, or links named by parameter, e.g. c(b1="logit", b2="logit", b4="log"), where the parameters not named keep their defaults. b1 and b2 have the link "identity" (default), "log" or "logit"; b4 has "identity" (default) or "log" for the models with a positive b4 (not logistic, gompertz, multistage, exponential and power); b5 has the log link for the asymmetry of logistic and loglogistic and the shape of nec; the other parameters have the identity link. The coefficients, and start, fix, lower, upper and linfct of \code{\link{ed}}, are on the scale of the links, see Details.
 #' @param prior NULL (default) for maximum likelihood without priors, or a named list of prior distributions (see \code{\link{priors}}), e.g. list(b2=normal(8, 2), b4=pert(0.5, 3, 10), sd=half_normal(1)): by parameter b1-b5, for parameters with a single coefficient, on the scale of the parameter (after the inverse link); by coefficient name, e.g. "b4:herbicideB", on the scale of the coefficient (the link); "sd" for all standard deviations of the random effects, or "sd:b1|group" for one of them; and "sigma" (gaussian, lognormal), "phi" (beta, nbinom1, betabinomial) or "theta" (nbinom2) for the residual parameter, on their natural scale. See Details.
 #' @param bmdpar NULL (default) for the standard parameterisation, or a list with a benchmark response bmr and its definition def as in \code{\link{bmd}}, e.g. list(bmr=0.1, def="relative"), for the BMD parameterisation: b4 is replaced by the log benchmark dose, coefficient log_bmd, and computed from it. See Details.
 #' @param gsl a vector of lower bounds for a grid search, same length as start; NA for the default range. If gsl, gsu and gsn are all NULL, no grid search is performed. See \code{\link{drmTMBstart}}.
@@ -105,7 +105,7 @@
 #' covariates in fform); BMDS restricts the power of its power model to b3 >= 1 by default, which can be
 #' set by \code{lower}. Without an upper asymptote, relative effective doses are not defined:
 #' \code{\link{ed}} gives absolute effective doses (\code{type="absolute"}), and \code{\link{bmd}} benchmark
-#' doses. For the exponential model, the log link for b1, \code{link=c(b1="log")}, makes the model
+#' doses. For the exponential model, the log link for b1, \code{parlink=c(b1="log")}, makes the model
 #' linear on the log scale, with log(b1) the intercept.
 #'
 #' The linear-quadratic model of radiobiology, S = exp(-alpha x - beta x^2), is the multistage model of
@@ -118,7 +118,7 @@
 #' asymptote are not identifiable, so the chi-square distribution of the likelihood ratio statistic
 #' is only an approximation.
 #'
-#' With the log link for b4, \code{link=c(b4="log")}, the linear predictor of b4, including its random effects, is log(b4):
+#' With the log link for b4, \code{parlink=c(b4="log")}, the linear predictor of b4, including its random effects, is log(b4):
 #' the coefficients of b4 in \code{coef}, \code{start}, \code{fix}, \code{lower}, \code{upper} and
 #' \code{linfct} of \code{\link{ed}} are on the log scale. Random effects on b4 then vary b4 by a
 #' factor between groups, and the estimate of b4 is the median over the groups. For the models on the
@@ -171,12 +171,12 @@
 #' @return A drmTMB object
 #' @export
 
-drmTMB <- function(form, fform=NULL, rform=NULL, data, start=NULL, fix=NULL, weights=NULL, lower=-Inf, upper=Inf, family="gaussian", model="logistic", alpha=NULL, smooth=NULL, link=NULL, prior=NULL, bmdpar=NULL, gsl=NULL, gsu=NULL, gsn=NULL, control=list()){
+drmTMB <- function(form, fform=NULL, rform=NULL, data, start=NULL, fix=NULL, weights=NULL, lower=-Inf, upper=Inf, family="gaussian", model="logistic", alpha=NULL, smooth=NULL, parlink=NULL, prior=NULL, bmdpar=NULL, gsl=NULL, gsu=NULL, gsn=NULL, control=list()){
   start0 <- start
   fix0 <- fix
   # control list
   control <- do.call(drmTMBcontrol, control)
-  dd <- drmTMBdata(form, fform=fform, rform=rform, data=data, weights=weights, family=family, model=model, alpha=alpha, smooth=smooth, link=link)
+  dd <- drmTMBdata(form, fform=fform, rform=rform, data=data, weights=weights, family=family, model=model, alpha=alpha, smooth=smooth, parlink=parlink)
   fixnamed <- !is.null(names(fix))
   start <- parvector(start, dd$npi, NA, "start")
   fix <- parvector(fix, dd$npi, FALSE, "fix")
@@ -192,7 +192,7 @@ drmTMB <- function(form, fform=NULL, rform=NULL, data, start=NULL, fix=NULL, wei
     # the default lower bound 0 of b4 only applies without user bounds
     dd$bmd$b4pos <- dd$bmd$b4pos && identical(lower, -Inf)
     f0 <- drmTMB(form, fform=fform, rform=rform, data=data, start=start0, fix=fix0, weights=weights, lower=lower, upper=upper,
-                 family=family, model=model, alpha=alpha, smooth=smooth, link=link, prior=prior[names(prior) != "bmd"],
+                 family=family, model=model, alpha=alpha, smooth=smooth, parlink=parlink, prior=prior[names(prior) != "bmd"],
                  gsl=gsl, gsu=gsu, gsn=gsn, control=control)
     b0 <- suppressWarnings(bmd(f0, dd$bmd$bmr, dd$bmd$def, scale="conditional"))
     if (is.na(coef(b0))) stop("the curve of the standard fit does not reach the benchmark response; the BMD parameterisation needs a finite BMD.")
@@ -271,7 +271,7 @@ drmTMB <- function(form, fform=NULL, rform=NULL, data, start=NULL, fix=NULL, wei
   res$model <- model
   res$alpha <- alpha
   res$smooth <- dd$smooth
-  res$link <- dd$link
+  res$parlink <- dd$parlink
   res$start <- start
   res$fix <- fix
   res$Xs <- dd$Xs
@@ -332,7 +332,7 @@ necwarn <- function(fit){
   pv <- fit$start
   pv[!fit$fix] <- fit$opt$par[seq_len(sum(!fit$fix))]
   npi <- rep(1:5, sapply(fit$Xs, ncol))
-  b4 <- unique(linkfun(linkindex(fit$link)[4], as.vector(fit$Xs[[4]] %*% pv[npi == 4]), inverse=TRUE))
+  b4 <- unique(linkfun(linkindex(fit$parlink)[4], as.vector(fit$Xs[[4]] %*% pv[npi == 4]), inverse=TRUE))
   x <- fit$obj$env$data$x
   xd <- unique(x)
   tol <- 1e-6 * diff(range(x))

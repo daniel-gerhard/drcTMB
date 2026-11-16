@@ -24,9 +24,9 @@ test_that("gradients agree with finite differences for the families and links", 
   d$yr <- rbeta(nrow(d), 30*mu, 30*(1 - mu))
   fits <- list(
     binomial=fit4(cbind(yb, n - yb) ~ dose, data=d, model="loglogistic", family="binomial"),
-    binomiallogit=fit4(cbind(yb, n - yb) ~ dose, data=d, model="loglogistic", family="binomial", link="logit"),
-    poissonlog=fit4(yp ~ dose, data=d, model="loglogistic", family="poisson", link="log"),
-    beta=fit4(yr ~ dose, data=d, model="loglogistic", family="beta", link="logit"),
+    binomiallogit=fit4(cbind(yb, n - yb) ~ dose, data=d, model="loglogistic", family="binomial", parlink="logit"),
+    poissonlog=fit4(yp ~ dose, data=d, model="loglogistic", family="poisson", parlink="log"),
+    beta=fit4(yr ~ dose, data=d, model="loglogistic", family="beta", parlink="logit"),
     asymmetricll=drmTMB(y ~ dose, data=simgauss("loglogistic"), model="loglogistic"),
     asymmetricl=drmTMB(y ~ dose, data=simgauss("logistic"), model="logistic")
   )
@@ -191,7 +191,7 @@ test_that("beta and beta-binomial likelihoods are invalid for means outside (0, 
 
   # lgamma is finite for negative arguments: a restart at a large precision and a small variance of the
   # random effects ran off to b1 = -1990 with a negative log-likelihood of -43363 for counts
-  fb <- suppressWarnings(fit4(cbind(k, n - k) ~ dose, rform=b2 ~ 1 | grp, data=d, family="betabinomial", model="loglogistic", link=c(b2="logit")))
+  fb <- suppressWarnings(fit4(cbind(k, n - k) ~ dose, rform=b2 ~ 1 | grp, data=d, family="betabinomial", model="loglogistic", parlink=c(b2="logit")))
   p <- fb$opt$par
   p[names(p) == "log_sigma"] <- 8
   p[names(p) == "theta"] <- -1
