@@ -39,11 +39,13 @@ Type drcTMB(objective_function<Type>* obj) {
   DATA_INTEGER(bdef);      // definition of the benchmark response, see bmdtarget
   DATA_SCALAR(bbmr);       // benchmark response
   DATA_INTEGER(binc);      // direction of the curve: 1 increasing, -1 decreasing
-  DATA_INTEGER(b4pos);     // 1: b4 must not be negative (default lower bound 0 of the standard parameterisation)
+  DATA_INTEGER(b4pos);
+  DATA_SCALAR(bdmax);      // BMD parameterisation of the quadratic exponential model (b4role 5): the highest dose     // 1: b4 must not be negative (default lower bound 0 of the standard parameterisation)
   DATA_IVECTOR(prwhat);    // priors: 0 = coefficient of b1-b5, 1 = theta, 2 = log_sigma; length zero without priors
   DATA_IVECTOR(pridx);     // index (from 0) in the coefficients b1-b5, concatenated, or in theta
   DATA_IVECTOR(prtrans);   // from the parameter to the scale of the prior: 1 identity, 2 exp, 3 inverse logit
   DATA_IVECTOR(prtype);    // distribution, see lpdfprior
+  DATA_IVECTOR(prpost);    // the prior applies to: 1 the parameter, 2 its negative (negate), 3 its exponential
   DATA_MATRIX(prhyp);      // hyperparameters (columns 0-3) and the log probability of the range of the parameter (column 4)
   PARAMETER_VECTOR(b1);
   PARAMETER_VECTOR(b2);
@@ -78,6 +80,12 @@ Type drcTMB(objective_function<Type>* obj) {
       Type v = prwhat(k) == 0 ? ball(pridx(k)) : (prwhat(k) == 1 ? theta(pridx(k)) : log_sigma);
       Type z = linkinv(prtrans(k), v);
       Type logjac = prtrans(k) == 2 ? v : (prtrans(k) == 3 ? Type(log(z) + log(1 - z)) : Type(0));
+      // a prior of the negative or of the exponential of the parameter (log Jacobian z)
+      if (prpost(k) == 2) z = -z;
+      if (prpost(k) == 3){
+        logjac += z;
+        z = exp(z);
+      }
       vector<Type> h = prhyp.row(k);
       nlprior -= lpdfprior(prtype(k), z, h) + logjac - prhyp(k, 4);
     }
@@ -153,7 +161,16 @@ Type drcTMB(objective_function<Type>* obj) {
   // BMD parameterisation: b4 from the BMD and the other parameters of the curve of the intercepts
   // (without covariates; random effects of the groups on b1-b3 and b5 are added to that curve)
   Type f4bmd = 0;
-  if (bmdpar == 1){
+  Type f3bmd = 0;
+  bool qe = bmdpar == 1 && b4role == 5;
+  if (qe){
+    // quadratic exponential: b3 holds log d, and both coefficients of the polynomial follow from the BMD
+    vector<Type> qc = bmdqe(Type(exp(b4(0))), linkinv(lnk(0), b1(0)), linkinv(lnk(1), b2(0)), b3(0), bdef, bbmr, binc, phi, clink, bdmax);
+    f3bmd = qc(0);
+    f4bmd = qc(1);
+    REPORT(f3bmd);
+    REPORT(f4bmd);
+  } else if (bmdpar == 1){
     f4bmd = bmdb4(mod, b4role, Type(exp(b4(0))), linkinv(lnk(0), b1(0)), linkinv(lnk(1), b2(0)),
                   linkinv(lnk(2), b3(0)), linkinv(lnk(4), b5(0)), bdef, bbmr, binc, phi, smooth, clink);
     REPORT(f4bmd);
@@ -164,7 +181,7 @@ Type drcTMB(objective_function<Type>* obj) {
     f = drcmean(mod, x(i),
                 linkinv(lnk(0), Type(Xb1(i) + Zu(i, 0))),
                 linkinv(lnk(1), Type(Xb2(i) + Zu(i, 1))),
-                linkinv(lnk(2), Type(Xb3(i) + Zu(i, 2))),
+                qe ? f3bmd : linkinv(lnk(2), Type(Xb3(i) + Zu(i, 2))),
                 bmdpar == 1 ? f4bmd : linkinv(lnk(3), Type(Xb4(i) + Zu(i, 3))),
                 linkinv(lnk(4), Type(Xb5(i) + Zu(i, 4))), alpha, smooth);
     f = linkinv(clink, f);
@@ -208,7 +225,7 @@ Type drcTMB(objective_function<Type>* obj) {
       mu(i) = drcmean(mod, xp(i),
                       linkinv(lnk(0), Type(Xpb1(i) + Zup(i, 0))),
                       linkinv(lnk(1), Type(Xpb2(i) + Zup(i, 1))),
-                      linkinv(lnk(2), Type(Xpb3(i) + Zup(i, 2))),
+                      qe ? f3bmd : linkinv(lnk(2), Type(Xpb3(i) + Zup(i, 2))),
                       bmdpar == 1 ? f4bmd : linkinv(lnk(3), Type(Xpb4(i) + Zup(i, 3))),
                       linkinv(lnk(4), Type(Xpb5(i) + Zup(i, 4))), alpha, smooth);
       mu(i) = linkinv(clink, mu(i));

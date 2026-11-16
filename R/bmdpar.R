@@ -24,6 +24,13 @@ bmdparcheck <- function(bmdpar, dd, fix){
   if (any(dd$npars[-4] != 1)) stop("the BMD parameterisation needs b1-b3 and b5 without covariates in fform.")
   rpars <- unlist(lapply(dd$re$terms, function(tm) tm$pars))
   if (4 %in% rpars) stop("the BMD parameterisation is not available with random effects on b4.")
+  # multistage of degree 2 (b5 fixed at 0): the quadratic exponential model of EFSA (2022), with b3 the
+  # technical parameter log d and both coefficients of the polynomial computed from the BMD (role 5)
+  if (role == 4 && all(fix[npi == 5])){
+    if (fix[npi == 3]) stop("the BMD parameterisation of the multistage model of degree 2 needs an estimated b3.")
+    if (3 %in% rpars) stop("the BMD parameterisation of the multistage model of degree 2 is not available with random effects on b3.")
+    return(list(bmr=bmr, def=def, role=5, b4pos=FALSE))
+  }
   # b4 bounded below by 0 by default (multistage coefficient, nec threshold, with the identity link): the
   # computed b4 is kept non-negative
   list(bmr=bmr, def=def, role=role, b4pos=4 %in% m$lower0 && dd$lnk[4] == 1)
@@ -37,6 +44,7 @@ nobmdpar <- function(x, what){
 # description of the BMD parameterisation of a fit, for print and summary
 printbmdpar <- function(bp, est, digits){
   if (is.null(bp)) return(invisible(NULL))
+  if (isTRUE(bp$role == 5)) cat("log_d is the technical parameter of the quadratic exponential model: the polynomial is b ((1 - c) x/dmax + c (x/dmax)^2) with c = exp(-exp(log_d)) and the highest dose dmax\n")
   cat("log_bmd is the log benchmark dose (", bp$def, ", bmr = ", format(bp$bmr), ", ", if (bp$inc > 0) "increasing" else "decreasing",
       " curve) of the curve of the intercepts: BMD = ", format(exp(est), digits=digits), "\n", sep="")
   invisible(NULL)

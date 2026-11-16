@@ -234,8 +234,12 @@ as \code{prior=list(bmd=...)}, on the dose scale. The standard model is fitted f
 values and the direction of the curve. The parameterisation needs a model whose response at dose zero
 does not depend on b4 (not logistic, gompertz, the hormesis models, haldane, constant, or the smoothed
 threshold of nec), b4 with a single coefficient and without random effects, and b1-b3 and b5 without
-covariates; random effects on b1-b3 and b5 are allowed. For multistage and nec, the computed b4 keeps its
-default lower bound 0. \code{coef}, \code{vcov}, \code{summary}, \code{logLik}, \code{confint},
+covariates; random effects on b1-b3 and b5 are allowed. For multistage (with b5 estimated) and nec, the
+computed b4 keeps its default lower bound 0. The multistage model of degree 2 (b5 fixed at 0) is the quadratic
+exponential model of EFSA (2022): the polynomial is b ((1 - c) x/dmax + c (x/dmax)^2), with the highest dose
+dmax, and b3 is replaced by the technical parameter log_d, with c = exp(-exp(log_d)) in (0, 1); the rate b
+follows from the BMD, so that both coefficients of the polynomial stay positive and a linear curve is the
+limit c -> 0, not a bound. \code{coef}, \code{vcov}, \code{summary}, \code{logLik}, \code{confint},
 \code{simulate} and \code{\link{bootstrap}} are available for these fits; \code{ed}, \code{bmd},
 \code{peak} and \code{predict} need the standard parameterisation.
 }

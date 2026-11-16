@@ -178,8 +178,12 @@
 #' values and the direction of the curve. The parameterisation needs a model whose response at dose zero
 #' does not depend on b4 (not logistic, gompertz, the hormesis models, haldane, constant, or the smoothed
 #' threshold of nec), b4 with a single coefficient and without random effects, and b1-b3 and b5 without
-#' covariates; random effects on b1-b3 and b5 are allowed. For multistage and nec, the computed b4 keeps its
-#' default lower bound 0. \code{coef}, \code{vcov}, \code{summary}, \code{logLik}, \code{confint},
+#' covariates; random effects on b1-b3 and b5 are allowed. For multistage (with b5 estimated) and nec, the
+#' computed b4 keeps its default lower bound 0. The multistage model of degree 2 (b5 fixed at 0) is the quadratic
+#' exponential model of EFSA (2022): the polynomial is b ((1 - c) x/dmax + c (x/dmax)^2), with the highest dose
+#' dmax, and b3 is replaced by the technical parameter log_d, with c = exp(-exp(log_d)) in (0, 1); the rate b
+#' follows from the BMD, so that both coefficients of the polynomial stay positive and a linear curve is the
+#' limit c -> 0, not a bound. \code{coef}, \code{vcov}, \code{summary}, \code{logLik}, \code{confint},
 #' \code{simulate} and \code{\link{bootstrap}} are available for these fits; \code{ed}, \code{bmd},
 #' \code{peak} and \code{predict} need the standard parameterisation.
 #'
@@ -214,6 +218,14 @@ drmTMB <- function(form, fform=NULL, rform=NULL, data, start=NULL, fix=NULL, wei
     start <- f0$start
     start[!fix] <- f0$opt$par[seq_len(sum(!fix))]
     start[dd$npi == 4] <- log(coef(b0))
+    # quadratic exponential: log d from the coefficients of the standard fit, c = b4 dmax / (b3 + b4 dmax),
+    # inside (0, 1)
+    if (dd$bmd$role == 5){
+      k <- start[dd$npi %in% 3:4]
+      dmax <- max(dd$x)
+      cc <- min(max(k[2]*dmax / (k[1] + k[2]*dmax), 1e-4), 1 - 1e-4)
+      start[dd$npi == 3] <- log(-log(cc))
+    }
     dd$bmd$inc <- b0$bmd[[1]]$inc
     dd$bmd$code <- match(b0$bmd[[1]]$def, c("excess", "additional", "relative", "sd", "logsd"))
   }
@@ -238,6 +250,11 @@ drmTMB <- function(form, fform=NULL, rform=NULL, data, start=NULL, fix=NULL, wei
   if (!is.null(dd$bmd)){
     lower[dd$npi == 4] <- -Inf
     upper[dd$npi == 4] <- Inf
+    # quadratic exponential: log d in place of b3 is unbounded
+    if (dd$bmd$role == 5){
+      lower[dd$npi == 3] <- -Inf
+      upper[dd$npi == 3] <- Inf
+    }
   }
 
   # priors; starting values of coefficients outside the support of their prior at its center
@@ -253,6 +270,7 @@ drmTMB <- function(form, fform=NULL, rform=NULL, data, start=NULL, fix=NULL, wei
   if (!is.null(dd$bmd)){
     obj$par[] <- f0$opt$par
     obj$par[cumsum(!fix)[dd$npi == 4]] <- start[dd$npi == 4]
+    if (dd$bmd$role == 5) obj$par[cumsum(!fix)[dd$npi == 3]] <- start[dd$npi == 3]
   }
 
   # bounds apply to the free coefficients, and to the variance parameters with a prior of bounded support
@@ -296,7 +314,8 @@ drmTMB <- function(form, fform=NULL, rform=NULL, data, start=NULL, fix=NULL, wei
   res$coefnames <- coefnames(dd$Xs)
   if (!is.null(dd$bmd)){
     res$coefnames[dd$npi == 4] <- "log_bmd"
-    res$bmdpar <- dd$bmd[c("bmr", "def", "inc")]
+    if (dd$bmd$role == 5) res$coefnames[dd$npi == 3] <- "log_d"
+    res$bmdpar <- dd$bmd[c("bmr", "def", "inc", "role")]
   }
   res$rform <- rform
   res$reterms <- dd$re$terms
