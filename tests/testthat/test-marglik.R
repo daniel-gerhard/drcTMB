@@ -136,3 +136,58 @@ test_that("missing priors, correlations and bounds", {
   mi <- marglik(fb, "is", n=500)
   expect_true(is.finite(mi))
 })
+
+test_that("Laplace and importance sampling agree with tmbstan and bridge sampling", {
+  skip_on_cran()
+  skip_if_not(identical(Sys.getenv("DRCTMB_SLOW_TESTS"), "true"), "set DRCTMB_SLOW_TESTS=true to run")
+  skip_if_not_installed("tmbstan")
+  skip_if_not_installed("bridgesampling")
+  # log marginal likelihood by bridge sampling from tmbstan draws of exp(-objective); with random
+  # effects, the joint density of the fixed and random effects (MCMC over the random effects too)
+  bridge <- function(fit){
+    obj <- fit$obj
+    r <- obj$env$random
+    init <- if (is.null(r)) fit$opt$par else obj$env$last.par.best
+    st <- suppressWarnings(tmbstan::tmbstan(obj, chains=4, iter=4000, warmup=1000, lower=fit$lower, upper=fit$upper,
+                                            init=function() as.numeric(init), refresh=0, seed=1, silent=TRUE))
+    X <- as.matrix(st)
+    X <- X[, colnames(X) != "lp__", drop=FALSE]
+    colnames(X) <- paste("p", seq_len(ncol(X)), sep="")
+    lo <- hi <- NULL
+    if (is.null(r)){
+      lo <- fit$lower
+      hi <- fit$upper
+    } else {
+      lo <- rep(-Inf, ncol(X))
+      hi <- rep(Inf, ncol(X))
+      lo[-r] <- fit$lower
+      hi[-r] <- fit$upper
+    }
+    lpost <- function(x, data) -as.numeric(if (is.null(r)) obj$fn(x) else obj$env$f(x, order=0))
+    b <- bridgesampling::bridge_sampler(X, log_posterior=lpost, data=NULL, lb=setNames(lo, colnames(X)),
+                                        ub=setNames(hi, colnames(X)), silent=TRUE)
+    b$logml
+  }
+  pr <- list(bmd=pert(0.1, 1, 5), b2=normal(8, 1), b3=normal(-2, 2), sigma=half_normal(1))
+  f <- drmTMB(rootl ~ conc, data=ryegrass, model="weibull1", start=c(b1=0, b5=0), fix=c(b1=TRUE, b5=TRUE),
+              bmdpar=list(bmr=0.05, def="relative"), prior=pr)
+  ref <- bridge(f)
+  set.seed(11)
+  mi <- marglik(f, "is", n=10000)
+  expect_lt(abs(mi - ref), 4*attr(mi, "se") + 0.02)
+  expect_lt(abs(marglik(f) - ref), 0.5)
+
+  # random effects on b2: the nested Laplace approximation integrates out the random effects
+  set.seed(6)
+  d <- expand.grid(dose=c(0, 0.5, 1, 2, 4, 8, 16), grp=factor(1:6))
+  u <- rnorm(6, 0, 0.8)
+  d$y <- 1 + (7 + u[d$grp] - 1)/(1 + (d$dose/3)^1.5) + rnorm(nrow(d), 0, 0.3)
+  fl <- drmTMB(y ~ dose, rform=b2 ~ 1 | grp, data=d, model="loglogistic", start=c(b5=0), fix=c(b5=TRUE),
+               prior=list(b1=normal(0, 2), b2=normal(8, 3), b3=normal(-2, 2), b4=lognormal(log(3), 1),
+                          sd=half_normal(1), sigma=half_normal(1)))
+  ref <- bridge(fl)
+  set.seed(12)
+  mi <- marglik(fl, "is", n=5000)
+  expect_lt(abs(mi - ref), 4*attr(mi, "se") + 0.02)
+  expect_lt(abs(marglik(fl) - ref), 0.5)
+})
