@@ -128,7 +128,7 @@ test_that("pearson residuals agree with glm", {
   expect_equal(residuals(fb), unname(residuals(gb, type="pearson")), tolerance=1e-5)
   expect_equal(residuals(fb, type="response"), unname(residuals(gb, type="response")), tolerance=1e-5)
 
-  fp <- drmTMB(cnt ~ dose, data=d, model="exponentialdecay", family="poisson", link="log",
+  fp <- drmTMB(cnt ~ dose, data=d, model="exponentialdecay", family="poisson", parlink="log",
                start=c(b2=-30), fix=c(b2=TRUE), weights=w)
   gp <- glm(cnt ~ dose, data=d, family=poisson, weights=w)
   expect_equal(residuals(fp), unname(residuals(gp, type="pearson")), tolerance=1e-5)
@@ -229,14 +229,14 @@ test_that("ed includes the residual variance only for the gaussian family", {
   set.seed(3)
   dp <- data.frame(dose=rep(c(0, 1, 2, 4, 8), each=3))
   dp$y <- rpois(nrow(dp), 1 + 20*exp(-dp$dose/3))
-  fp <- drmTMB(y ~ dose, data=dp, model="exponentialdecay", family="poisson", link="log")
+  fp <- drmTMB(y ~ dose, data=dp, model="exponentialdecay", family="poisson", parlink="log")
   expect_error(ed(fp, residual=TRUE), "gaussian")
 })
 
 test_that("unknown families and links, and linfct of the wrong size, give clear errors", {
   d <- simgauss("loglogistic")
   expect_error(drmTMB(y ~ dose, data=d, family="gausian"), "Unknown family")
-  expect_error(drmTMB(y ~ dose, data=d, link="logg"), "Unknown link")
+  expect_error(drmTMB(y ~ dose, data=d, parlink="logg"), "Unknown link")
   expect_error(drmTMBstart(y ~ dose, data=d, family="gausian"), "Unknown family")
   d$trt <- factor(rep(c("a", "b"), length.out=nrow(d)))
   f <- fit4(y ~ dose, fform=b2 ~ trt, data=d, model="loglogistic")
@@ -293,7 +293,7 @@ test_that("methods for the beta-binomial family", {
   d <- data.frame(dose=rep(c(0, 0.5, 1, 2, 4, 8, 16, 32), each=4), n=25)
   p <- drcmean("loglogistic", d$dose, c(0.05, 0.9, -1.5, 3, 0))
   d$y <- rbinom(nrow(d), d$n, rbeta(nrow(d), p*6, (1 - p)*6))
-  f <- fit4(cbind(y, n - y) ~ dose, data=d, model="loglogistic", family="betabinomial", link=c(b1="logit", b2="logit", b4="log"))
+  f <- fit4(cbind(y, n - y) ~ dose, data=d, model="loglogistic", family="betabinomial", parlink=c(b1="logit", b2="logit", b4="log"))
   expect_equal(names(coef(f))[5], "log_phi")
   out <- capture.output(print(summary(f)))
   expect_true(any(grepl("^Beta-binomial precision \\(phi\\)", out)))
@@ -316,7 +316,7 @@ test_that("methods for the beta-binomial family", {
   expect_error(predict(f, data.frame(dose=1), interval="prediction"), "number of trials")
   expect_equal(dim(simulate(f, 2, seed=1)), c(nrow(d), 2))
   # overdispersed proportions are much better described than by the binomial model
-  fb <- fit4(cbind(y, n - y) ~ dose, data=d, model="loglogistic", family="binomial", link=c(b1="logit", b2="logit", b4="log"))
+  fb <- fit4(cbind(y, n - y) ~ dose, data=d, model="loglogistic", family="binomial", parlink=c(b1="logit", b2="logit", b4="log"))
   expect_lt(AIC(f), AIC(fb) - 20)
   # binary responses
   d$bin <- as.integer(d$y > 12)
@@ -348,7 +348,7 @@ test_that("small-sample inference of gaussian models without random effects", {
   # maximum likelihood for the other families and with random effects
   set.seed(2)
   d$cnt <- rpois(nrow(d), drcmean("asymptoticregression", d$dose, c(1, 8, 0, 4, 0)))
-  expect_null(df.residual(drmTMB(cnt ~ dose, data=d, model="exponentialdecay", family="poisson", link="log")))
+  expect_null(df.residual(drmTMB(cnt ~ dose, data=d, model="exponentialdecay", family="poisson", parlink="log")))
   dg <- simgroups(ng=6, seed=3)
   dg$y <- drcmean("loglogistic", dg$dose, c(1, 8, -1.5, 3, 0)) + rnorm(6, 0, 0.5)[dg$grp] + rnorm(nrow(dg), 0, 0.3)
   expect_null(df.residual(fit4(y ~ dose, rform=b2 ~ 1 | grp, data=dg, model="loglogistic")))

@@ -148,7 +148,7 @@ edcore <- function(x, respLev, linfct, newdata, random, residual, type){
 
   mod <- modelindex(x$model)
   m <- drcmodel(mod)
-  lnk <- linkindex(x$link)
+  lnk <- linkindex(x$parlink)
 
   # gradient of each ED w.r.t. the free coefficients, the fitted random effects, the random effects
   # of a new group for each term, and the residual
@@ -248,7 +248,7 @@ edcore <- function(x, respLev, linfct, newdata, random, residual, type){
 # parameters lpv (b1-b5 on the scale of the linear predictors) of the curve
 edq <- function(fit, q, lpv, absolute){
   if (!absolute) return(q)
-  b <- linkpars(linkindex(fit$link), lpv)
+  b <- linkpars(linkindex(fit$parlink), lpv)
   edlevel(drcmodel(fit$model), q, b)
 }
 
@@ -270,7 +270,7 @@ edreach <- function(m, q, b){
 # hormesis models: the size of the hormesis effect b5 relative to the difference of the asymptotes,
 # for the parameters lpv (b1-b5 on the scale of the linear predictors) of the curve
 hormc <- function(fit, lpv){
-  b <- linkpars(linkindex(fit$link), lpv)
+  b <- linkpars(linkindex(fit$parlink), lpv)
   b[5] / (b[2] - b[1])
 }
 

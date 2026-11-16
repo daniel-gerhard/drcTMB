@@ -238,7 +238,7 @@ profile.edTMB <- function(fitted, parm=NULL, level=0.99, maxit=100, progress=int
 
   mod <- modelindex(fit$model)
   m <- drcmodel(mod)
-  lnk <- linkindex(fit$link)
+  lnk <- linkindex(fit$parlink)
   logscale <- !(m$b4 %in% "location")
   free <- which(!fit$fix)
   nf <- length(free)
@@ -393,7 +393,7 @@ profile.edTMB <- function(fitted, parm=NULL, level=0.99, maxit=100, progress=int
 # with parameters lpv (b1-b5 on the scale of the linear predictors), as in hormpeak of the template
 hormderivs <- function(fit, lpv, ed){
   hm <- drcmodel(fit$model)$hormesis
-  b <- linkpars(linkindex(fit$link), lpv)
+  b <- linkpars(linkindex(fit$parlink), lpv)
   b3 <- b[3]
   b4 <- b[4]
   c5 <- hormc(fit, lpv)
@@ -433,7 +433,7 @@ edvalue <- function(object, i, lpv, par=NULL){
     return(bmdvalue(fit, object$bmd[[i]], lpv, bp$theta, bp$ls))
   }
   mod <- modelindex(fit$model)
-  b <- linkpars(linkindex(fit$link), lpv)
+  b <- linkpars(linkindex(fit$parlink), lpv)
   if (identical(object$type, "peak")){
     pk <- drcmodel(mod)$peak
     s <- if (!is.null(pk)) log(pk$dose(b)) else hormpeak(mod, b[3], b[4], hormc(fit, lpv), fit$alpha)

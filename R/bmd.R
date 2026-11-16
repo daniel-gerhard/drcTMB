@@ -138,7 +138,7 @@ bmd <- function(x, bmr=0.1, def=c("excess", "additional", "relative", "sd"), lin
   }
   cond <- vapply(W, function(w) any(w != 0), logical(1))
 
-  lnk <- linkindex(x$link)
+  lnk <- linkindex(x$parlink)
   sfac <- if (def == "sd") sqrt(varscale(x)) else 1
   edl <- numeric(nbmd)
   grad <- matrix(0, nbmd, length(pf) + nu)
@@ -197,7 +197,7 @@ bmd <- function(x, bmr=0.1, def=c("excess", "additional", "relative", "sd"), lin
 # direction of the curve with linear predictors lpv: 1 increasing, -1 decreasing in the dose
 bmdinc <- function(fit, lpv){
   m <- drcmodel(fit$model)
-  b <- linkpars(linkindex(fit$link), lpv)
+  b <- linkpars(linkindex(fit$parlink), lpv)
   s <- if (m$ed %in% "unbounded") sign(m$mean(1, b[1], b[3], b[4]) - b[1])
        else sign(b[2] - b[1]) * (if (m$b3 %in% "steepness" && b[3] < 0) -1 else 1)
   if (s == 0) 1 else s
@@ -216,7 +216,7 @@ bmdtarget <- function(def, bmr, inc, mu0, sigma){
 # level of F at the BMD of the curve with linear predictors lpv (without averaging over random
 # effects), with log residual standard deviation ls
 bmdlevel <- function(fit, info, lpv, ls){
-  b <- linkpars(linkindex(fit$link), lpv)
+  b <- linkpars(linkindex(fit$parlink), lpv)
   edlevel(drcmodel(fit$model), bmdtarget(info$def, info$bmr, info$inc, bmdmu0(fit, b), info$sfac*exp(ls)), b)
 }
 
@@ -235,13 +235,13 @@ bmdmu0 <- function(fit, b){
 # curve does not reach the benchmark response
 bmdvalue <- function(fit, info, lpv, theta, ls){
   mod <- modelindex(fit$model)
-  b <- linkpars(linkindex(fit$link), lpv)
+  b <- linkpars(linkindex(fit$parlink), lpv)
   q <- bmdlevel(fit, info, lpv, ls)
   xc <- if (edreach(drcmodel(mod), q, b)) edfun(mod, q, b[3], b[4], b[5], smooth=smoothwidth(fit$smooth)) else NA
   if (length(info$wq) == 0) return(if (isTRUE(xc > 0)) xc else NA)
 
   # marginal mean at dose d, over the linear predictors lpv + Z of the quadrature nodes
-  lnk <- linkindex(fit$link)
+  lnk <- linkindex(fit$parlink)
   Z <- info$A %*% recholesky(fit, theta) %*% info$E
   B <- linkpars(lnk, t(lpv + Z))
   sm <- smoothwidth(fit$smooth)

@@ -13,7 +13,7 @@
 #' @param seed an optional seed for the random number generator
 #' @param boot a bootstrap sample of the model from \code{\link{bootstrap}}. predict then gives the standard deviation of the bootstrap predictions as se.fit, percentile confidence intervals, and prediction intervals simulated at the bootstrap fits, including their variance parameters. The bootstrap responses have new random effects, so for random=TRUE the random effects of the fitted groups are drawn, for each bootstrap fit, from the Laplace approximation of their conditional distribution given the original data at the parameters of that fit.
 #' @param type type of prediction: "response" (default), the mean response at the doses of newdata, or "parameters", the parameters b1-b5 of the curve of each row of newdata (with its covariates in fform and, with random=TRUE, the random effects of its groups); newdata then needs no dose. The standard errors of the parameters are those of the estimates, by the delta method, and their confidence intervals are computed on the scale of the link and back-transformed; with random=TRUE, they include the uncertainty of the predicted random effects of the fitted groups. Prediction intervals of the parameters add the variance of the random effects of the terms without a fitted level, the parameters of a new group, and are not available with boot.
-#' @param scale for type="parameters", the scale of the parameters: "original" (default) or "link", the scale of the coefficients, see the argument link of \code{\link{drmTMB}}.
+#' @param scale for type="parameters", the scale of the parameters: "original" (default) or "link", the scale of the coefficients, see the argument parlink of \code{\link{drmTMB}}.
 #' @param ... anything else
 #'
 #' @return Estimated model coefficients, variance-covariance matrix, or predictions.
@@ -50,7 +50,7 @@ print.drmTMB <- function(x, digits=max(3L, getOption("digits") - 3L), ...){
     cat("\n")
   }
   cat("Model:  ", x$model, if (!is.null(x$alpha)) paste(" (alpha = ", x$alpha, ")", sep=""), smoothtext(x$smooth), "\n", sep="")
-  cat("Family: ", x$family, ", ", linktext(x$link, x$model), "\n", sep="")
+  cat("Family: ", x$family, ", ", linktext(x$parlink, x$model), "\n", sep="")
 
   printprior(x$prior)
   cat("\nCoefficients", if (!is.null(x$prior)) " (posterior modes)", ":\n", sep="")
@@ -129,7 +129,7 @@ summary.drmTMB <- function(object, ...){
     gr[object$opt$par <= lo & gr > 0] <- 0
     gr[object$opt$par >= up & gr < 0] <- 0
   }
-  res <- list(call=object$call, model=object$model, alpha=object$alpha, smooth=object$smooth, family=object$family, link=object$link, b4log=object$link[["b4"]] == "log",
+  res <- list(call=object$call, model=object$model, alpha=object$alpha, smooth=object$smooth, family=object$family, parlink=object$parlink, b4log=object$parlink[["b4"]] == "log",
               direction=direction, b5=if (any(!object$fix[npi == 5]) && m$b5 %in% c("asymmetry", "shape")) m$b5,
               nobs=nobs(object), ntrials=if (object$family %in% c("binomial", "betabinomial")) sum(dat$bn), ngroups=ngroups,
               logLik=ll, AIC=AIC(object), BIC=BIC(object),
@@ -150,7 +150,7 @@ print.summary.drmTMB <- function(x, digits=max(3L, getOption("digits") - 3L), ..
     cat("\n")
   }
   cat("Model:  ", x$model, if (!is.null(x$alpha)) paste(" (alpha = ", x$alpha, ")", sep=""), smoothtext(x$smooth), if (!is.null(x$direction)) paste(",", x$direction, "curve"), "\n", sep="")
-  cat("Family: ", x$family, ", ", linktext(x$link, x$model), "\n", sep="")
+  cat("Family: ", x$family, ", ", linktext(x$parlink, x$model), "\n", sep="")
 
   cat("\nNumber of observations: ", x$nobs, sep="")
   if (!is.null(x$ntrials)) cat(", number of trials: ", x$ntrials, sep="")
@@ -350,7 +350,7 @@ preddata <- function(object, newdata, random, covs=FALSE){
   }
   Zp <- if (length(Zl) > 0) do.call(cbind, unlist(Zl, recursive=FALSE)) else Matrix::sparseMatrix(i=integer(0), j=integer(0), x=numeric(0), dims=c(n, 0))
   list(x=x, Xs=Xs, eta=eta, Zp=Zp, Zl=Zl, X=rl$X, newgroup=newgroup,
-       mod=modelindex(object$model), alpha=object$alpha, smooth=smoothwidth(object$smooth), lnk=linkindex(object$link))
+       mod=modelindex(object$model), alpha=object$alpha, smooth=smoothwidth(object$smooth), lnk=linkindex(object$parlink))
 }
 
 # design of the random effects of the fitted levels in newdata. For each term: Zl, a design block for

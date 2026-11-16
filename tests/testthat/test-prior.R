@@ -50,16 +50,16 @@ test_that("posterior modes with priors on the natural scale, and the log-likelih
 
 test_that("priors after the log and logit links include the log Jacobian", {
   # log link for b4: lognormal prior for b4, the log Jacobian is log(b4)
-  f0 <- fitry(link=c(b4="log"))
-  f <- fitry(link=c(b4="log"), prior=list(b4=lognormal(log(2), 0.3)))
+  f0 <- fitry(parlink=c(b4="log"))
+  f <- fitry(parlink=c(b4="log"), prior=list(b4=lognormal(log(2), 0.3)))
   lp <- function(p) dlnorm(exp(p[3]), log(2), 0.3, log=TRUE) + p[3]
   expect_posterior_mode(f, f0, lp)
   # logit link of the background b1 of a binomial model: beta-like pert prior on the probability
   data(daphnids)
   d <- daphnids[daphnids$time == "24h", ]
-  g0 <- drmTMB(cbind(no, total - no) ~ dose, data=d, family="binomial", model="loglogistic", link=c(b1="logit"),
+  g0 <- drmTMB(cbind(no, total - no) ~ dose, data=d, family="binomial", model="loglogistic", parlink=c(b1="logit"),
                start=c(b2=1, b5=0), fix=c(b2=TRUE, b5=TRUE))
-  g <- drmTMB(cbind(no, total - no) ~ dose, data=d, family="binomial", model="loglogistic", link=c(b1="logit"),
+  g <- drmTMB(cbind(no, total - no) ~ dose, data=d, family="binomial", model="loglogistic", parlink=c(b1="logit"),
               start=c(b2=1, b5=0), fix=c(b2=TRUE, b5=TRUE), prior=list(b1=pert(0, 0.05, 0.3)))
   lpg <- function(p){
     z <- plogis(p[1])
@@ -73,12 +73,12 @@ test_that("priors after the log and logit links include the log Jacobian", {
 test_that("priors on coefficients on the scale of the link, and truncated priors", {
   data(S.alba)
   f0 <- drmTMB(DryMatter ~ Dose, fform=b4 ~ Herbicide, data=S.alba, model="loglogistic",
-               start=c(b5=0), fix=c(b5=TRUE), link=c(b4="log"))
+               start=c(b5=0), fix=c(b5=TRUE), parlink=c(b4="log"))
   cn <- f0$coefnames[!f0$fix]
   pr <- list(normal(0, 0.5))
   names(pr) <- cn[5]
   f <- drmTMB(DryMatter ~ Dose, fform=b4 ~ Herbicide, data=S.alba, model="loglogistic",
-              start=c(b5=0), fix=c(b5=TRUE), link=c(b4="log"), prior=pr)
+              start=c(b5=0), fix=c(b5=TRUE), parlink=c(b4="log"), prior=pr)
   lp <- function(p) dnorm(p[5], 0, 0.5, log=TRUE)
   expect_posterior_mode(f, f0, lp)
   expect_equal(f$prior$scale, "link")
@@ -124,7 +124,7 @@ test_that("invalid priors", {
   expect_error(fitry(prior=list(sd=half_normal(1))), "random effects")
   expect_error(fitry(prior=list(b2="normal")), "priors")
   expect_error(fitry(prior=list(phi=half_normal(1))), "unknown name")
-  expect_error(fitry(link=c(b4="log"), prior=list(b4=pert(-2, -1, 0))), "no support")
+  expect_error(fitry(parlink=c(b4="log"), prior=list(b4=pert(-2, -1, 0))), "no support")
   expect_error(pert(1, 0, 2), "min < mode < max")
   expect_error(normal(0, -1), "positive")
 })

@@ -65,7 +65,7 @@ test_that("averages of a single model are its BMD", {
 
 test_that("marginal BMDs of models with random effects are averaged", {
   d <- simbmdgroups()
-  f <- fit4(y ~ dose, rform=b2 + b4 ~ 1 | grp, data=d, model="loglogistic", link=c(b4="log"))
+  f <- fit4(y ~ dose, rform=b2 + b4 ~ 1 | grp, data=d, model="loglogistic", parlink=c(b4="log"))
   bm <- bmd(f, 0.1, def="relative")
   ma <- bmdma(f, f, bmr=0.1, def="relative", nsim=0)
   expect_equal(unname(coef(ma)), unname(coef(bm)), tolerance=1e-6)

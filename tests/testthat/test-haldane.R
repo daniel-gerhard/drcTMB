@@ -61,7 +61,7 @@ test_that("haldane with random effects on the half-saturation constant", {
   d <- expand.grid(rep=1:2, S=c(0, 0.5, 1, 2, 4, 8, 16, 32, 64), grp=factor(1:8))
   u <- rnorm(8, 0, 0.3)
   d$v <- 10 * d$S / (2*exp(u[d$grp]) + d$S + d$S^2/20) + rnorm(nrow(d), 0, 0.3)
-  f <- drmTMB(v ~ S, rform=b4 ~ 1 | grp, data=d, model="haldane", link=c(b4="log"), start=c(b1=0), fix=c(b1=TRUE))
+  f <- drmTMB(v ~ S, rform=b4 ~ 1 | grp, data=d, model="haldane", parlink=c(b4="log"), start=c(b1=0), fix=c(b1=TRUE))
   expect_equal(f$opt$convergence, 0)
   expect_equal(unname(exp(coef(f)[2])), 2, tolerance=0.2)
   expect_equal(unname(1/coef(f)[3]), 20, tolerance=0.2)

@@ -82,13 +82,13 @@ test_that("confidence intervals stay in the range of the mean", {
   set.seed(2)
   dp <- data.frame(dose=rep(c(0, 1, 2, 4, 8, 16), each=3))
   dp$y <- rpois(nrow(dp), 1 + 20*exp(-dp$dose/3))
-  fp <- drmTMB(y ~ dose, data=dp, model="exponentialdecay", family="poisson", link="log")
+  fp <- drmTMB(y ~ dose, data=dp, model="exponentialdecay", family="poisson", parlink="log")
   cp <- predict(fp, interval="confidence")
   expect_true(all(cp$lwr > 0 & cp$lwr < cp$fit & cp$fit < cp$upr))
 
   db <- data.frame(dose=rep(c(0, 0.5, 1, 2, 4, 8, 16), each=2), n=20)
   db$s <- rbinom(nrow(db), 20, drcmean("loglogistic", db$dose, c(0.05, 0.95, -2, 2, 0)))
-  fb <- fit4(cbind(s, n - s) ~ dose, data=db, model="loglogistic", family="binomial", link="logit")
+  fb <- fit4(cbind(s, n - s) ~ dose, data=db, model="loglogistic", family="binomial", parlink="logit")
   cb <- predict(fb, interval="confidence")
   expect_true(all(cb$lwr > 0 & cb$upr < 1 & cb$lwr < cb$fit & cb$fit < cb$upr))
 })
@@ -172,7 +172,7 @@ test_that("simulated prediction intervals of poisson and binomial models", {
   set.seed(2)
   dp <- data.frame(dose=rep(c(0, 1, 2, 4, 8, 16), each=3))
   dp$y <- rpois(nrow(dp), 1 + 20*exp(-dp$dose/3))
-  fp <- drmTMB(y ~ dose, data=dp, model="exponentialdecay", family="poisson", link="log")
+  fp <- drmTMB(y ~ dose, data=dp, model="exponentialdecay", family="poisson", parlink="log")
   pp <- predict(fp, data.frame(dose=c(0, 2, 8)), interval="prediction", seed=1)
   expect_identical(pp, predict(fp, data.frame(dose=c(0, 2, 8)), interval="prediction", seed=1))
   expect_equal(pp$lwr, round(pp$lwr))
@@ -184,7 +184,7 @@ test_that("simulated prediction intervals of poisson and binomial models", {
   d$n <- 20
   u <- rnorm(20, 0, 1)
   d$s <- rbinom(nrow(d), 20, plogis(qlogis(drcmean("loglogistic", d$dose, c(0.05, 0.9, -2, 2, 0))) + u[d$grp]))
-  fb <- fit4(cbind(s, n - s) ~ dose, rform=b2 ~ 1 | grp, data=d, model="loglogistic", family="binomial", link="logit")
+  fb <- fit4(cbind(s, n - s) ~ dose, rform=b2 ~ 1 | grp, data=d, model="loglogistic", family="binomial", parlink="logit")
   nd <- data.frame(dose=c(0, 2), grp=factor("1"), s=0, n=20)
   pc <- predict(fb, nd, interval="prediction", seed=1)
   pn <- predict(fb, nd, random=FALSE, interval="prediction", seed=1)
@@ -197,7 +197,7 @@ test_that("simulated prediction intervals of poisson and binomial models", {
 
 test_that("predicted parameters are the coefficients, with their standard errors", {
   d <- simgauss("loglogistic")
-  f <- fit4(y ~ dose, data=d, model="loglogistic", link=c(b4="log"))
+  f <- fit4(y ~ dose, data=d, model="loglogistic", parlink=c(b4="log"))
   # the dose is not needed, and the unused parameters are left out
   p <- predict(f, data.frame(z=1), type="parameters")
   expect_equal(colnames(p), paste("b", 1:5, sep=""))
@@ -224,7 +224,7 @@ test_that("predicted parameters of covariates and fitted groups agree with ed", 
   u <- rnorm(8, 0, 0.3)
   d$trt <- factor(ifelse(as.integer(d$grp) <= 4, "a", "b"))
   d$y <- drcTMB:::drcmeanR(2, d$dose, 1, 8, -1.5, 3*exp(u[d$grp] + 0.4*(d$trt == "b")), 1) + rnorm(nrow(d), 0, 0.3)
-  f <- fit4(y ~ dose, fform=b4 ~ trt, rform=b4 ~ 1 | grp, data=d, model="loglogistic", link=c(b4="log"))
+  f <- fit4(y ~ dose, fform=b4 ~ trt, rform=b4 ~ 1 | grp, data=d, model="loglogistic", parlink=c(b4="log"))
   nd <- data.frame(trt=c("a", "b", "b"), grp=c("1", "5", "new"))
   p <- predict(f, nd, type="parameters", se.fit=TRUE)
   e <- ed(f, 50, newdata=nd)
@@ -247,7 +247,7 @@ test_that("predicted parameters of covariates and fitted groups agree with ed", 
 
 test_that("bootstrap intervals of the parameters", {
   d <- simgauss("loglogistic")
-  f <- fit4(y ~ dose, data=d, model="loglogistic", link=c(b4="log"))
+  f <- fit4(y ~ dose, data=d, model="loglogistic", parlink=c(b4="log"))
   b <- bootstrap(f, nsim=200, seed=1)
   p <- predict(f, data.frame(z=1), type="parameters", interval="confidence", boot=b)
   pd <- predict(f, data.frame(z=1), type="parameters", interval="confidence")
