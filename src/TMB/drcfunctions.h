@@ -13,8 +13,25 @@ Type linkinv(int lnk, Type eta){
     return exp(eta);
   case 3:
     return 1/(1 + exp(-1*eta));
+  case 4:
+    return pnorm(eta);
   default:
     return eta;
+  }
+}
+
+// link function, the inverse of linkinv: 1 = identity, 2 = log, 3 = logit, 4 = probit
+template<class Type>
+Type linkfwd(int lnk, Type mu){
+  switch (lnk){
+  case 2:
+    return log(mu);
+  case 3:
+    return log(mu / (1 - mu));
+  case 4:
+    return qnorm(mu);
+  default:
+    return mu;
   }
 }
 
@@ -349,10 +366,11 @@ Type bmdtarget(int def, Type bmr, int inc, Type mu0, Type sigma){
 // of b4: 1 = scale (the effective dose is b4 h), 2 = threshold (b4 + h), 3 = coefficient of b4 x^b3
 // (exponential, power), 4 = coefficient of x^2 of the multistage polynomial
 template<class Type>
-Type bmdb4(int mod, int role, Type bmd, Type f1, Type f2, Type f3, Type f5, int def, Type bmr, int inc, Type sigma, Type smooth){
+Type bmdb4(int mod, int role, Type bmd, Type f1, Type f2, Type f3, Type f5, int def, Type bmr, int inc, Type sigma, Type smooth, int clink){
   bool logdose = mod >= 2 && mod <= 5;
   Type mu0 = logdose ? Type(CppAD::CondExpLt(f3, Type(0), f2, f1)) : f1;
-  Type q = drclevel(mod, bmdtarget(def, bmr, inc, mu0, sigma), f1, f2);
+  // with a curve link, the benchmark response is defined on the response scale, the level on the curve
+  Type q = drclevel(mod, linkfwd(clink, bmdtarget(def, bmr, inc, linkinv(clink, mu0), sigma)), f1, f2);
   switch (role){
   case 1:
     return bmd / drced(mod, q, f1, f2, f3, Type(1), f5, Type(0), smooth);

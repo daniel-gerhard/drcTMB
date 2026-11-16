@@ -286,7 +286,7 @@ bmdcurve <- function(b, i, par){
   }
   mod <- modelindex(fit$model)
   sm <- smoothwidth(fit$smooth)
-  list(mean=function(d) sum(wq * drcmeanR(mod, d, B[, 1], B[, 2], B[, 3], B[, 4], B[, 5], fit$alpha, sm)),
+  list(mean=function(d) sum(wq * curvemean(fit, drcmeanR(mod, d, B[, 1], B[, 2], B[, 3], B[, 4], B[, 5], fit$alpha, sm))),
        bmd=function() bmdvalue(fit, info, lpv, bp$theta, bp$ls),
        sigma=info$sfac*exp(bp$ls), inc=info$inc)
 }

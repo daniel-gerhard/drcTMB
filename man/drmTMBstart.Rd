@@ -16,6 +16,7 @@ drmTMBstart(
   alpha = NULL,
   smooth = NULL,
   parlink = NULL,
+  curvelink = "identity",
   method = "lm",
   gsl = NULL,
   gsu = NULL,
@@ -44,6 +45,8 @@ drmTMBstart(
 \item{smooth}{smoothing of the threshold of the nec model, relative to the smallest interval between doses, see \code{\link{drmTMB}}; without random effects, the default is 0, an exact threshold.}
 
 \item{parlink}{links of the parameters b1-b5, see \code{\link{drmTMB}}.}
+
+\item{curvelink}{link of the curve, see \code{\link{drmTMB}}.}
 
 \item{method}{one of "lm" or "grid".}
 

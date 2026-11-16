@@ -84,6 +84,10 @@ peak <- function(x, linfct=NULL, newdata=NULL, random=TRUE){
 edcore <- function(x, respLev, linfct, newdata, random, residual, type){
   absolute <- type == "absolute"
   peak <- type == "peak"
+  # with a curve link, effective doses refer to the curve (on the scale of the link); absolute response
+  # levels are transformed to that scale
+  if (clinkof(x) != 1 && peak) stop("peak() is not available for fits with a curvelink.")
+  if (clinkof(x) != 1 && isTRUE(residual)) stop("residual=TRUE is not available for fits with a curvelink.")
   if (!is.null(newdata)){
     if (!is.null(linfct)) stop("give either linfct or newdata, not both.")
     # every level of respLev for every curve
@@ -169,7 +173,7 @@ edcore <- function(x, respLev, linfct, newdata, random, residual, type){
     if (peak){
       q <- respLev[i]
     } else if (absolute){
-      q <- respLev[i]
+      q <- curvefrom(x, respLev[i])
       qf <- edq(x, q, lpv + u, TRUE)
       if (!edreach(m, qf, b)){
         edl[i] <- NA

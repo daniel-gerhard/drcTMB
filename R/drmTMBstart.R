@@ -33,6 +33,7 @@
 #' @param alpha the exponent of the hormesis term of the cedergreen model, see \code{\link{drmTMB}}.
 #' @param smooth smoothing of the threshold of the nec model, relative to the smallest interval between doses, see \code{\link{drmTMB}}; without random effects, the default is 0, an exact threshold.
 #' @param parlink links of the parameters b1-b5, see \code{\link{drmTMB}}.
+#' @param curvelink link of the curve, see \code{\link{drmTMB}}.
 #' @param method one of "lm" or "grid".
 #' @param gsl a vector of lower bounds for the grid search, same length as start, on the scale of the coefficients (log scale for b4 with the log link); NA (or NULL) for the default range.
 #' @param gsu a vector of upper bounds for the grid search, same length as start; NA (or NULL) for the default range.
@@ -41,8 +42,8 @@
 #' @return a named vector of starting values
 #' @export
 #'
-drmTMBstart <- function(form, fform=NULL, data, start=NULL, fix=NULL, weights=NULL, family="gaussian", model="logistic", alpha=NULL, smooth=NULL, parlink=NULL, method="lm", gsl=NULL, gsu=NULL, gsn=NULL){
-  dd <- drmTMBdata(form, fform=fform, data=data, weights=weights, family=family, model=model, alpha=alpha, smooth=smooth, parlink=parlink)
+drmTMBstart <- function(form, fform=NULL, data, start=NULL, fix=NULL, weights=NULL, family="gaussian", model="logistic", alpha=NULL, smooth=NULL, parlink=NULL, curvelink="identity", method="lm", gsl=NULL, gsu=NULL, gsn=NULL){
+  dd <- drmTMBdata(form, fform=fform, data=data, weights=weights, family=family, model=model, alpha=alpha, smooth=smooth, parlink=parlink, curvelink=curvelink)
   if (is.null(start)) start <- rep(NA, sum(dd$npars))
   if (is.null(fix)) fix <- rep(FALSE, sum(dd$npars))
   fix[dd$npi %in% unusedpars(dd$mod)] <- TRUE
@@ -53,7 +54,7 @@ drmTMBstart <- function(form, fform=NULL, data, start=NULL, fix=NULL, weights=NU
 
 
 # model data shared by drmTMB and drmTMBstart
-drmTMBdata <- function(form, fform=NULL, rform=NULL, data, weights=NULL, family="gaussian", model="logistic", alpha=NULL, smooth=NULL, parlink=NULL){
+drmTMBdata <- function(form, fform=NULL, rform=NULL, data, weights=NULL, family="gaussian", model="logistic", alpha=NULL, smooth=NULL, parlink=NULL, curvelink="identity"){
   fform <- fforms(fform)
   if (is.null(weights)) weights <- rep(1, nrow(data))
   if (length(weights) != nrow(data)) stop("weights must have one entry for each row of data.")
@@ -84,6 +85,14 @@ drmTMBdata <- function(form, fform=NULL, rform=NULL, data, weights=NULL, family=
   m <- drcmodel(mod)
   link <- parlinks(parlink, m, model)
   lnk <- linkindex(link)
+  # link of the curve: the mean (median, probability) is the inverse link of the curve
+  if (!is.character(curvelink) || length(curvelink) != 1) stop("curvelink must be a single link.")
+  if (!(curvelink %in% curvelinks(family))){
+    stop("the curvelink ", curvelink, " is not available for the ", family, " family; one of ", paste(curvelinks(family), collapse=", "), ".")
+  }
+  if (curvelink != "identity" && any(link[c("b1", "b2")] != "identity")){
+    stop("with a curvelink, the asymptotes b1 and b2 are on the scale of the curve link and need the identity parlink.")
+  }
   if (isTRUE(m$alpha)){
     if (is.null(alpha)) stop("the cedergreen model needs the exponent alpha of its hormesis term, e.g. alpha=1, 0.5 or 0.25 as CRS.4a, CRS.4b and CRS.4c of drc.")
     if (!is.numeric(alpha) || length(alpha) != 1 || !is.finite(alpha) || alpha <= 0) stop("alpha must be a single positive number.")
@@ -126,7 +135,7 @@ drmTMBdata <- function(form, fform=NULL, rform=NULL, data, weights=NULL, family=
 
   list(y=y, x=mf[,2], w=weights, bn=bn, fam=fam, mod=mod, alpha=alpha, smooth=smooth, lnk=lnk, re=re,
        Xs=Xs, fform=fform, fterms=fterms, npars=npars, npi=rep(1:5, npars),
-       family=family, model=model, parlink=link, data=data)
+       family=family, model=model, parlink=link, curvelink=curvelink, clink=linkindex(curvelink), data=data)
 }
 
 # design matrix of a parameter for data, with the terms, factor levels and contrasts of the fit
@@ -164,12 +173,18 @@ lmstart <- function(dd, start, fix){
   }
   xd <- sort(unique(dd$x))
   yd <- as.vector(yd)
+  # with a curve link, the curve on its own scale, which is unbounded
+  if (dd$clink != 1){
+    yd <- curvescale(dd$clink, yd)
+    dd$family <- "gaussian"
+  }
   ylow <- yd[1]
   yhigh <- yd[length(yd)]
 
   # constant model: b1 at the overall mean
   if (m$start == "constant"){
-    ybar <- if (dd$family %in% c("binomial", "betabinomial") & any(dd$bn > 0)) sum(dd$w * dd$y) / sum(dd$w * dd$bn)
+    ybar <- if (dd$clink != 1) sum(yd * tapply(dd$w, dd$x, sum)) / sum(dd$w)
+            else if (dd$family %in% c("binomial", "betabinomial") & any(dd$bn > 0)) sum(dd$w * dd$y) / sum(dd$w * dd$bn)
             else if (identical(dd$family, "lognormal")) exp(sum(dd$w * log(dd$y)) / sum(dd$w)) else sum(dd$w * dd$y) / sum(dd$w)
     return(projectstart(dd, start, fix, c(linkfun(dd$lnk[1], linkrange(dd$lnk[1], ybar, dd$family)), 0, 0, 0, 0)))
   }
@@ -469,7 +484,7 @@ drmTMBobj <- function(dd, start, fix, rform=NULL){
         else if (length(re$terms) > 0) varstart(dd, start, re) else list(theta=numeric(0))
   stheta <- vs$theta
   up <- rep(0, sum(tnp*tnl))
-  dlist <- list(model="drcTMB", y=dd$y, x=dd$x, w=dd$w, bn=dd$bn, fam=dd$fam, mod=dd$mod, alpha=alphavalue(dd$alpha), smooth=smoothwidth(dd$smooth), lnk=as.integer(dd$lnk),
+  dlist <- list(model="drcTMB", y=dd$y, x=dd$x, w=dd$w, bn=dd$bn, fam=dd$fam, mod=dd$mod, alpha=alphavalue(dd$alpha), smooth=smoothwidth(dd$smooth), lnk=as.integer(dd$lnk), clink=as.integer(dd$clink),
                 tnp=tnp, tnl=tnl, tpar=as.integer(unlist(lapply(re$terms, function(tm) tm$pars)) - 1),
                 tzb=if (length(re$terms) > 0) tzbvec(re$terms) else integer(0),
                 simre=1L, Z=re$Z)
@@ -550,6 +565,10 @@ varstart <- function(dd, start, re){
   meanfun <- function(eta) drcmeanR(dd$mod, dd$x, linkfun(dd$lnk[1], eta[, 1], inverse=TRUE), linkfun(dd$lnk[2], eta[, 2], inverse=TRUE),
                                     linkfun(dd$lnk[3], eta[, 3], inverse=TRUE), linkfun(dd$lnk[4], eta[, 4], inverse=TRUE),
                                     linkfun(dd$lnk[5], eta[, 5], inverse=TRUE), alphavalue(dd$alpha), smoothwidth(dd$smooth))
+  if (dd$clink != 1){
+    meancurve <- meanfun
+    meanfun <- function(eta) linkfun(dd$clink, meancurve(eta), inverse=TRUE)
+  }
   mu <- meanfun(eta)
   # response on the scale of the mean (proportions for binomial counts), on the log scale for lognormal
   binom <- dd$family %in% c("binomial", "betabinomial")
@@ -780,7 +799,7 @@ parlinks <- function(parlink, m, model){
     }
     if (any(!(names(parlink) %in% names(out))) || any(duplicated(names(parlink)))) stop("the names of parlink must be distinct parameter names b1-b5.")
     for (p in names(parlink)){
-      if (is.na(linkindex(parlink[[p]]))) stop("Unknown link: ", parlink[[p]], "; one of identity, log, logit.")
+      if (!(parlink[[p]] %in% c("identity", "log", "logit"))) stop("Unknown link: ", parlink[[p]], "; one of identity, log, logit.")
     }
     out[names(parlink)] <- parlink
   }
@@ -839,9 +858,9 @@ alphavalue <- function(alpha){
 # link function (inverse=FALSE) or inverse link of a parameter, by its index (see linkindex)
 linkfun <- function(lnk, x, inverse=FALSE){
   if (inverse){
-    switch(lnk, x, exp(x), plogis(x))
+    switch(lnk, x, exp(x), plogis(x), pnorm(x))
   } else {
-    switch(lnk, x, log(x), qlogis(x))
+    switch(lnk, x, log(x), qlogis(x), qnorm(x))
   }
 }
 
