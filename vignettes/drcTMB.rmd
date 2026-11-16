@@ -405,7 +405,7 @@ names(mfits) <- c("LL", "W1", "W2")
 bmdbayes(LL = mfits$LL, W1 = mfits$W1, W2 = mfits$W2)
 ```
 
-`bmdefsa()` does all of this with the default priors of EFSA (2022), as in its R package BMABMDR: it fits the models weibull2, weibull1, loglogistic, lognormal, gamma and multistage (the quadratic exponential model) in the BMD parameterisation, for continuous responses with the normal and the lognormal distribution (`family = "lognormal"` with the curve on the log scale), with the priors of `efsapriors()`, and averages them by importance sampling. For the liver tumours after exposure to TCDD in a historical study (`TCDD`, Kociba et al. 1978) and a current one (`liver.tumor`, NTP 2006), the example of the EFSA report EN-9902 on informative priors:
+`bmdefsa()` does all of this with the default priors of EFSA (2022), as in its R package BMABMDR: it fits the models weibull2, weibull1, loglogistic, lognormal, gamma and multistage (the quadratic exponential model) in the BMD parameterisation, for continuous responses with the normal and the lognormal distribution (`family = "lognormal"` with the curve on the log scale), for quantal responses also the probit and logit models (the power model with a probit or logit curve link), with the priors of `efsapriors()`, and averages them by importance sampling. For the liver tumours after exposure to TCDD in a historical study (`TCDD`, Kociba et al. 1978) and a current one (`liver.tumor`, NTP 2006), the example of the EFSA report EN-9902 on informative priors:
 
 ```{r}
 data(TCDD); data(liver.tumor)

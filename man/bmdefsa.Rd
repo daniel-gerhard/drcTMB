@@ -9,7 +9,7 @@ bmdefsa(
   data,
   bmr = NULL,
   def = NULL,
-  models = c("weibull2", "weibull1", "loglogistic", "lognormal", "gamma", "multistage"),
+  models = NULL,
   family = c("gaussian", "lognormal"),
   ...,
   prior.weights = NULL,
@@ -24,7 +24,8 @@ bmdefsa(
 
 \item{bmr, def}{the benchmark response and its definition (see \code{\link{efsapriors}})}
 
-\item{models}{the models, by default all six (see \code{\link{efsapriors}})}
+\item{models}{the models (see \code{\link{efsapriors}}), by default all: six for continuous responses,
+and eight, including probit and logit, for quantal responses}
 
 \item{family}{the families: for continuous responses "gaussian" and "lognormal" (both by default),
 for quantal responses "binomial"}

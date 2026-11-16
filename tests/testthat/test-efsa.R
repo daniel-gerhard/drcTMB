@@ -32,6 +32,46 @@ test_that("priors of the negative and of the exponential of a parameter", {
   expect_equal(lpdfprior(onexp(pert(4, 7.5, 15)), log(6)), lpdfprior(pert(4, 7.5, 15), 6) + log(6))
 })
 
+test_that("priors of the background probability pnorm(b1) or plogis(b1) of the probit and logit models", {
+  pb <- pert(0.001, 0.03, 0.1)
+  for (cl in c("probit", "logit")){
+    ifun <- if (cl == "probit") pnorm else plogis
+    p <- oninv(pb, if (cl == "probit") "pnorm" else "plogis")
+    f0 <- drmTMB(fq, data=TCDD, model="power", family="binomial", curvelink=cl, start=c(b2=1, b5=0), fix=c(b2=TRUE, b5=TRUE))
+    f <- drmTMB(fq, data=TCDD, model="power", family="binomial", curvelink=cl, start=c(b2=1, b5=0), fix=c(b2=TRUE, b5=TRUE),
+                prior=list(b1=p))
+    # density of the background probability with the Jacobian of the inverse link
+    nl <- function(q) unname(f0$obj$fn(q) - (lpdfprior(pb, ifun(q[1])) + log(numDeriv::grad(ifun, q[1]))))
+    expect_equal(f$opt$objective, nl(f$opt$par), tolerance=1e-8)
+    expect_lt(max(abs(numDeriv::grad(nl, f$opt$par))), 1e-4)
+    expect_equal(unname(ifun(c(f$lower[1], f$upper[1]))), c(0.001, 0.1))
+  }
+  expect_error(oninv(normal(0, 1), "pnorm"), "support within")
+  expect_error(oninv(pert(0, 0.5, 2), "plogis"), "support within")
+})
+
+test_that("BMD parameterisation of the quantal probit and logit models", {
+  for (cl in c("probit", "logit")){
+    f0 <- drmTMB(fq, data=TCDD, model="power", family="binomial", curvelink=cl, start=c(b2=1, b5=0), fix=c(b2=TRUE, b5=TRUE))
+    f1 <- drmTMB(fq, data=TCDD, model="power", family="binomial", curvelink=cl, start=c(b2=1, b5=0), fix=c(b2=TRUE, b5=TRUE),
+                 bmdpar=list(bmr=0.1, def="excess"))
+    expect_equal(c(logLik(f1)), c(logLik(f0)), tolerance=1e-6)
+    expect_equal(unname(exp(coef(f1)["log_bmd"])), unname(coef(bmd(f0, 0.1, "excess"))), tolerance=1e-5)
+    # closed form: Phi^-1(p0 + q (1 - p0)) = b1 + b4 BMD^b3
+    cf <- coef(f0)
+    ifun <- if (cl == "probit") pnorm else plogis
+    qfun <- if (cl == "probit") qnorm else qlogis
+    p0 <- ifun(cf[[1]])
+    expect_equal(unname(exp(coef(f1)["log_bmd"])), ((qfun(p0 + 0.1*(1 - p0)) - cf[[1]])/cf[[3]])^(1/cf[[2]]), tolerance=1e-5)
+  }
+  e <- efsapriors(fq, TCDD, "probit", "binomial")
+  expect_equal(c(e$name, e$model, e$curvelink), c("probit", "power", "probit"))
+  expect_match(e$prior$b1$name, "of pnorm$")
+  expect_equal(e$prior$b3$name, "lognormal(1, 1)")
+  expect_equal(efsapriors(fq, TCDD, "logit", "binomial")$curvelink, "logit")
+  expect_error(efsapriors(rootl ~ conc, ryegrass, "probit"), "quantal responses")
+})
+
 test_that("the quadratic exponential BMD parameterisation of the multistage model of degree 2", {
   set.seed(2)
   d <- data.frame(dose=rep(c(0, 5, 10, 20, 40), each=4), n=25)
@@ -99,20 +139,21 @@ test_that("bmdefsa reproduces the TCDD example of EFSA EN-9902 (Table 5.1)", {
   set.seed(1)
   h <- suppressWarnings(bmdefsa(fq, data=TCDD, family="binomial"))
   expect_s3_class(h, "bmdbayes")
-  expect_equal(nrow(h$models), 6)
-  expect_length(h$fits, 6)
-  expect_equal(unname(c(coef(h), confint(h))), c(10.63, 4.52, 22.67), tolerance=0.12)
+  expect_equal(nrow(h$models), 8)
+  expect_length(h$fits, 8)
+  expect_equal(h$models["probit_Q", "model"], "probit")
+  expect_equal(unname(c(coef(h), confint(h))), c(10.63, 4.52, 22.67), tolerance=0.06)
   # the quadratic exponential model gets the largest weight, as in EFSA
   expect_equal(rownames(h$models)[which.max(h$models$weight)], "multistage_Q")
   set.seed(1)
   cur <- suppressWarnings(bmdefsa(fq, data=liver.tumor, family="binomial"))
-  expect_equal(unname(c(coef(cur), confint(cur))), c(24.67, 20.45, 28.33), tolerance=0.05)
+  expect_equal(unname(c(coef(cur), confint(cur))), c(24.67, 20.45, 28.33), tolerance=0.01)
   # informative BMD prior from the historical study: EFSA pert(0.980, 9.373, 76.236), shape 10.04
   p <- fitpert(h)
   expect_equal(p$hyp[1:2], c(0.980, 76.236), tolerance=0.1)
   set.seed(1)
   ci <- suppressWarnings(bmdefsa(fq, data=liver.tumor, family="binomial", bmd=p))
-  expect_equal(unname(c(coef(ci), confint(ci))), c(23.87, 19.75, 27.83), tolerance=0.05)
+  expect_equal(unname(c(coef(ci), confint(ci))), c(23.87, 19.75, 27.83), tolerance=0.01)
   expect_equal(ci$prior, p$name)
 })
 

@@ -45,7 +45,7 @@ Type drcTMB(objective_function<Type>* obj) {
   DATA_IVECTOR(pridx);     // index (from 0) in the coefficients b1-b5, concatenated, or in theta
   DATA_IVECTOR(prtrans);   // from the parameter to the scale of the prior: 1 identity, 2 exp, 3 inverse logit
   DATA_IVECTOR(prtype);    // distribution, see lpdfprior
-  DATA_IVECTOR(prpost);    // the prior applies to: 1 the parameter, 2 its negative (negate), 3 its exponential
+  DATA_IVECTOR(prpost);    // the prior applies to: 1 the parameter, 2 its negative (negate), 3 its exponential, 4 pnorm, 5 plogis
   DATA_MATRIX(prhyp);      // hyperparameters (columns 0-3) and the log probability of the range of the parameter (column 4)
   PARAMETER_VECTOR(b1);
   PARAMETER_VECTOR(b2);
@@ -80,11 +80,20 @@ Type drcTMB(objective_function<Type>* obj) {
       Type v = prwhat(k) == 0 ? ball(pridx(k)) : (prwhat(k) == 1 ? theta(pridx(k)) : log_sigma);
       Type z = linkinv(prtrans(k), v);
       Type logjac = prtrans(k) == 2 ? v : (prtrans(k) == 3 ? Type(log(z) + log(1 - z)) : Type(0));
-      // a prior of the negative or of the exponential of the parameter (log Jacobian z)
+      // a prior of the negative of the parameter, or of its exponential, pnorm or plogis (with the log
+      // Jacobian of the inverse link)
       if (prpost(k) == 2) z = -z;
       if (prpost(k) == 3){
         logjac += z;
         z = exp(z);
+      }
+      if (prpost(k) == 4){
+        logjac += dnorm(z, Type(0), Type(1), true);
+        z = pnorm(z);
+      }
+      if (prpost(k) == 5){
+        logjac += -logspace_add(Type(0), -z) - logspace_add(Type(0), z);
+        z = invlogit(z);
       }
       vector<Type> h = prhyp.row(k);
       nlprior -= lpdfprior(prtype(k), z, h) + logjac - prhyp(k, 4);
