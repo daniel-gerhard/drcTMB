@@ -56,7 +56,7 @@ marglik <- function(object, method=c("laplace", "is"), n=5000, df=4){
 mlcheck <- function(object){
   par <- object$opt$par
   pn <- parnames(object)
-  pdat <- object$obj$env$data[c("prwhat", "pridx", "prtrans", "prtype", "prhyp")]
+  pdat <- object$obj$env$data[c("prwhat", "pridx", "prtrans", "prtype", "prpost", "prhyp")]
   pos <- if (length(pdat$prwhat) > 0) priorpos(pdat, object$fix, names(par)) else numeric(0)
   miss <- setdiff(seq_along(par), pos)
   if (length(miss) > 0){

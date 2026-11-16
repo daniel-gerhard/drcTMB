@@ -497,6 +497,7 @@ drmTMBobj <- function(dd, start, fix, rform=NULL){
   bdat <- if (is.null(bm)) list(bmdpar=0L, b4role=0L, bdef=0L, bbmr=0, binc=1L)
           else list(bmdpar=1L, b4role=as.integer(bm$role), bdef=as.integer(bm$code), bbmr=bm$bmr, binc=as.integer(bm$inc))
   bdat$b4pos <- as.integer(!is.null(bm) && isTRUE(bm$b4pos))
+  bdat$bdmax <- max(dd$x)
   datalist <- c(dlist, dd$Xs, list(xp=numeric(0)), Xp, list(Zp=re$Z[0, , drop=FALSE]), bdat, pd)
 
   # log_sigma: residual sd (gaussian, of log(y) for lognormal), precision (beta, betabinomial), size theta (nbinom2) or dispersion phi

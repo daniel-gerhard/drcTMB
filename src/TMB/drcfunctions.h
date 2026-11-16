@@ -385,6 +385,22 @@ Type bmdb4(int mod, int role, Type bmd, Type f1, Type f2, Type f3, Type f5, int 
   }
 }
 
+// quadratic exponential model of EFSA (2022) in the BMD parameterisation (multistage of degree 2, role 5
+// of bmdb4): the polynomial is b ((1 - c) x' + c x'^2) on the dose x' = x / dmax divided by the highest
+// dose, with c = exp(-exp(ld)) in (0, 1) and the rate b from the BMD; returns the coefficients of x and
+// x^2 on the dose scale (b3 and b4 of the multistage model), both positive
+template<class Type>
+vector<Type> bmdqe(Type bmd, Type f1, Type f2, Type ld, int def, Type bmr, int inc, Type sigma, int clink, Type dmax){
+  Type q = drclevel(14, linkfwd(clink, bmdtarget(def, bmr, inc, linkinv(clink, f1), sigma)), f1, f2);
+  Type c = exp(-exp(ld));
+  Type B = bmd / dmax;
+  Type b = -log(1 - q) / (B + c * B * (B - 1));
+  vector<Type> out(2);
+  out(0) = b * (1 - c) / dmax;
+  out(1) = b * c / (dmax * dmax);
+  return out;
+}
+
 // log density of a prior at z (see priors in R): 1 = normal(h0, h1), 2 = student t (location h0, scale h1,
 // df h2), 3 = lognormal(h0, h1), 4 = PERT on (h0, h1) with beta shapes h2 and h3, 5 = half normal (scale h0),
 // 6 = half student t (scale h0, df h1)

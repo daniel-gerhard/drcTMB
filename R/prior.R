@@ -15,6 +15,9 @@
 #'     1 + shape (mode - min)/(max - min) and 1 + shape (max - mode)/(max - min); shape = 4 by default.
 #'   \item \code{half_normal(scale)}, \code{half_student_t(df, scale)}: normal and Student t
 #'     distributions folded at 0, for standard deviations.
+#'   \item \code{negate(p)}: the prior p of the negative of the parameter, e.g.
+#'     \code{b3=negate(lognormal(1, 1))} for a negative steepness b3 (a decreasing curve) whose absolute
+#'     value is lognormal.
 #' }
 #'
 #' A prior whose support is wider than the range of the parameter, e.g. a normal prior for a parameter
@@ -28,17 +31,46 @@
 #' @param meanlog,sdlog mean and standard deviation of the log of a lognormal parameter
 #' @param min,mode,max minimum, mode and maximum of the PERT distribution
 #' @param shape the shape (weight of the mode) of the PERT distribution
+#' @param p a prior, for negate
 #'
 #' @return a drcprior object
 #' @name priors
-#' @aliases normal student_t lognormal pert half_normal half_student_t
+#' @aliases normal student_t lognormal pert half_normal half_student_t negate
 NULL
 
 # prior distribution: type as in the TMB template (see lpdfprior), hyperparameters, support, a central
 # value for starting values, and the distribution function for the normalisation of truncated priors
 newprior <- function(name, type, hyp, support, center, cdf){
   if (any(!is.finite(hyp))) stop("the parameters of the ", name, " prior must be finite numbers.")
-  structure(list(name=name, type=type, hyp=hyp, support=support, center=center, cdf=cdf), class="drcprior")
+  structure(list(name=name, type=type, hyp=hyp, support=support, center=center, cdf=cdf, post=1L), class="drcprior")
+}
+
+#' @rdname priors
+#' @export
+negate <- function(p){
+  if (!inherits(p, "drcprior")) stop("negate needs a prior, e.g. negate(lognormal(1, 1)).")
+  if (p$post != 1) stop("negate needs a prior of the parameter itself.")
+  cdf0 <- p$cdf
+  p$name <- paste("negate(", p$name, ")", sep="")
+  p$support <- rev(-p$support)
+  p$center <- -p$center
+  p$cdf <- function(z) 1 - cdf0(-z)
+  p$post <- 2L
+  p
+}
+
+# prior p of the exponential of a parameter, e.g. of the median exp(b1) for the log curve link (see
+# efsapriors); the parameter is the log of a variable with the distribution p
+onexp <- function(p){
+  if (p$post != 1) stop("onexp needs a prior of the parameter itself.")
+  if (p$support[1] < 0) stop("the prior ", p$name, " of an exponential needs a positive support.")
+  cdf0 <- p$cdf
+  p$name <- paste(p$name, " of exp", sep="")
+  p$support <- log(p$support)
+  p$center <- log(p$center)
+  p$cdf <- function(z) cdf0(exp(z))
+  p$post <- 3L
+  p
 }
 
 #' @rdname priors
@@ -102,6 +134,12 @@ print.drcprior <- function(x, ...){
 # log density of a prior at z, as lpdfprior in the TMB template (without the normalisation)
 lpdfprior <- function(p, z){
   h <- p$hyp
+  # a prior of the negative or of the exponential of the parameter
+  if (isTRUE(p$post == 2)) z <- -z
+  if (isTRUE(p$post == 3)){
+    p$post <- 1L
+    return(lpdfprior(p, exp(z)) + z)
+  }
   switch(p$type,
          dnorm(z, h[1], h[2], log=TRUE),
          dt((z - h[1])/h[2], h[3], log=TRUE) - log(h[2]),
@@ -132,7 +170,7 @@ priorvarnames <- function(terms, family){
 # probability of the range of the parameter in column 5), the bounds of the optimised values implied
 # by the support of the priors, and a table of the priors for printing.
 priordata <- function(prior, dd, fix, lower, upper, coefnames){
-  empty <- list(prwhat=integer(0), pridx=integer(0), prtrans=integer(0), prtype=integer(0), prhyp=matrix(0, 0, 5))
+  empty <- list(prwhat=integer(0), pridx=integer(0), prtrans=integer(0), prtype=integer(0), prpost=integer(0), prhyp=matrix(0, 0, 5))
   if (is.null(prior) || length(prior) == 0) return(list(data=empty, table=NULL))
   if (inherits(prior, "drcprior") || !is.list(prior) || is.null(names(prior)) || any(names(prior) == "")) {
     stop("prior must be a list of priors named by parameter, e.g. list(b1=normal(10, 2), sd=half_normal(1)).")
@@ -162,6 +200,7 @@ priordata <- function(prior, dd, fix, lower, upper, coefnames){
   linkrng <- function(l) switch(l, c(-Inf, Inf), c(0, Inf), c(0, 1))
   parname <- paste("b", 1:5, sep="")
   if (!is.null(dd$bmd)) coefnames[npi == 4] <- "log_bmd"
+  if (isTRUE(dd$bmd$role == 5)) coefnames[npi == 3] <- "log_d"
   for (nm in names(prior)){
     p <- prior[[nm]]
     if (nm == "bmd" && !is.null(dd$bmd)){
@@ -216,6 +255,7 @@ priordata <- function(prior, dd, fix, lower, upper, coefnames){
   }
   data <- list(prwhat=vapply(entries, function(e) e$what, integer(1)), pridx=vapply(entries, function(e) as.integer(e$idx), integer(1)),
                prtrans=vapply(entries, function(e) as.integer(e$trans), integer(1)), prtype=vapply(entries, function(e) e$p$type, integer(1)),
+               prpost=vapply(entries, function(e) if (is.null(e$p$post)) 1L else as.integer(e$p$post), integer(1)),
                prhyp=hyp)
   data <- lapply(data, unname)
   table <- data.frame(parameter=vapply(entries, function(e) e$label, character(1)),

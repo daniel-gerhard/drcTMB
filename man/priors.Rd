@@ -8,8 +8,11 @@
 \alias{pert}
 \alias{half_normal}
 \alias{half_student_t}
+\alias{negate}
 \title{Prior distributions for drmTMB models}
 \usage{
+negate(p)
+
 normal(mean = 0, sd = 1)
 
 student_t(df = 3, location = 0, scale = 1)
@@ -23,6 +26,8 @@ half_normal(scale = 1)
 half_student_t(df = 3, scale = 1)
 }
 \arguments{
+\item{p}{a prior, for negate}
+
 \item{mean, sd}{mean and standard deviation of the normal distribution}
 
 \item{df}{degrees of freedom of the Student t distribution}
@@ -56,6 +61,9 @@ modelling, a beta distribution on (min, max) with mode \code{mode} and the shape
 1 + shape (mode - min)/(max - min) and 1 + shape (max - mode)/(max - min); shape = 4 by default.
 \item \code{half_normal(scale)}, \code{half_student_t(df, scale)}: normal and Student t
 distributions folded at 0, for standard deviations.
+\item \code{negate(p)}: the prior p of the negative of the parameter, e.g.
+\code{b3=negate(lognormal(1, 1))} for a negative steepness b3 (a decreasing curve) whose absolute
+value is lognormal.
 }
 
 A prior whose support is wider than the range of the parameter, e.g. a normal prior for a parameter
