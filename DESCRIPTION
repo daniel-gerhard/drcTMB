@@ -32,7 +32,6 @@ Suggests:
 Config/testthat/edition: 3
 Encoding: UTF-8
 Roxygen: list(markdown = TRUE)
-RoxygenNote: 8.0.0
 Imports: 
     ggplot2,
     graphics,
@@ -46,3 +45,4 @@ Imports:
 LinkingTo: 
     TMB,
     RcppEigen
+Config/roxygen2/version: 8.1.1
