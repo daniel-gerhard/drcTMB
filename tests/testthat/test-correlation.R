@@ -140,6 +140,20 @@ test_that("printing, intervals on the natural scale, model comparison", {
   expect_equal(unname(ci["cor:phi", ]), plogis(coef(f)[["cor_par:phi"]] + c(-1, 1)*qnorm(0.975)*se))
   cp <- suppressMessages(confint(f, parm="cor_par:phi"))
   expect_true(cp[1] < resnatural(f)[["cor:phi"]] && resnatural(f)[["cor:phi"]] < cp[2])
+  # profile limits: the deviance of the refit with the parameter fixed at the limit is the cutoff, with
+  # the other coefficients, sigma and the parameters of the variance function re-optimised
+  devat <- function(i, v){
+    p <- f$opt$par
+    full <- function(x){ q <- p; q[-i] <- x; q[i] <- v; q }
+    o <- nlminb(p[-i], function(x) f$obj$fn(full(x)), function(x) f$obj$gr(full(x))[-i])
+    2*(o$objective - f$opt$objective)
+  }
+  i <- match("cor_par:phi", names(coef(f)))
+  expect_equal(c(devat(i, qlogis(cp[1])), devat(i, qlogis(cp[2]))), rep(qchisq(0.95, 1), 2), tolerance=1e-3)
+  # effective doses: the profile of the ED50 is that of b4
+  cb4 <- suppressMessages(confint(f, parm="b4:(Intercept)"))
+  ce <- suppressMessages(confint(ed(f, 50), method="profile"))
+  expect_equal(unname(ce[1, ]), unname(cb4[1, ]), tolerance=1e-3)
   f0 <- fitc(variance=var_ident(~ 1 | strat))
   a <- anova(f0, f)
   expect_equal(a$Df[2], 1)
