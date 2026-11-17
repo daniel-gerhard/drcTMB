@@ -85,7 +85,10 @@ cor_par:rho (atanh(rho) for AR1, the logit of (rho + 1/(m - 1))/(1 + 1/(m - 1)) 
 cor_par:phi (logit(phi)), cor_par:range (log(range)) and cor_par:nugget (logit(nugget)); for the
 variance functions var_par:delta (delta itself) and var_par:\if{html}{\out{<stratum>}} (lambda, the log ratio of the
 standard deviation of the stratum to that of the first). \code{summary} prints them on their natural
-scale.
+scale, and \code{confint} gives their intervals on that scale, named cor:rho, cor:phi, cor:range,
+cor:nugget, var:delta and var:ratio:\if{html}{\out{<stratum>}}. Priors (argument \code{prior} of \code{\link{drmTMB}})
+are given by these names, on the natural scale, e.g. \code{prior=list("cor:phi"=pert(0, 0.5, 1))}; the
+marginal likelihood (\code{\link{marglik}}) needs priors for all of them.
 }
 \examples{
 \dontrun{

@@ -131,11 +131,11 @@ test_that("printing, intervals on the natural scale, model comparison", {
   f <- fitc(cor_car1(~ time | subject), var_ident(~ 1 | strat))
   expect_equal(names(coef(f))[6:7], c("cor_par:phi", "var_par:high"))
   expect_output(print(f), "Residual correlation: CAR1, ~time \\| subject: phi = ")
-  expect_output(print(summary(f)), "Variance function: separate standard deviations, ~1 \\| strat: sd ratio high = ")
+  expect_output(print(summary(f)), "Variance function: separate standard deviations, ~1 \\| strat: ratio:high = ")
   expect_output(print(cor_exp(~ x + y | plot, nugget=TRUE)), "exponential with nugget, ~x \\+ y \\| plot")
   expect_output(print(var_power()), "power, ~fitted")
   ci <- confint(f, method="wald")
-  expect_equal(rownames(ci)[6:7], c("cor:phi", "var:sd ratio high"))
+  expect_equal(rownames(ci)[6:7], c("cor:phi", "var:ratio:high"))
   se <- sqrt(diag(vcov(f)))[["cor_par:phi"]]
   expect_equal(unname(ci["cor:phi", ]), plogis(coef(f)[["cor_par:phi"]] + c(-1, 1)*qnorm(0.975)*se))
   cp <- suppressMessages(confint(f, parm="cor_par:phi"))
@@ -161,6 +161,44 @@ test_that("printing, intervals on the natural scale, model comparison", {
   expect_null(df.residual(f))
   b <- bootstrap(f, nsim=10, seed=1, progress=FALSE)
   expect_equal(rownames(confint(b, parm="cor_par:phi")), "cor:phi")
+})
+
+test_that("priors of the correlation and variance parameters, and the marginal likelihood", {
+  pr <- list(b1=normal(1, 2), b2=normal(8, 2), b3=normal(-1.5, 1), b4=lognormal(log(4), 1), sigma=half_normal(2))
+  fitp <- function(cs, vf, p) fitc(cs, vf, prior=c(pr, p))
+  # the log posterior: the priors on the natural scale with the log Jacobian of the transformation
+  cases <- list(
+    list(cor_car1(~ time | subject), var_ident(~ 1 | strat), list("cor:phi"=pert(0, 0.5, 1), "var:ratio:high"=lognormal(0, 1)),
+         function(q) dbeta(plogis(q[6]), 3, 3, log=TRUE) + log(plogis(q[6])*plogis(-q[6])) + dlnorm(exp(q[7]), 0, 1, log=TRUE) + q[7]),
+    list(cor_ar1(~ k | subject), var_power(), list("cor:rho"=pert(-1, 0, 1), "var:delta"=normal(0, 1)),
+         function(q) dbeta((tanh(q[6]) + 1)/2, 3, 3, log=TRUE) - log(2) + log(1 - tanh(q[6])^2) + dnorm(q[7], 0, 1, log=TRUE)),
+    # compound symmetry: rho in (-1/6, 1) for series of 7, the normal prior truncated to that range
+    list(cor_cs(~ 1 | subject), NULL, list("cor:rho"=normal(0.2, 0.2)),
+         function(q){
+           lo <- -1/6
+           r <- lo + (1 - lo)*plogis(q[6])
+           dnorm(r, 0.2, 0.2, log=TRUE) - log(diff(pnorm(c(lo, 1), 0.2, 0.2))) + log(1 - lo) + log(plogis(q[6])*plogis(-q[6]))
+         }),
+    list(cor_exp(~ time | subject, nugget=TRUE), NULL, list("cor:range"=lognormal(0, 1), "cor:nugget"=pert(0, 0.2, 1)),
+         function(q) dlnorm(exp(q[6]), 0, 1, log=TRUE) + q[6] + dbeta(plogis(q[7]), 1.8, 4.2, log=TRUE) + log(plogis(q[7])*plogis(-q[7]))))
+  for (cc in cases){
+    fa <- fitp(cc[[1]], cc[[2]], list())
+    fb <- fitp(cc[[1]], cc[[2]], cc[[3]])
+    nl <- function(q) unname(fa$obj$fn(q) - cc[[4]](q))
+    expect_equal(fb$opt$objective, nl(fb$opt$par), tolerance=1e-8)
+    expect_lt(max(abs(numDeriv::grad(nl, fb$opt$par))), 1e-4)
+    expect_equal(tail(fb$prior$parameter, length(cc[[3]])), names(cc[[3]]))
+  }
+  # the marginal likelihood needs priors for the correlation and variance parameters
+  fb <- fitp(cor_car1(~ time | subject), var_ident(~ 1 | strat), list("cor:phi"=pert(0, 0.5, 1)))
+  expect_error(marglik(fb), "no prior for var_par:high")
+  fb <- fitp(cor_car1(~ time | subject), var_ident(~ 1 | strat), cases[[1]][[3]])
+  set.seed(1)
+  mi <- marglik(fb, "is", n=2000)
+  expect_gt(attr(mi, "ess"), 500)
+  expect_lt(abs(mi - marglik(fb)), 0.5)
+  expect_error(fitp(cor_car1(~ time | subject), NULL, list(rho=normal())), "unknown name in prior: rho; .*cor:phi")
+  expect_error(fitp(cor_car1(~ time | subject), NULL, list("cor:phi"=pert(1.5, 2, 3))), "no support within the range")
 })
 
 test_that("checks of the correlation structures and variance functions", {

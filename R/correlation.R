@@ -44,7 +44,10 @@
 #' cor_par:phi (logit(phi)), cor_par:range (log(range)) and cor_par:nugget (logit(nugget)); for the
 #' variance functions var_par:delta (delta itself) and var_par:<stratum> (lambda, the log ratio of the
 #' standard deviation of the stratum to that of the first). \code{summary} prints them on their natural
-#' scale.
+#' scale, and \code{confint} gives their intervals on that scale, named cor:rho, cor:phi, cor:range,
+#' cor:nugget, var:delta and var:ratio:<stratum>. Priors (argument \code{prior} of \code{\link{drmTMB}})
+#' are given by these names, on the natural scale, e.g. \code{prior=list("cor:phi"=pert(0, 0.5, 1))}; the
+#' marginal likelihood (\code{\link{marglik}}) needs priors for all of them.
 #'
 #' @param form formula, see Details
 #' @param nugget logical, include a nugget effect
@@ -252,7 +255,7 @@ restrans <- function(object){
   }
   if (!is.null(vf)){
     if (vf$type %in% c("power", "exp")) out[["var_par:delta"]] <- list(name="var:delta", f=identity)
-    if (vf$type == "ident") for (s in object$varlevels[-1]) out[[paste("var_par:", s, sep="")]] <- list(name=paste("var:sd ratio ", s, sep=""), f=exp)
+    if (vf$type == "ident") for (s in object$varlevels[-1]) out[[paste("var_par:", s, sep="")]] <- list(name=paste("var:ratio:", s, sep=""), f=exp)
   }
   out
 }
@@ -332,4 +335,41 @@ normalize <- function(object, z){
     off <- off + m
   }
   z
+}
+
+# parameters of the correlation structure and the variance function that can have priors, on their
+# natural scale, for priordata: the prior name, the target in the TMB template (3 cpar, 4 vpar), the
+# index, the transformation from the optimised value (see prtrans of the template) and the range
+resprior <- function(dd){
+  out <- list()
+  cd <- dd$cor
+  vd <- dd$var
+  if (!is.null(cd) && cd$ctype > 0){
+    m <- max(cd$clen)
+    lo <- if (m > 1) -1/(m - 1) else -1
+    for (j in seq_along(cd$cnames)){
+      nm <- sub("^cor_par:", "", cd$cnames[j])
+      tr <- switch(cd$ctype, list(5L, c(-1, 1)), list(3L, c(0, 1)), list(6L, c(lo, 1)), NULL, NULL, NULL)
+      if (nm == "range") tr <- list(2L, c(0, Inf))
+      if (nm == "nugget") tr <- list(3L, c(0, 1))
+      out[[paste("cor:", nm, sep="")]] <- list(what=3L, idx=j - 1L, trans=tr[[1]], range=tr[[2]], lo=lo)
+    }
+  }
+  if (!is.null(vd) && vd$vtype > 0){
+    for (j in seq_along(vd$vnames)){
+      nm <- sub("^var_par:", "", vd$vnames[j])
+      key <- if (vd$vtype == 3) paste("var:ratio:", nm, sep="") else paste("var:", nm, sep="")
+      out[[key]] <- if (vd$vtype == 3) list(what=4L, idx=j - 1L, trans=2L, range=c(0, Inf))
+                    else list(what=4L, idx=j - 1L, trans=1L, range=c(-Inf, Inf))
+    }
+  }
+  out
+}
+
+# transformation of a prior target from the optimised value (inverse) or to it: linkfun, and tanh (5)
+# and the compound symmetry correlation in (lo, 1) (6)
+priortrans <- function(trans, x, inverse=FALSE, lo=-1){
+  if (trans == 5) return(if (inverse) tanh(x) else atanh(x))
+  if (trans == 6) return(if (inverse) lo + (1 - lo)*plogis(x) else qlogis((x - lo)/(1 - lo)))
+  linkfun(trans, x, inverse=inverse)
 }

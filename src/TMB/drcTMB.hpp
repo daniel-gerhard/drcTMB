@@ -41,9 +41,9 @@ Type drcTMB(objective_function<Type>* obj) {
   DATA_INTEGER(binc);      // direction of the curve: 1 increasing, -1 decreasing
   DATA_INTEGER(b4pos);
   DATA_SCALAR(bdmax);      // BMD parameterisation of the quadratic exponential model (b4role 5): the highest dose     // 1: b4 must not be negative (default lower bound 0 of the standard parameterisation)
-  DATA_IVECTOR(prwhat);    // priors: 0 = coefficient of b1-b5, 1 = theta, 2 = log_sigma; length zero without priors
+  DATA_IVECTOR(prwhat);    // priors: 0 = coefficient of b1-b5, 1 = theta, 2 = log_sigma, 3 = cpar, 4 = vpar; length zero without priors
   DATA_IVECTOR(pridx);     // index (from 0) in the coefficients b1-b5, concatenated, or in theta
-  DATA_IVECTOR(prtrans);   // from the parameter to the scale of the prior: 1 identity, 2 exp, 3 inverse logit
+  DATA_IVECTOR(prtrans);   // from the parameter to the scale of the prior: 1 identity, 2 exp, 3 inverse logit, 5 tanh, 6 compound symmetry
   DATA_IVECTOR(prtype);    // distribution, see lpdfprior
   DATA_IVECTOR(prpost);    // the prior applies to: 1 the parameter, 2 its negative (negate), 3 its exponential, 4 pnorm, 5 plogis
   DATA_MATRIX(prhyp);      // hyperparameters (columns 0-3) and the log probability of the range of the parameter (column 4)
@@ -95,9 +95,21 @@ Type drcTMB(objective_function<Type>* obj) {
     vector<Type> ball(b1.size() + b2.size() + b3.size() + b4.size() + b5.size());
     ball << b1, b2, b3, b4, b5;
     for (int k = 0; k < npr; k++){
-      Type v = prwhat(k) == 0 ? ball(pridx(k)) : (prwhat(k) == 1 ? theta(pridx(k)) : log_sigma);
+      Type v = prwhat(k) == 0 ? ball(pridx(k)) : (prwhat(k) == 1 ? theta(pridx(k)) : (prwhat(k) == 2 ? log_sigma :
+               (prwhat(k) == 3 ? cpar(pridx(k)) : vpar(pridx(k)))));
       Type z = linkinv(prtrans(k), v);
       Type logjac = prtrans(k) == 2 ? v : (prtrans(k) == 3 ? Type(log(z) + log(1 - z)) : Type(0));
+      // correlation of AR1 (tanh) and of compound symmetry (in (lo, 1) for series of up to m observations)
+      if (prtrans(k) == 5){
+        z = tanh(v);
+        logjac = log(1 - z * z);
+      }
+      if (prtrans(k) == 6){
+        Type lo = clen.maxCoeff() > 1 ? Type(-1.0 / (clen.maxCoeff() - 1)) : Type(-1);
+        Type p = invlogit(v);
+        z = lo + (1 - lo) * p;
+        logjac = log(1 - lo) + log(p) + log(1 - p);
+      }
       // a prior of the negative of the parameter, or of its exponential, pnorm or plogis (with the log
       // Jacobian of the inverse link)
       if (prpost(k) == 2) z = -z;
