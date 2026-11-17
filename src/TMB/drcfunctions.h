@@ -482,4 +482,23 @@ Type corvalue(int ctype, int cnug, vector<Type> cpar, vector<Type> rpow, vector<
   }
 }
 
+// parameters b1-b5 of a curve from their linear predictors eta (with the random effects) and links lnk;
+// in the BMD parameterisation, b4 (bmdp) and for the quadratic exponential model b3 (qe) are computed
+// from the BMD (f4bmd, f3bmd)
+template<class Type>
+vector<Type> curvepars(vector<int> lnk, vector<Type> eta, bool qe, Type f3bmd, bool bmdp, Type f4bmd){
+  vector<Type> f(5);
+  for (int k = 0; k < 5; k++) f(k) = linkinv(lnk(k), eta(k));
+  if (qe) f(2) = f3bmd;
+  if (bmdp) f(3) = f4bmd;
+  return f;
+}
+
+// the curve at dose x, with the parameters f (see curvepars) and the curve link clink: the mean, median
+// or probability
+template<class Type>
+Type curveat(int mod, int clink, Type x, vector<Type> f, Type alpha, Type smooth){
+  return linkinv(clink, drcmean(mod, x, f(0), f(1), f(2), f(3), f(4), alpha, smooth));
+}
+
 #endif
