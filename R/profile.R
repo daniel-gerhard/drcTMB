@@ -171,7 +171,7 @@ utils::globalVariables(c("par", "deviance", "cutoff"))
 # of freedom, or with small-sample inference (rdf of the fit) the F-based cutoff, equivalent to a t
 # interval: the profile deviance of a gaussian model is sum(w) log(RSS/RSSmin), so
 # (RSS - RSSmin)/(RSSmin/rdf) <= F(1, rdf) gives sum(w) log(1 + F(1, rdf)/rdf)
-profcutoff <- function(level, fit=NULL){
+profcutoff <- function(level, fit){
   if (is.null(fit$rdf)) return(qchisq(level, 1))
   sum(fit$obj$env$data$w) * log(1 + qf(level, 1, fit$rdf)/fit$rdf)
 }
@@ -569,7 +569,6 @@ confint.edTMB <- function(object, parm=NULL, level=0.95, method=c("profile", "wa
     return(confint(profile(object, parm=parm, level=level, ...), level=level))
   }
   if (method == "boot"){
-    fit <- object$fit
     # parameters of the bootstrap fits, with random effects of the fitted groups drawn from their
     # conditional distribution at each fit for effective doses of fitted groups
     draws <- bootdraws(fit, getboot(fit, boot, nsim, seed, ...), any(edflag(object, "conditional")[parm]))

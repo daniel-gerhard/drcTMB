@@ -1,6 +1,6 @@
 #' Set control parameters for drcTMB
 #'
-#' @param optimiser character string specifying the optimiser to use
+#' @param optimiser the optimiser; only "nlminb" is available
 #' @param iter.max maximum number of iterations of the optimiser, see \code{\link{nlminb}}.
 #' @param eval.max maximum number of evaluations of the objective function, see \code{\link{nlminb}}.
 #' @param smallsample if TRUE (default), gaussian and lognormal models without random effects use the unbiased
@@ -12,5 +12,6 @@
 #'
 
 drmTMBcontrol <- function(optimiser="nlminb", iter.max=1000, eval.max=2000, smallsample=TRUE){
+    optimiser <- match.arg(optimiser)
     list(optimiser=optimiser, iter.max=iter.max, eval.max=eval.max, smallsample=smallsample)
 }

@@ -1,11 +1,11 @@
-// Helper functions shared by the drcTMB objective function.
+// Helper functions shared by the templates drcTMB, drcED and drcBMD.
 // Kept in a .h file (not .hpp) so TMBtools does not treat it as a model.
 
 #ifndef DRCFUNCTIONS_H
 #define DRCFUNCTIONS_H
 
-// inverse link for the asymptote parameters b1 and b2, and for b4
-// lnk: 1 = identity, 2 = log, 3 = logit
+// inverse link of the parameters b1-b5 (parlink) and of the curve (curvelink)
+// lnk: 1 = identity, 2 = log, 3 = logit, 4 = probit
 template<class Type>
 Type linkinv(int lnk, Type eta){
   switch (lnk){

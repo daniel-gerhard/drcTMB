@@ -72,7 +72,8 @@ for lognormal), the benchmark response q and the highest dose dN:
 \itemize{
 \item background, increasing curve: pert(0.001, y0, 2 y0); decreasing: pert(0.5 y0, y0, 2 y0);
 quantal: pert(max(L/2, 1/(10 n0)), max(p0, 1/(5 n0)), min(3 U/2, 1 - 1/(10 n0))) with the observed
-proportion p0 of the n0 controls and its confidence interval (L, U) of prop.test; shape 4. For the
+proportion p0 of the n0 controls and its confidence interval (L, U) of prop.test (lower bound 1e-8
+without events in the controls); shape 4. For the
 probit and logit models the prior is on the background probability pnorm(b1) or plogis(b1).
 \item maximum response (continuous): increasing pert(y0 (1.01 + q), yN, 2 yN), or pert(y0 (1.01 + q),
 3 yN, 6 yN) if the curve does not level off at the high doses; decreasing pert(0.5 yN, yN,

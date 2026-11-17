@@ -210,6 +210,16 @@ drmTMBstartvals <- function(dd, start, fix, method="lm", gsl=NULL, gsu=NULL, gsn
 }
 
 
+# the observations keep (logical) of the model data dd, for the starting values of a subset (lmstart)
+ddrows <- function(dd, keep){
+  dd$x <- dd$x[keep]
+  dd$y <- dd$y[keep]
+  dd$w <- dd$w[keep]
+  dd$bn <- dd$bn[keep]
+  dd$Xs <- lapply(dd$Xs, function(X) X[keep, , drop=FALSE])
+  dd
+}
+
 # starting values from linearised model functions
 lmstart <- function(dd, start, fix){
   npi <- dd$npi

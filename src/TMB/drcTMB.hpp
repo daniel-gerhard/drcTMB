@@ -39,8 +39,8 @@ Type drcTMB(objective_function<Type>* obj) {
   DATA_INTEGER(bdef);      // definition of the benchmark response, see bmdtarget
   DATA_SCALAR(bbmr);       // benchmark response
   DATA_INTEGER(binc);      // direction of the curve: 1 increasing, -1 decreasing
-  DATA_INTEGER(b4pos);
-  DATA_SCALAR(bdmax);      // BMD parameterisation of the quadratic exponential model (b4role 5): the highest dose     // 1: b4 must not be negative (default lower bound 0 of the standard parameterisation)
+  DATA_INTEGER(b4pos);     // 1: b4 must not be negative (default lower bound 0 of the standard parameterisation)
+  DATA_SCALAR(bdmax);      // BMD parameterisation of the quadratic exponential model (b4role 5): the highest dose
   DATA_IVECTOR(prwhat);    // priors: 0 = coefficient of b1-b5, 1 = theta, 2 = log_sigma, 3 = cpar, 4 = vpar; length zero without priors
   DATA_IVECTOR(pridx);     // index (from 0) in the coefficients b1-b5, concatenated, or in theta
   DATA_IVECTOR(prtrans);   // from the parameter to the scale of the prior: 1 identity, 2 exp, 3 inverse logit, 5 tanh, 6 compound symmetry
@@ -82,13 +82,6 @@ Type drcTMB(objective_function<Type>* obj) {
                            // the standard deviations of the strata to the first (separate); length zero without
 
   Type phi = exp(log_sigma);
-  if (fam == 1 || fam == 8){
-    Type sigma = phi;
-    ADREPORT(sigma);
-  }
-  if (fam == 4){
-    ADREPORT(phi);
-  }
 
   Type nll = 0;
   int n = y.size();

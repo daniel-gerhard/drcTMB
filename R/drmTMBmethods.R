@@ -106,14 +106,8 @@ summary.drmTMB <- function(object, ...){
     dispersion <- c(chisq=chisq, df=rdf, ratio=chisq/rdf)
   }
   if (object$family %in% c("poisson", "binomial")){
-    mu <- predict(object)
-    if (object$family == "poisson"){
-      r2 <- (dat$y - mu)^2 / mu
-    } else {
-      r2 <- (dat$y - dat$bn*mu)^2 / (dat$bn*mu*(1 - mu))
-    }
+    chisq <- sum(residuals(object, type="pearson")^2)
     rdf <- nobs(object) - attr(ll, "df")
-    chisq <- sum(dat$w * r2)
     dispersion <- c(chisq=chisq, df=rdf, ratio=chisq/rdf)
   }
 
@@ -125,7 +119,6 @@ summary.drmTMB <- function(object, ...){
   # gradient projected on the bounds: zero for coefficients at a bound that the likelihood pushes
   # against
   gr <- as.vector(object$obj$gr(object$opt$par))
-  nb <- sum(!object$fix)
   if (!is.null(object$lower)){
     lo <- object$lower
     up <- object$upper
@@ -245,7 +238,6 @@ residuals.drmTMB <- function(object, type=c("pearson", "response", "quantile"), 
 
   if (type == "pearson"){
     v <- switch(object$family,
-                gaussian=phi^2,
                 poisson=mu,
                 binomial=mu*(1 - mu)/n,
                 betabinomial=mu*(1 - mu)/n*(1 + (n - 1)/(phi + 1)),
@@ -285,6 +277,7 @@ predict.drmTMB <- function(object, newdata=NULL, random=TRUE, se.fit=FALSE, inte
   scale <- match.arg(scale)
   if (is.null(newdata)) newdata <- object$data
   if (type == "parameters") return(predictpars(object, newdata, random, se.fit, interval, level, boot, nsim, seed, scale))
+  if (interval == "prediction" && object$family == "event") stop("prediction intervals are not available for event data; use interval=\"confidence\" for the cumulative proportion of events.")
   pd <- preddata(object, newdata, random, covs=interval == "prediction")
   fit <- predmean(pd, pd$eta)
   if (!se.fit && interval == "none") return(fit)
@@ -306,7 +299,6 @@ predict.drmTMB <- function(object, newdata=NULL, random=TRUE, se.fit=FALSE, inte
                             else t(apply(bc, 1, quantile, probs=probs, na.rm=TRUE, names=FALSE))
   }
 
-  if (interval == "prediction" && object$family == "event") stop("prediction intervals are not available for event data; use interval=\"confidence\" for the cumulative proportion of events.")
   if (interval == "prediction"){
     if (object$family == "gaussian" && is.null(boot)){
       # new observation: uncertainty of the mean, residual variance, and the variance of the random
