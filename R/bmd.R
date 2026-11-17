@@ -74,30 +74,10 @@ bmd <- function(x, bmr=0.1, def=c("excess", "additional", "relative", "sd"), lin
   if (def %in% c("excess", "additional") && any(bmr >= 1)) stop("the ", def, " risk bmr must be below 1.")
 
   # curves and benchmark responses, paired as in ed
-  rows <- NULL
-  if (!is.null(newdata)){
-    if (!is.null(linfct)) stop("give either linfct or newdata, not both.")
-    nl <- edlinfct(x, newdata)
-    rows <- rep(seq_along(nl), length(bmr))
-    linfct <- rep(nl, length(bmr))
-    bmr <- rep(bmr, each=length(nl))
-  }
-  if (is.null(linfct)) linfct <- diag(5)
-  if (!is.list(linfct)) linfct <- list(linfct)
-  if (length(bmr) != length(linfct)){
-    if (length(bmr) == 1) bmr <- rep(bmr, length(linfct))
-    if (length(linfct) == 1) linfct <- rep(linfct, length(bmr))
-    if (length(bmr) != length(linfct)) stop("bmr and linfct must have the same length or one of them must be of length 1.")
-  }
-  if (is.null(names(linfct))) names(linfct) <- paste("lf", seq_along(linfct), sep="")
-  ncf <- length(x$start)
-  for (L in linfct){
-    if (!is.matrix(L) || nrow(L) != 5 || ncol(L) != ncf){
-      stop("each matrix in linfct must have 5 rows (b1-b5) and one column for each of the ", ncf,
-           " model coefficients: ", paste(x$coefnames, collapse=", "), ".",
-           if (is.null(newdata) && ncf > 5) " Alternatively, give the covariate values of the curves in newdata.")
-    }
-  }
+  ec <- edcurves(x, bmr, linfct, newdata, "bmr")
+  linfct <- ec$linfct
+  bmr <- ec$lev
+  rows <- ec$rows
 
   pf <- x$sdrl$par.fixed
   nb <- sum(!x$fix)

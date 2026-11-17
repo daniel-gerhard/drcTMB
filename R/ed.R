@@ -80,6 +80,38 @@ peak <- function(x, linfct=NULL, newdata=NULL, random=TRUE){
   }
 }
 
+# the curves (linear functions of the coefficients, linfct, or the rows of newdata) paired with the levels
+# lev (response levels of ed, benchmark responses of bmd, named levname in messages): with newdata every
+# level for every curve, otherwise recycled; returns the list of 5 x p matrices linfct (named), the
+# levels and, with newdata, the row of newdata of each entry
+edcurves <- function(x, lev, linfct, newdata, levname){
+  rows <- NULL
+  if (!is.null(newdata)){
+    if (!is.null(linfct)) stop("give either linfct or newdata, not both.")
+    nl <- edlinfct(x, newdata)
+    rows <- rep(seq_along(nl), length(lev))
+    linfct <- rep(nl, length(lev))
+    lev <- rep(lev, each=length(nl))
+  }
+  if (is.null(linfct)) linfct <- diag(5)
+  if (!is.list(linfct)) linfct <- list(linfct)
+  if (length(lev) != length(linfct)){
+    if (length(lev) == 1) lev <- rep(lev, length(linfct))
+    if (length(linfct) == 1) linfct <- rep(linfct, length(lev))
+    if (length(lev) != length(linfct)) stop(levname, " and linfct must have the same length or one of them must be of length 1.")
+  }
+  if (is.null(names(linfct))) names(linfct) <- paste("lf", seq_along(linfct), sep="")
+  ncf <- length(x$start)
+  for (L in linfct){
+    if (!is.matrix(L) || nrow(L) != 5 || ncol(L) != ncf){
+      stop("each matrix in linfct must have 5 rows (b1-b5) and one column for each of the ", ncf,
+           " model coefficients: ", paste(x$coefnames, collapse=", "), ".",
+           if (is.null(newdata) && ncf > 5) " Alternatively, give the covariate values of the curves in newdata.")
+    }
+  }
+  list(linfct=linfct, lev=lev, rows=rows)
+}
+
 # effective doses (type "relative" or "absolute", respLev the levels) or peaks of hormesis curves
 # (type "peak", respLev 1 for the dose and 2 for the response at the peak) of the curves in linfct
 # or newdata, with their covariance by the delta method
@@ -90,36 +122,10 @@ edcore <- function(x, respLev, linfct, newdata, random, residual, type){
   # levels are transformed to that scale; the response at a peak is on the scale of the response
   if (clinkof(x) != 1 && isTRUE(residual)) stop("residual=TRUE is not available for fits with a curvelink.")
   if (!is.null(x$variance) && isTRUE(residual)) stop("residual=TRUE is not available for fits with a variance function.")
-  if (!is.null(newdata)){
-    if (!is.null(linfct)) stop("give either linfct or newdata, not both.")
-    # every level of respLev for every curve
-    nl <- edlinfct(x, newdata)
-    rows <- rep(seq_along(nl), length(respLev))
-    linfct <- rep(nl, length(respLev))
-    respLev <- rep(respLev, each=length(nl))
-  }
-  if (is.null(linfct)) linfct <- diag(5)
-  if (!is.list(linfct)) linfct <- list(linfct)
-  if (length(respLev) != length(linfct)){
-    if (length(respLev) == 1){
-      respLev <- rep(respLev, length(linfct))
-    }
-    if (length(linfct) == 1){
-      linfct <- rep(linfct, length(respLev))
-    } 
-    if (length(respLev) != length(linfct)){
-      stop("respLev and linfct must have the same length or one of them must be of length 1.")
-    }
-  }
-  if (is.null(names(linfct))) names(linfct) <- paste("lf", 1:length(linfct), sep="")
-  ncf <- length(x$start)
-  for (L in linfct){
-    if (!is.matrix(L) || nrow(L) != 5 || ncol(L) != ncf){
-      stop("each matrix in linfct must have 5 rows (b1-b5) and one column for each of the ", ncf,
-           " model coefficients: ", paste(x$coefnames, collapse=", "), ".",
-           if (is.null(newdata) && ncf > 5) " Alternatively, give the covariate values of the curves in newdata.")
-    }
-  }
+  ec <- edcurves(x, respLev, linfct, newdata, "respLev")
+  linfct <- ec$linfct
+  respLev <- ec$lev
+  rows <- ec$rows
 
   if (residual == TRUE && x$family != "gaussian"){
     stop("residual=TRUE is only available for the gaussian family.")
