@@ -71,6 +71,7 @@ profile.drmTMB <- function(fitted, parm=NULL, level=0.99, trace=FALSE, progress=
   names(prof) <- pn[parm]
   attr(prof, "estimates") <- est[parm]
   attr(prof, "corr2") <- corr2names(fitted)
+  attr(prof, "restrans") <- restrans(fitted)
   attr(prof, "cutoff") <- cutoffattr(fitted, parm <= nb)
   class(prof) <- "profile.drmTMB"
   prof
@@ -117,13 +118,19 @@ confint.profile.drmTMB <- function(object, parm=NULL, level=0.95, ...){
             " do not reach the confidence level; compute them with a higher level in profile.", call.=FALSE)
   }
 
-  natscale(ci, rn, attr(object, "corr2"), level)
+  natscale(ci, rn, attr(object, "corr2"), level, attr(object, "restrans"))
 }
 
 # confidence intervals on the natural scale: standard deviations and precision from their logs,
 # correlations of terms with two random effects from their parameter; rows named accordingly
-natscale <- function(ci, rn, corr2, level){
+natscale <- function(ci, rn, corr2, level, rt=NULL){
   ci <- matrix(ci, ncol=2)
+  # parameters of the residual correlation structure and variance function (increasing transformations)
+  for (nm in intersect(rn, names(rt))){
+    k <- rn == nm
+    ci[k, ] <- rt[[nm]]$f(ci[k, ])
+    rn[k] <- rt[[nm]]$name
+  }
   tolog <- grepl("^log_sd:", rn) | rn %in% c("log_sigma", "log_phi", "log_theta")
   ci[tolog, ] <- exp(ci[tolog, ])
   rn[tolog] <- sub("^log_", "", rn[tolog])
@@ -528,7 +535,7 @@ confint.drmTMB <- function(object, parm=NULL, level=0.95, method=c("profile", "w
   se <- sqrt(diag(vcov(object)))[parm]
   # t quantiles for the coefficients b1-b5 with small-sample inference
   z <- ifelse(parm <= sum(!object$fix), zquant(object, level), qnorm((1 + level)/2))
-  natscale(cbind(est[parm] - z*se, est[parm] + z*se), names(est)[parm], corr2names(object), level)
+  natscale(cbind(est[parm] - z*se, est[parm] + z*se), names(est)[parm], corr2names(object), level, restrans(object))
 }
 
 #' @rdname confint.drmTMB

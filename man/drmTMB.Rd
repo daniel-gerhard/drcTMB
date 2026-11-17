@@ -22,6 +22,8 @@ drmTMB(
   curvelink = "identity",
   prior = NULL,
   bmdpar = NULL,
+  correlation = NULL,
+  variance = NULL,
   gsl = NULL,
   gsu = NULL,
   gsn = NULL,
@@ -62,6 +64,14 @@ drmTMB(
 \item{prior}{NULL (default) for maximum likelihood without priors, or a named list of prior distributions (see \code{\link{priors}}), e.g. list(b2=normal(8, 2), b4=pert(0.5, 3, 10), sd=half_normal(1)): by parameter b1-b5, for parameters with a single coefficient, on the scale of the parameter (after the inverse link); by coefficient name, e.g. "b4:herbicideB", on the scale of the coefficient (the link); "sd" for all standard deviations of the random effects, or "sd:b1|group" for one of them; and "sigma" (gaussian, lognormal), "phi" (beta, nbinom1, betabinomial) or "theta" (nbinom2) for the residual parameter, on their natural scale. See Details.}
 
 \item{bmdpar}{NULL (default) for the standard parameterisation, or a list with a benchmark response bmr and its definition def as in \code{\link{bmd}}, e.g. list(bmr=0.1, def="relative"), for the BMD parameterisation: b4 is replaced by the log benchmark dose, coefficient log_bmd, and computed from it. See Details.}
+
+\item{correlation}{NULL (default) for independent residuals, or a residual correlation structure within
+series, e.g. \code{cor_car1(~ time | subject)}, for the gaussian and lognormal families; see
+\code{\link{correlation}}.}
+
+\item{variance}{NULL (default) for a constant residual standard deviation, or a variance function, e.g.
+\code{var_power()} (a power of the fitted mean) or \code{var_ident(~ 1 | group)}, for the gaussian and
+lognormal families; see \code{\link{correlation}}.}
 
 \item{gsl}{a vector of lower bounds for a grid search, same length as start; NA for the default range. If gsl, gsu and gsn are all NULL, no grid search is performed. See \code{\link{drmTMBstart}}.}
 
@@ -243,4 +253,16 @@ follows from the BMD, so that both coefficients of the polynomial stay positive 
 limit c -> 0, not a bound. \code{coef}, \code{vcov}, \code{summary}, \code{logLik}, \code{confint},
 \code{simulate} and \code{\link{bootstrap}} are available for these fits; \code{ed}, \code{bmd},
 \code{peak} and \code{predict} need the standard parameterisation.
+
+With \code{correlation} or \code{variance} (gaussian and lognormal families), the residuals of each
+series are multivariate normal with a correlation structure, and their standard deviations sigma g
+depend on a covariate or the fitted mean, as in gnls and nlme of nlme (see \code{\link{correlation}});
+random effects can be combined with them. The parameters (cor_par:..., var_par:...) are estimated
+with the coefficients and follow log_sigma in \code{coef} and \code{vcov}; \code{summary} and
+\code{confint} give them on their natural scale, and \code{anova} compares fits with and without them.
+Small-sample inference (\code{smallsample}) is not used. Weights cannot be combined with a correlation
+structure. Pearson residuals are divided by sigma g; quantile residuals are in addition normalized,
+decorrelated within series. Prediction intervals use the standard deviation sigma g at newdata, which
+then needs the covariate of the variance function; \code{ed(residual=TRUE)} and the BMD definition
+"sd" are not available with a variance function.
 }

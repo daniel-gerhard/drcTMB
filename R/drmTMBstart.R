@@ -54,14 +54,15 @@ drmTMBstart <- function(form, fform=NULL, data, start=NULL, fix=NULL, weights=NU
 
 
 # model data shared by drmTMB and drmTMBstart
-drmTMBdata <- function(form, fform=NULL, rform=NULL, data, weights=NULL, family="gaussian", model="logistic", alpha=NULL, smooth=NULL, parlink=NULL, curvelink="identity"){
+drmTMBdata <- function(form, fform=NULL, rform=NULL, data, weights=NULL, family="gaussian", model="logistic", alpha=NULL, smooth=NULL, parlink=NULL, curvelink="identity",
+                       correlation=NULL, variance=NULL){
   fform <- fforms(fform)
   if (is.null(weights)) weights <- rep(1, nrow(data))
   if (length(weights) != nrow(data)) stop("weights must have one entry for each row of data.")
 
   # observations with missing values in the variables of the model or in the weights are left out
   rfl <- if (inherits(rform, "formula")) list(rform) else rform
-  vars <- c(all.vars(form), unlist(lapply(fform, all.vars)), unlist(lapply(rfl, function(f) all.vars(f[[3]]))))
+  vars <- c(all.vars(form), unlist(lapply(fform, all.vars)), unlist(lapply(rfl, function(f) all.vars(f[[3]]))), corvars(correlation, variance))
   keep <- complete.cases(data[, intersect(vars, names(data)), drop=FALSE]) & !is.na(weights)
   data <- data[keep, , drop=FALSE]
   weights <- weights[keep]
@@ -133,9 +134,18 @@ drmTMBdata <- function(form, fform=NULL, rform=NULL, data, weights=NULL, family=
     stop("smooth is only used by the ", modelswith(function(m) m$b4 %in% "threshold"), " model.")
   }
 
+  # residual correlation structure and variance function (gaussian and lognormal)
+  if ((!is.null(correlation) || !is.null(variance)) && !(family %in% c("gaussian", "lognormal"))){
+    stop("correlation structures and variance functions are available for the gaussian and lognormal families.")
+  }
+  cd <- cordata(correlation, data)
+  if (cd$ctype > 0 && any(weights != 1)) stop("weights cannot be combined with a correlation structure.")
+  vd <- vardata(variance, data)
+
   list(y=y, x=mf[,2], w=weights, bn=bn, fam=fam, mod=mod, alpha=alpha, smooth=smooth, lnk=lnk, re=re,
        Xs=Xs, fform=fform, fterms=fterms, npars=npars, npi=rep(1:5, npars),
-       family=family, model=model, parlink=link, curvelink=curvelink, clink=linkindex(curvelink), data=data)
+       family=family, model=model, parlink=link, curvelink=curvelink, clink=linkindex(curvelink), data=data,
+       cor=cd, var=vd)
 }
 
 # design matrix of a parameter for data, with the terms, factor levels and contrasts of the fit
@@ -499,6 +509,10 @@ drmTMBobj <- function(dd, start, fix, rform=NULL){
   bdat$b4pos <- as.integer(!is.null(bm) && isTRUE(bm$b4pos))
   bdat$bdmax <- max(dd$x)
   datalist <- c(dlist, dd$Xs, list(xp=numeric(0)), Xp, list(Zp=re$Z[0, , drop=FALSE]), bdat, pd)
+  # residual correlation structure and variance function
+  cd <- if (is.null(dd$cor)) cordata(NULL) else dd$cor
+  vd <- if (is.null(dd$var)) vardata(NULL) else dd$var
+  datalist <- c(datalist, cd[c("ctype", "cnug", "cord", "clen", "cpos", "cmaxk")], vd[c("vtype", "vfit", "vcov", "vstr")])
 
   # log_sigma: residual sd (gaussian, of log(y) for lognormal), precision (beta, betabinomial), size theta (nbinom2) or dispersion phi
   # (nbinom1); fixed for poisson and binomial
@@ -509,7 +523,8 @@ drmTMBobj <- function(dd, start, fix, rform=NULL){
   if (dd$family %in% c("nbinom2", "nbinom1")) slsigma <- 0
   if (dd$family == "betabinomial") slsigma <- 2
   if (dd$family %in% c("poisson", "binomial")) slsigma <- 0
-  parameters <- list(b1=sb[[1]], b2=sb[[2]], b3=sb[[3]], b4=sb[[4]], b5=sb[[5]], u=up, theta=as.numeric(stheta), log_sigma=slsigma)
+  parameters <- list(b1=sb[[1]], b2=sb[[2]], b3=sb[[3]], b4=sb[[4]], b5=sb[[5]], u=up, theta=as.numeric(stheta), log_sigma=slsigma,
+                     cpar=unname(cd$cpar), vpar=unname(vd$vpar))
 
   # fix parameters to starting values
   lmap <- list()
@@ -539,6 +554,8 @@ sigmastart <- function(datalist, parameters, lmap, rform){
     map1[[b]] <- factor(rep(NA, length(parameters[[b]])))
   }
   map1$theta <- factor(rep(NA, length(parameters$theta)))
+  map1$cpar <- factor(rep(NA, length(parameters$cpar)))
+  map1$vpar <- factor(rep(NA, length(parameters$vpar)))
   if (is.null(rform)) map1$u <- factor(rep(NA, length(parameters$u)))
   res <- tryCatch({
     obj1 <- MakeADFun(datalist, parameters, map=map1, random=if (!is.null(rform)) "u", DLL="drcTMB_TMBExports", silent=TRUE)

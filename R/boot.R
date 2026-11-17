@@ -66,7 +66,7 @@ confint.bootstrap.drmTMB <- function(object, parm=NULL, level=0.95, ...){
   if (is.character(parm)) parm <- match(parm, names(est))
   if (any(is.na(parm))) stop("unknown parameters in parm.")
   ci <- t(apply(bootconverged(object)[, parm, drop=FALSE], 2, quantile, probs=c((1 - level)/2, (1 + level)/2), na.rm=TRUE, names=FALSE))
-  natscale(ci, names(est)[parm], corr2names(object$fit), level)
+  natscale(ci, names(est)[parm], corr2names(object$fit), level, restrans(object$fit))
 }
 
 # fit of the model to a simulated response y, starting at the parameters pars (as parList), with the
