@@ -323,12 +323,12 @@ drmTMB <- function(form, fform=NULL, rform=NULL, data, start=NULL, fix=NULL, wei
     obj$par[pos[out]] <- pd$center[out]
   }
 
-  ctrl <- list(iter.max=control$iter.max, eval.max=control$eval.max)
   if (is.null(rform)){
-    opt <- nlminb(start=obj$par, objective=obj$fn, gradient=obj$gr, hessian=obj$he, lower=lower, upper=upper, control=ctrl)
+    opt <- fitopt(obj, obj$par, lower, upper, control, he=obj$he)
   } else {
-    opt <- nlminb(start=obj$par, objective=obj$fn, gradient=obj$gr, lower=lower, upper=upper, control=ctrl)
-    opt <- retryvariances(obj, opt, dd$re$terms, lower, upper, ctrl)
+    setinner(obj, control)
+    opt <- fitopt(obj, obj$par, lower, upper, control)
+    opt <- retryvariances(obj, opt, dd$re$terms, lower, upper, control)
   }
   if (!is.finite(opt$objective)){
     warning("the negative log-likelihood is not finite at the estimates; some observations may be impossible under the model, e.g. responses at dose zero with an asymptote fixed at 0.", call.=FALSE)

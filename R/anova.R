@@ -123,17 +123,13 @@ anova.drmTMB <- function(object, ..., test=c("Chisq", "F", "boot"), nsim=1000, s
 # statistics (lr) and the p-value (p) for each model, NULL for the first one and without df
 anovaboot <- function(fits, chisq, df, nsim, seed, progress){
   if (!is.null(seed)) set.seed(seed)
-  ctrls <- lapply(fits, function(f){
-    control <- if (is.null(f$control)) drmTMBcontrol() else f$control
-    list(iter.max=control$iter.max, eval.max=control$eval.max)
-  })
   c(list(NULL), lapply(seq_along(fits)[-1], function(i){
     if (is.na(df[i]) || df[i] <= 0) return(NULL)
     sims <- simulate(fits[[i - 1]], nsim=nsim)
     pb <- progressbar(nsim, progress)
     lr <- vapply(sims, function(y){
       on.exit(pb$tick())
-      2*(refitnll(fits[[i - 1]], y, ctrls[[i - 1]]) - refitnll(fits[[i]], y, ctrls[[i]]))
+      2*(refitnll(fits[[i - 1]], y) - refitnll(fits[[i]], y))
     }, numeric(1))
     pb$close()
     # the larger model cannot fit worse: negative values are optimisation tolerance

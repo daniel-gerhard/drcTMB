@@ -5,18 +5,36 @@
 \title{Set control parameters for drcTMB}
 \usage{
 drmTMBcontrol(
-  optimiser = "nlminb",
+  optimiser = c("nlminb", "optim"),
+  method = c("L-BFGS-B", "BFGS", "CG", "Nelder-Mead"),
   iter.max = 1000,
   eval.max = 2000,
+  optcontrol = list(),
+  inner = list(),
+  restart = FALSE,
   smallsample = TRUE
 )
 }
 \arguments{
-\item{optimiser}{the optimiser; only "nlminb" is available}
+\item{optimiser}{the optimiser: "nlminb" (default, \code{\link{nlminb}}) or "optim" (\code{\link{optim}})}
 
-\item{iter.max}{maximum number of iterations of the optimiser, see \code{\link{nlminb}}.}
+\item{method}{the method of optim: "L-BFGS-B" (default), "BFGS", "CG" or "Nelder-Mead"}
 
-\item{eval.max}{maximum number of evaluations of the objective function, see \code{\link{nlminb}}.}
+\item{iter.max}{maximum number of iterations of the optimiser (iter.max of nlminb, maxit of optim)}
+
+\item{eval.max}{maximum number of evaluations of the objective function of nlminb}
+
+\item{optcontrol}{a list of further control parameters of the optimiser, the argument control of
+\code{\link{nlminb}} (e.g. rel.tol, x.tol, trace) or \code{\link{optim}} (e.g. reltol, factr, pgtol,
+trace, parscale); its iter.max, eval.max or maxit replace those above. The tolerances of optim are
+factr=1e5 (L-BFGS-B) and reltol=1e-10 (the other methods) unless given, close to rel.tol=1e-10 of nlminb.}
+
+\item{inner}{a list of control parameters of the inner optimisation of the random effects for the
+Laplace approximation, see the argument inner.control of \code{\link[TMB]{MakeADFun}}, e.g.
+list(maxit=2000, tol10=1e-6)}
+
+\item{restart}{if TRUE, the fit is restarted once at the estimates and the better fit is kept, see
+Details}
 
 \item{smallsample}{if TRUE (default), gaussian and lognormal models without random effects use the unbiased
 residual variance with n - p residual degrees of freedom and t quantiles, as lm, nls and drc; if
@@ -26,5 +44,23 @@ FALSE, the maximum likelihood estimate and normal quantiles. See \code{\link{drm
 a list with control parameters
 }
 \description{
-Set control parameters for drcTMB
+The optimiser minimises the negative log-likelihood (with random effects, its Laplace approximation)
+over the fixed parameters, with the gradient from TMB, and for nlminb without random effects also
+the Hessian. The same settings are used for the bootstrap fits of \code{\link{bootstrap}},
+\code{\link{anova.drmTMB}} and \code{\link{bmdma}}.
+}
+\details{
+optim does not use the Hessian, and its methods other than "L-BFGS-B" do not allow bounds; models with
+bounds (e.g. the default lower bound 0 of b4 for some models, see \code{\link{drmTMB}}, or user
+bounds lower and upper) need method "L-BFGS-B". Parameter values at which the negative log-likelihood
+is not finite (e.g. a negative b4 of the BMD parameterisation) are given a large finite value for optim.
+
+With restart=TRUE, the model is fitted again starting at the estimates, which restarts the
+approximations of the optimiser (e.g. after a false convergence, a stop at a kink of the
+likelihood, or in a flat likelihood of a variance), and the better fit is kept: the restart if its
+negative log-likelihood is lower, or as low and it converged. This doubles the time of the fits at
+least, also of the bootstrap fits.
+}
+\examples{
+drmTMBcontrol(optimiser="optim", optcontrol=list(factr=1e5), restart=TRUE)
 }

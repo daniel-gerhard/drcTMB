@@ -127,7 +127,7 @@ summary.drmTMB <- function(object, vcov.=NULL, ...){
               logLik=ll, AIC=AIC(object), BIC=BIC(object),
               coefficients=coefs, fixed=userfixed(object), varcor=vcs, residpar=residpar(object), rdf=object$rdf,
               singular=singular, dispersion=dispersion, atbound=atbound(object),
-              convergence=object$opt$convergence, message=object$opt$message,
+              convergence=object$opt$convergence, message=object$opt$message, optimiser=optlabel(object), restart=object$opt$restart,
               maxgrad=max(abs(gr)), pdHess=mlsdr(object)$pdHess, prior=object$prior, bmdpar=object$bmdpar,
               resstruct=resinfo(object), vcovuser=isTRUE(object$vcovuser))
   class(res) <- "summary.drmTMB"
@@ -167,7 +167,12 @@ print.summary.drmTMB <- function(x, digits=max(3L, getOption("digits") - 3L), ..
         " (chi-square ", format(x$dispersion["chisq"], digits=digits), " on ", x$dispersion["df"], " df)\n", sep="")
   }
 
-  cat("\nOptimiser: ", x$message, ", maximum absolute gradient ", format(x$maxgrad, digits=2), "\n", sep="")
+  cat("\nOptimiser: ", if (!is.null(x$optimiser)) paste(x$optimiser, ": ", sep=""), x$message, ", maximum absolute gradient ", format(x$maxgrad, digits=2), "\n", sep="")
+  if (!is.null(x$restart) && !is.na(x$restart[2])){
+    d <- x$restart[1] - x$restart[2]
+    cat("Restarted at the estimates: ", if (is.finite(d) && d > 1e-8) paste("the negative log-likelihood decreased by", format(d, digits=3))
+        else "no better optimum", "\n", sep="")
+  }
   if (!isTRUE(x$pdHess)) cat("Warning: the Hessian is not positive definite; the standard errors are not reliable.\n")
   invisible(x)
 }
@@ -803,7 +808,7 @@ atbound <- function(object){
   est <- object$opt$par[seq_len(nb)]
   lo <- if (is.null(object$lower)) rep(-Inf, nb) else object$lower[seq_len(nb)]
   up <- if (is.null(object$upper)) rep(Inf, nb) else object$upper[seq_len(nb)]
-  # nlminb returns active bounds exactly
+  # nlminb and optim (L-BFGS-B) return active bounds exactly
   at <- est <= lo | est >= up
   setNames(est[at], object$coefnames[!object$fix][at])
 }

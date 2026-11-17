@@ -110,7 +110,7 @@ test_that("a variance stuck at zero is refitted", {
   p <- f1$opt$par
   p[["theta"]] <- log(1e-6)
   o <- suppressWarnings(nlminb(p, obj$fn, obj$gr, upper=replace(rep(Inf, length(p)), names(p) == "theta", log(1e-6))))
-  o2 <- drcTMB:::retryvariances(obj, o, f1$reterms, rep(-Inf, length(p)), rep(Inf, length(p)), list())
+  o2 <- drcTMB:::retryvariances(obj, o, f1$reterms, rep(-Inf, length(p)), rep(Inf, length(p)), drmTMBcontrol())
   expect_lt(o2$objective, o$objective - 1)
   expect_equal(o2$objective, f1$opt$objective, tolerance=1e-6)
 })
