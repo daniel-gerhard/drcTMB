@@ -128,3 +128,11 @@ test_that("invalid priors", {
   expect_error(pert(1, 0, 2), "min < mode < max")
   expect_error(normal(0, -1), "positive")
 })
+
+test_that("a prior of a coefficient by name takes precedence over b1-b5 in any order", {
+  ry <- drcData::ryegrass
+  f1 <- drmTMB(rootl ~ conc, data=ry, model="loglogistic", start=c(b5=0), fix=c(b5=TRUE), prior=list("b4:(Intercept)"=normal(1, 0.1), b4=normal(5, 1)))
+  f2 <- drmTMB(rootl ~ conc, data=ry, model="loglogistic", start=c(b5=0), fix=c(b5=TRUE), prior=list(b4=normal(5, 1), "b4:(Intercept)"=normal(1, 0.1)))
+  expect_equal(f1$prior$parameter, "b4:(Intercept)")
+  expect_equal(coef(f1), coef(f2))
+})

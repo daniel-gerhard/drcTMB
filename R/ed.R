@@ -346,13 +346,19 @@ reweights <- function(object, rl, r){
   w
 }
 
+# sdreport of a fit with random effects with the joint precision of the fixed and random effects, from
+# the Hessian of the fit (sdreport would otherwise recompute it by finite differences)
+jointsdr <- function(object){
+  H <- if (isTRUE(object$sdrl$pdHess)) solve(object$sdrl$cov.fixed)
+  sdreport(object$obj, par.fixed=object$opt$par, hessian.fixed=H, getJointPrecision=TRUE)
+}
+
 # joint covariance of the free coefficients b1-b5 (all fixed parameters with all=TRUE) and the
 # prediction errors of the random effects, from the joint precision matrix of sdreport; the likelihood
 # is unchanged, so the Hessian of the fit is reused
 jointcov <- function(object, all=FALSE){
   env <- object$obj$env
-  H <- if (isTRUE(object$sdrl$pdHess)) solve(object$sdrl$cov.fixed)
-  sdr <- sdreport(object$obj, par.fixed=object$opt$par, hessian.fixed=H, getJointPrecision=TRUE)
+  sdr <- jointsdr(object)
   id <- c(if (all) seq_along(env$par)[-env$random] else seq_len(sum(!object$fix)), env$random)
   C <- tryCatch(solve(sdr$jointPrecision), error=function(e) NULL)
   if (is.null(C)) stop("the joint precision matrix of the coefficients and random effects is singular; check the convergence of the fit.")

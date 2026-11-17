@@ -110,3 +110,11 @@ test_that("bmdma checks its input", {
   expect_s3_class(bmdma(fg, fl, def="sd", average="bmd", nsim=0), "bmdma")
   expect_error(bmdma(fg, fl, nsim=0), "model fg: the excess risk")
 })
+
+test_that("bmdma refuses fits with priors", {
+  ry <- drcData::ryegrass
+  pr <- list(b1=normal(0, 1), b2=normal(8, 2), b3=normal(-2, 2), sigma=half_normal(1))
+  a <- drmTMB(rootl ~ conc, data=ry, model="loglogistic", start=c(b5=0), fix=c(b5=TRUE), prior=pr)
+  b <- drmTMB(rootl ~ conc, data=ry, model="weibull1", prior=pr)
+  expect_error(bmdma(a, b, bmr=0.05, def="relative", nsim=0), "bmdbayes")
+})

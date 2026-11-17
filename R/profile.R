@@ -222,9 +222,7 @@ profile.edTMB <- function(fitted, parm=NULL, level=0.99, maxit=100, progress=int
   fit <- fitted$fit
   if (is.null(fit)) stop("compute the effective doses again with ed() to profile them.")
   est <- coef(fitted)
-  if (is.null(parm)) parm <- seq_along(est)
-  if (is.character(parm)) parm <- match(parm, names(est))
-  if (any(is.na(parm))) stop("unknown effective doses in parm.")
+  parm <- parmindex(parm, est, "effective doses")
   if (any(edflag(fitted, "conditional")[parm])) stop("profiles are not available for effective doses of fitted groups.")
   if (anyNA(est[parm])) stop("the effective doses ", paste(names(est)[parm][is.na(est[parm])], collapse=", "), " are NA.")
   absolute <- identical(fitted$type, "absolute")
@@ -524,9 +522,7 @@ edb4 <- function(mod, q, ed, b3, b5, c5=0, alpha=NULL, smooth=0){
 confint.drmTMB <- function(object, parm=NULL, level=0.95, method=c("profile", "wald", "boot"), nsim=500, seed=NULL, boot=NULL, ...){
   method <- if (!is.null(boot)) "boot" else match.arg(method)
   est <- coef(object)
-  if (is.null(parm)) parm <- seq_along(est)
-  if (is.character(parm)) parm <- match(parm, names(est))
-  if (any(is.na(parm))) stop("unknown parameters in parm.")
+  parm <- parmindex(parm, est, "parameters")
   if (method == "profile"){
     message("Computing profile confidence intervals ...")
     return(confint(profile(object, parm=parm, level=level, ...), level=level))
@@ -543,9 +539,7 @@ confint.drmTMB <- function(object, parm=NULL, level=0.95, method=c("profile", "w
 confint.edTMB <- function(object, parm=NULL, level=0.95, method=c("profile", "wald", "boot"), nsim=500, seed=NULL, boot=NULL, ...){
   method <- if (!is.null(boot)) "boot" else match.arg(method)
   est <- coef(object)
-  if (is.null(parm)) parm <- seq_along(est)
-  if (is.character(parm)) parm <- match(parm, names(est))
-  if (any(is.na(parm))) stop("unknown effective doses in parm.")
+  parm <- parmindex(parm, est, "effective doses")
   if (method %in% c("profile", "boot")){
     fit <- object$fit
     if (is.null(fit)){
@@ -613,4 +607,12 @@ edflag <- function(object, flag){
   if (!is.null(f)) return(f)
   n <- length(object$estimates)
   if (flag == "newvar") rep(isTRUE(object$random) && length(object$fit$reterms) > 0, n) else rep(FALSE, n)
+}
+
+# positions of the parameters parm (names or positions; all by default) in the estimates est, checked
+parmindex <- function(parm, est, what){
+  if (is.null(parm)) return(seq_along(est))
+  if (is.character(parm)) parm <- match(parm, names(est))
+  if (any(is.na(parm)) || any(parm < 1 | parm > length(est))) stop("unknown ", what, " in parm.")
+  parm
 }

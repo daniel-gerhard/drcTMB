@@ -191,7 +191,7 @@ test_that("priors of the correlation and variance parameters, and the marginal l
   }
   # the marginal likelihood needs priors for the correlation and variance parameters
   fb <- fitp(cor_car1(~ time | subject), var_ident(~ 1 | strat), list("cor:phi"=pert(0, 0.5, 1)))
-  expect_error(marglik(fb), "no prior for var_par:high")
+  expect_error(marglik(fb), "no prior for var:ratio:high")
   fb <- fitp(cor_car1(~ time | subject), var_ident(~ 1 | strat), cases[[1]][[3]])
   set.seed(1)
   mi <- marglik(fb, "is", n=2000)
@@ -218,4 +218,10 @@ test_that("checks of the correlation structures and variance functions", {
   expect_error(ed(fp, 50, residual=TRUE), "variance function")
   expect_error(bmd(fp, 1, "sd"), "variance function")
   expect_error(fitc(variance=var_power(), bmdpar=list(bmr=1, def="sd")), "variance function")
+})
+
+test_that("the marginal likelihood names missing priors of correlation parameters by their prior names", {
+  pr <- list(b1=normal(1, 2), b2=normal(8, 2), b3=normal(-1.5, 1), b4=lognormal(log(4), 1), sigma=half_normal(2))
+  f <- fitc(cor_car1(~ time | subject), prior=pr)
+  expect_error(marglik(f), "no prior for cor:phi")
 })

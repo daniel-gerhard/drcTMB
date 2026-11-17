@@ -616,7 +616,7 @@ jointdraws <- function(object, nsim){
     if (is.null(R)) stop("the covariance matrix of the estimates is not positive definite.")
     return(m + t(R) %*% matrix(rnorm(length(m)*nsim), nrow=length(m)))
   }
-  sdr <- sdreport(object$obj, par.fixed=object$opt$par, getJointPrecision=TRUE)
+  sdr <- jointsdr(object)
   m <- numeric(length(env$par))
   m[-r] <- sdr$par.fixed
   m[r] <- sdr$par.random
@@ -759,7 +759,13 @@ simulate.drmTMB <- function(object, nsim=1, seed=NULL, random=TRUE, ...){
   }
   if (!is.null(seed)) set.seed(seed)
   obj <- object$obj
-  par <- obj$env$last.par.best
+  # the estimates of the fixed and random effects, not the mutable state of the TMB object
+  par <- object$opt$par
+  if (!is.null(obj$env$random)){
+    par <- obj$env$par
+    par[-obj$env$random] <- object$opt$par
+    par[obj$env$random] <- object$sdrl$par.random
+  }
   if (!is.null(object$rform) && !random){
     # keep the fitted random effects: rebuild the objective with simre = 0
     dat <- obj$env$data

@@ -56,7 +56,7 @@ marglik <- function(object, method=c("laplace", "is"), n=5000, df=4){
             class="drcmarglik")
 }
 
-# stop unless every optimised parameter of a fit has a proper prior, and its Hessian is positive definite
+# stop unless every optimised parameter of a fit has a proper prior
 mlcheck <- function(object){
   par <- object$opt$par
   pn <- parnames(object)
@@ -65,6 +65,9 @@ mlcheck <- function(object){
   miss <- setdiff(seq_along(par), pos)
   if (length(miss) > 0){
     mn <- pn[miss]
+    # the prior names of the correlation and variance parameters (see restrans)
+    rt <- restrans(object)
+    mn <- vapply(mn, function(n) if (n %in% names(rt)) rt[[n]]$name else n, character(1), USE.NAMES=FALSE)
     corr <- grepl("^corr_par:", mn)
     stop("the marginal likelihood needs a proper prior for every estimated parameter; ",
          if (any(!corr)) paste("no prior for ", paste(sub("^log_", "", mn[!corr]), collapse=", "), sep=""),

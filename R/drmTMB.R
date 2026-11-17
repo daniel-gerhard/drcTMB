@@ -237,21 +237,10 @@ drmTMB <- function(form, fform=NULL, rform=NULL, data, start=NULL, fix=NULL, wei
   control <- do.call(drmTMBcontrol, control)
   dd <- drmTMBdata(form, fform=fform, rform=rform, data=data, weights=weights, family=family, model=model, alpha=alpha, smooth=smooth, parlink=parlink, curvelink=curvelink,
                    correlation=correlation, variance=variance, series=series)
-  fixnamed <- !is.null(names(fix))
-  start <- parvector(start, dd$npi, NA, "start")
-  fix <- parvector(fix, dd$npi, FALSE, "fix")
-  if (fixnamed && any(fix & is.na(start))){
-    stop("give the values of the fixed parameters in start, e.g. start=c(b5=0), fix=c(b5=TRUE).")
-  }
-  fix[dd$npi %in% unusedpars(dd$mod)] <- TRUE
-  # event data: the cumulative proportion of events is 0 at time 0, b1 = 0
-  if (family == "event"){
-    if (dd$npars[1] != 1) stop("b1 of event data is fixed at 0; it cannot depend on covariates.")
-    if (!is.na(start[dd$npi == 1]) && start[dd$npi == 1] != 0) stop("b1 of event data is fixed at 0, the proportion of events at time 0.")
-    start[dd$npi == 1] <- 0
-    fix[dd$npi == 1] <- TRUE
-    if (!is.null(bmdpar)) stop("the BMD parameterisation is not available for event data.")
-  }
+  sf <- startfix(start, fix, dd)
+  start <- sf$start
+  fix <- sf$fix
+  if (family == "event" && !is.null(bmdpar)) stop("the BMD parameterisation is not available for event data.")
 
   # BMD parameterisation: the standard model is fitted first; its estimates, and the log BMD of the
   # curve of the intercepts, are the starting values
@@ -281,7 +270,8 @@ drmTMB <- function(form, fform=NULL, rform=NULL, data, start=NULL, fix=NULL, wei
 
   # starting values for parameters with NA in start
   method <- if (is.null(gsl) & is.null(gsu) & is.null(gsn)) "lm" else "grid"
-  start <- drmTMBstartvals(dd, start, fix, method=method, gsl=gsl, gsu=gsu, gsn=gsn)
+  # (the BMD parameterisation starts at the standard fit, see above)
+  if (is.null(dd$bmd)) start <- drmTMBstartvals(dd, start, fix, method=method, gsl=gsl, gsu=gsu, gsn=gsn)
 
   # bounds of the coefficients; default lower bounds of 0, e.g. for the coefficients b3-b5 of the
   # polynomial of the multistage model, as in BMDS, and for the rate b3 and threshold b4 of nec; not

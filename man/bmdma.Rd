@@ -30,7 +30,8 @@ bmdma(
 \arguments{
 \item{...}{drmTMB objects, fitted to the same response, doses and weights; the models and families
 may differ (e.g. gaussian and lognormal, whose AICs are comparable). Arguments are named by the
-argument names, or by the expressions.}
+argument names, or by the expressions. The fits are maximum likelihood fits without priors; for
+fits with priors, see \code{\link{bmdbayes}}.}
 
 \item{bmr, def, newdata, scale, nodes}{the benchmark response and the definition, the covariates of the
 curves, and the BMD of the marginal or conditional curve with random effects, as in
