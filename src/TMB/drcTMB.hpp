@@ -62,6 +62,12 @@ Type drcTMB(objective_function<Type>* obj) {
   DATA_INTEGER(vfit);
   DATA_VECTOR(vcov);
   DATA_IVECTOR(vstr);
+  // event data (fam 9): end of the time interval of each row (0 for end = Inf, with xinf = 1); rows by
+  // series and start (indices from 0) with the series lengths elen, for the multinomial simulation
+  DATA_VECTOR(xe);
+  DATA_IVECTOR(xinf);
+  DATA_IVECTOR(eord);
+  DATA_IVECTOR(elen);
   PARAMETER_VECTOR(b1);
   PARAMETER_VECTOR(b2);
   PARAMETER_VECTOR(b3);
@@ -219,6 +225,8 @@ Type drcTMB(objective_function<Type>* obj) {
   // gaussian and lognormal residuals with a correlation structure or a variance function
   bool resid = (fam == 1 || fam == 8) && (ctype > 0 || vtype > 0);
   vector<Type> fy(n);
+  // event data: probabilities of the intervals
+  vector<Type> pev(fam == 9 ? n : 0);
   for (int i = 0; i < n; i++){
     f = drcmean(mod, x(i),
                 linkinv(lnk(0), Type(Xb1(i) + Zu(i, 0))),
@@ -228,7 +236,23 @@ Type drcTMB(objective_function<Type>* obj) {
                 linkinv(lnk(4), Type(Xb5(i) + Zu(i, 4))), alpha, smooth);
     f = linkinv(clink, f);
     fy(i) = f;
-    if (!resid){
+    if (fam == 9){
+      // probability f(end) - f(start) of the interval, with f(Inf) = 1; impossible intervals with events
+      // (probability not positive) get a large penalty instead of a non-finite log-likelihood
+      Type fe = 1;
+      if (xinf(i) == 0){
+        fe = drcmean(mod, xe(i),
+                     linkinv(lnk(0), Type(Xb1(i) + Zu(i, 0))),
+                     linkinv(lnk(1), Type(Xb2(i) + Zu(i, 1))),
+                     qe ? f3bmd : linkinv(lnk(2), Type(Xb3(i) + Zu(i, 2))),
+                     bmdpar == 1 ? f4bmd : linkinv(lnk(3), Type(Xb4(i) + Zu(i, 3))),
+                     linkinv(lnk(4), Type(Xb5(i) + Zu(i, 4))), alpha, smooth);
+        fe = linkinv(clink, fe);
+      }
+      Type p = fe - f;
+      pev(i) = p;
+      if (y(i) > 0) nll -= w(i) * y(i) * log(CppAD::CondExpGt(p, Type(1e-300), p, Type(1e-300)));
+    } else if (!resid){
       nll +=-w(i) * loglik(fam, y(i), f, bn(i), phi);
       SIMULATE {
         y(i) = simobs(fam, f, bn(i), phi);
@@ -281,6 +305,30 @@ Type drcTMB(objective_function<Type>* obj) {
     }
     SIMULATE {
       for (int i = 0; i < n; i++) y(i) = fam == 8 ? Type(fy(i) * exp(e(i))) : Type(fy(i) + e(i));
+    }
+  }
+  // event data: multinomial counts of each series with its total, by conditional binomial draws over
+  // its intervals in the order of their start
+  if (fam == 9){
+    SIMULATE {
+      int off = 0;
+      for (int s = 0; s < elen.size(); s++){
+        int m = elen(s);
+        Type rem = 0;
+        for (int a = 0; a < m; a++) rem += y(eord(off + a));
+        Type prem = 1;
+        for (int a = 0; a < m; a++){
+          int i = eord(off + a);
+          Type pc = prem > 0 ? Type(pev(i) / prem) : Type(0);
+          if (pc > 1) pc = 1;
+          if (pc < 0) pc = 0;
+          Type yi = rem > 0 ? Type(rbinom(rem, pc)) : Type(0);
+          y(i) = yi;
+          rem -= yi;
+          prem -= pev(i);
+        }
+        off += m;
+      }
     }
   }
   SIMULATE {

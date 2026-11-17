@@ -1,6 +1,7 @@
 #' Fit a drmTMB model
 #'
-#' @param form formula with name of response and dose scale
+#' @param form formula with name of response and dose scale; for the event family count ~ start + end,
+#'   the number of events in each time interval (see Details)
 #' @param fform fixed effects for the model parameters: a formula of the form b2 + b4 ~ Stress, or a list of such formulas, e.g. list(b2 ~ Stress, b4 ~ Stress + Time). Parameters not listed have a single intercept (~ 1). A list of five right-hand side formulas, one for each of b1-b5 (X1 = ~ 1, ..., X5 = ~ 1), is also accepted.
 #' @param rform random effects: a formula of the form b1 + b2 + b4 ~ 1 | cluster for random intercepts, or b4 ~ x | cluster for random intercepts and slopes in a covariate x, or a list of such formulas, e.g. list(b1 + b4 ~ 1 | exper, b1 ~ 1 | plate). The random effects within a formula are correlated across the listed parameters and their intercepts and slopes; different formulas, the levels of nested factors (1 | exper/plate), and intercepts and slopes with || (b4 ~ x || cluster) are independent terms. The random slopes of a parameter usually go with a fixed effect of the covariate in fform.
 #' @param data a data.frame object. Observations with missing values in the variables of the model or in the weights are left out.
@@ -9,7 +10,7 @@
 #' @param weights a vector of weights, one for each row of data.
 #' @param lower lower bounds for the model coefficients b1-b5, a single value or a vector with the same length as start. Bounds of fixed coefficients are ignored; variance parameters are unbounded. For the multistage model, the default is 0 for the coefficients b3-b5 without covariates in fform, for the nec model 0 for the rate b3 and, with the identity link for b4, the threshold b4 without covariates, and for the exponential and power models 0 for the power b3 without covariates, see Details.
 #' @param upper upper bounds for the model coefficients b1-b5, a single value or a vector with the same length as start.
-#' @param family Specify the distributional assumptions. One of "gaussian", "lognormal", "binomial", "betabinomial", "beta", "poisson", "nbinom2", and "nbinom1". For the lognormal family, log(y) is normal with mean log f(x) and standard deviation sigma: the curve f is the median of a positive response, with a constant coefficient of variation, as in PROAST and BMDS; the mean is f(x) exp(sigma^2/2). The negative binomial families are for overdispersed counts, with variance mu (1 + mu/theta) for nbinom2 and mu (1 + phi) for nbinom1, and the beta-binomial family for overdispersed binomial counts, with variance n mu (1 - mu) (1 + (n - 1)/(phi + 1)) for n trials, as in glmmTMB.
+#' @param family Specify the distributional assumptions. One of "gaussian", "lognormal", "binomial", "betabinomial", "beta", "poisson", "nbinom2", "nbinom1", and "event" for time-to-event data, e.g. germination times (see Details). For the lognormal family, log(y) is normal with mean log f(x) and standard deviation sigma: the curve f is the median of a positive response, with a constant coefficient of variation, as in PROAST and BMDS; the mean is f(x) exp(sigma^2/2). The negative binomial families are for overdispersed counts, with variance mu (1 + mu/theta) for nbinom2 and mu (1 + phi) for nbinom1, and the beta-binomial family for overdispersed binomial counts, with variance n mu (1 - mu) (1 + (n - 1)/(phi + 1)) for n trials, as in glmmTMB.
 #' @param model Specify the nonlinear model. One of "logistic", "loglogistic", "weibull1", "weibull2", "lognormal", "michaelismenten", "asymptoticregression", "exponentialdecay", "gompertz", "gamma", "multistage", "nec", "braincousens", "cedergreen", "haldane", "exponential", "power", "constant". The nec model has a threshold, the exponential and power models have no upper asymptote, the braincousens and cedergreen models describe hormesis, the haldane model substrate inhibition, and the constant model has no dose effect, see Details.
 #' @param alpha the exponent of the hormesis term of the cedergreen model, a positive number, e.g. 1, 0.5 or 0.25 as the models CRS.4a, CRS.4b and CRS.4c of drc (CRS.5a-c with b1 estimated); only for the cedergreen model. See Details.
 #' @param smooth smoothing of the threshold of the nec model: the width of the smoothed threshold relative to the smallest interval between doses, a number of at least 0; 0 is an exact threshold. The default is 0.1 with random effects on b4, and 0 otherwise. Only for the nec model, see Details.
@@ -23,6 +24,10 @@
 #' @param variance NULL (default) for a constant residual standard deviation, or a variance function, e.g.
 #'   \code{var_power()} (a power of the fitted mean) or \code{var_ident(~ 1 | group)}, for the gaussian and
 #'   lognormal families; see \code{\link{correlation}}.
+#' @param series for the event family: a one-sided formula of the series of the rows, e.g. ~ dish, the
+#'   intervals of one Petri dish; by default the rows with the same covariates of the curve (fform) and
+#'   the same levels of the random effect terms. The series are needed by simulate, bootstrap, residuals
+#'   and the dispersion of summary, which need complete series: intervals from 0 to Inf without gaps.
 #' @param gsl a vector of lower bounds for a grid search, same length as start; NA for the default range. If gsl, gsu and gsn are all NULL, no grid search is performed. See \code{\link{drmTMBstart}}.
 #' @param gsu a vector of upper bounds for a grid search, same length as start; NA for the default range.
 #' @param gsn number of grid points for each parameter, a single number or a vector with the same length as start. \code{gsn=10} alone runs a grid search over the default ranges.
@@ -206,16 +211,32 @@
 #' then needs the covariate of the variance function; \code{ed(residual=TRUE)} and the BMD definition
 #' "sd" are not available with a variance function.
 #'
+#' The event family is for time-to-event data, as \code{type="event"} of drc: each row is a time interval
+#' [start, end) of a series (e.g. a Petri dish) with the number of events in it, e.g. germinated seeds,
+#' and a row with end = Inf holds the units without an event by the end of the experiment. The curve is
+#' the cumulative proportion of events by time t, f(t) = b2 F(t), with b1 fixed at 0 and the proportion
+#' b2 of units with an event, on the logit scale by default (parlink); the models are those whose F is a
+#' distribution function of the time: loglogistic, weibull1, weibull2, lognormal, gamma,
+#' asymptoticregression and michaelismenten. The log-likelihood is the multinomial sum(count log(f(end) -
+#' f(start))), with f(Inf) = 1, without the multinomial coefficients, as in drc. Covariates (fform) and
+#' random effects (rform), e.g. of the dishes, are as for the other families. \code{ed} gives the times
+#' at which a percentage of the units with an event have had it, and with \code{type="absolute"} the
+#' times at which a proportion of all units has had an event; \code{predict} gives the cumulative
+#' proportion at the times in the first variable of the formula (start). \code{simulate} and
+#' \code{\link{bootstrap}} draw multinomial counts with the total of each series; the residuals compare
+#' the counts with these totals times the probabilities of the intervals, and \code{summary} gives their
+#' Pearson dispersion. Prediction intervals and benchmark doses are not available.
+#'
 #' @return A drmTMB object
 #' @export
 
-drmTMB <- function(form, fform=NULL, rform=NULL, data, start=NULL, fix=NULL, weights=NULL, lower=-Inf, upper=Inf, family="gaussian", model="logistic", alpha=NULL, smooth=NULL, parlink=NULL, curvelink="identity", prior=NULL, bmdpar=NULL, correlation=NULL, variance=NULL, gsl=NULL, gsu=NULL, gsn=NULL, control=list()){
+drmTMB <- function(form, fform=NULL, rform=NULL, data, start=NULL, fix=NULL, weights=NULL, lower=-Inf, upper=Inf, family="gaussian", model="logistic", alpha=NULL, smooth=NULL, parlink=NULL, curvelink="identity", prior=NULL, bmdpar=NULL, correlation=NULL, variance=NULL, series=NULL, gsl=NULL, gsu=NULL, gsn=NULL, control=list()){
   start0 <- start
   fix0 <- fix
   # control list
   control <- do.call(drmTMBcontrol, control)
   dd <- drmTMBdata(form, fform=fform, rform=rform, data=data, weights=weights, family=family, model=model, alpha=alpha, smooth=smooth, parlink=parlink, curvelink=curvelink,
-                   correlation=correlation, variance=variance)
+                   correlation=correlation, variance=variance, series=series)
   fixnamed <- !is.null(names(fix))
   start <- parvector(start, dd$npi, NA, "start")
   fix <- parvector(fix, dd$npi, FALSE, "fix")
@@ -223,6 +244,14 @@ drmTMB <- function(form, fform=NULL, rform=NULL, data, start=NULL, fix=NULL, wei
     stop("give the values of the fixed parameters in start, e.g. start=c(b5=0), fix=c(b5=TRUE).")
   }
   fix[dd$npi %in% unusedpars(dd$mod)] <- TRUE
+  # event data: the cumulative proportion of events is 0 at time 0, b1 = 0
+  if (family == "event"){
+    if (dd$npars[1] != 1) stop("b1 of event data is fixed at 0; it cannot depend on covariates.")
+    if (!is.na(start[dd$npi == 1]) && start[dd$npi == 1] != 0) stop("b1 of event data is fixed at 0, the proportion of events at time 0.")
+    start[dd$npi == 1] <- 0
+    fix[dd$npi == 1] <- TRUE
+    if (!is.null(bmdpar)) stop("the BMD parameterisation is not available for event data.")
+  }
 
   # BMD parameterisation: the standard model is fitted first; its estimates, and the log BMD of the
   # curve of the intercepts, are the starting values
@@ -341,6 +370,7 @@ drmTMB <- function(form, fform=NULL, rform=NULL, data, start=NULL, fix=NULL, wei
   res$reterms <- dd$re$terms
   res$correlation <- correlation
   res$variance <- variance
+  res$series <- dd$series
   res$resnames <- c(dd$cor$cnames, dd$var$vnames)
   res$cormax <- if (dd$cor$ctype > 0) max(dd$cor$clen)
   res$varlevels <- dd$var$vlevels
