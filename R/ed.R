@@ -50,7 +50,9 @@ ed <- function(x, respLev=50, linfct=NULL, newdata=NULL, random=TRUE, residual=F
 #' standard errors, follow from the implicit function theorem, as for the effective doses of
 #' \code{\link{ed}}. Curves without a stimulation (b5 <= 0, or a curve that does not decrease at high
 #' doses) have no peak, and give NA with a warning. For haldane, the peak is at the dose sqrt(b4/b5), the
-#' optimal substrate concentration sqrt(Km Ki); without inhibition (b5 = 0) there is no peak.
+#' optimal substrate concentration sqrt(Km Ki); without inhibition (b5 = 0) there is no peak. With a
+#' \code{curvelink}, the peak dose is that of the curve, as the link is monotone, and the response at the
+#' peak is on the scale of the response, the inverse link of the curve at the peak.
 #'
 #' The result is an edTMB object, as from \code{\link{ed}}, with the dose and the response at the
 #' peak of each curve, named "dose" and "response", and their joint covariance matrix, e.g. for
@@ -85,8 +87,7 @@ edcore <- function(x, respLev, linfct, newdata, random, residual, type){
   absolute <- type == "absolute"
   peak <- type == "peak"
   # with a curve link, effective doses refer to the curve (on the scale of the link); absolute response
-  # levels are transformed to that scale
-  if (clinkof(x) != 1 && peak) stop("peak() is not available for fits with a curvelink.")
+  # levels are transformed to that scale; the response at a peak is on the scale of the response
   if (clinkof(x) != 1 && isTRUE(residual)) stop("residual=TRUE is not available for fits with a curvelink.")
   if (!is.null(newdata)){
     if (!is.null(linfct)) stop("give either linfct or newdata, not both.")
@@ -217,7 +218,8 @@ edcore <- function(x, respLev, linfct, newdata, random, residual, type){
 
     # ED and its gradient w.r.t. (b1-b5, u1-u5, r) from the drcED TMB template
     eobj <- MakeADFun(list(model="drcED", mod=mod, lnk=as.integer(lnk), absolute=as.integer(absolute), q=q,
-                           alpha=alphavalue(x$alpha), smooth=smoothwidth(x$smooth), s0=s0, target=as.integer(if (peak) q else 0)),
+                           alpha=alphavalue(x$alpha), smooth=smoothwidth(x$smooth), s0=s0, target=as.integer(if (peak) q else 0),
+                           clink=clinkof(x)),
                       list(b=lpv, u=u, r=0),
                       ADreport=TRUE, DLL="drcTMB_TMBExports", silent=TRUE)
     edl[i] <- eobj$fn()

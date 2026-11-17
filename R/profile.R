@@ -438,7 +438,7 @@ edvalue <- function(object, i, lpv, par=NULL){
     pk <- drcmodel(mod)$peak
     s <- if (!is.null(pk)) log(pk$dose(b)) else hormpeak(mod, b[3], b[4], hormc(fit, lpv), fit$alpha)
     if (object$q[[i]] == 1) return(exp(s))
-    return(drcmeanR(mod, exp(s), b[1], b[2], b[3], b[4], b[5], fit$alpha))
+    return(curvemean(fit, drcmeanR(mod, exp(s), b[1], b[2], b[3], b[4], b[5], fit$alpha)))
   }
   q <- edq(fit, object$q[[i]], lpv, identical(object$type, "absolute"))
   m <- drcmodel(mod)
