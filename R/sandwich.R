@@ -105,6 +105,7 @@ scores <- function(object, cluster=NULL){
     res <- lapply(levels(cl), function(g){
       dat$w <- ifelse(cl == g, w, 0)
       cobj <- MakeADFun(dat, pl, map=env$map, random="u", DLL=env$DLL, silent=TRUE)
+      setinner(cobj, fitcontrol(object))
       nll <- cobj$fn(object$opt$par)
       list(nll=nll, gr=cobj$gr(object$opt$par))
     })

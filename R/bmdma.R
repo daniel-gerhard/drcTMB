@@ -134,10 +134,6 @@ bmdma <- function(..., bmr=0.1, def=c("excess", "additional", "relative", "sd"),
   if (nsim > 0){
     if (!is.null(seed)) set.seed(seed)
     pars <- lapply(fits, function(f) f$obj$env$parList(f$opt$par))
-    ctrls <- lapply(fits, function(f){
-      control <- if (is.null(f$control)) drmTMBcontrol() else f$control
-      list(iter.max=control$iter.max, eval.max=control$eval.max)
-    })
     pb <- progressbar(nsim, progress)
     for (r in seq_len(nsim)){
       src[r] <- sample.int(K, 1, prob=w)
@@ -148,7 +144,7 @@ bmdma <- function(..., bmr=0.1, def=c("excess", "additional", "relative", "sd"),
       supp <- vapply(fits, function(f) f$family != "lognormal" || all(y[f$obj$env$data$w > 0] > 0), logical(1))
       opts <- lapply(seq_len(K), function(k){
         if (!supp[k]) return(NULL)
-        opt <- refitopt(fits[[k]], y, pars[[k]], ctrls[[k]])
+        opt <- refitopt(fits[[k]], y, pars[[k]])
         if (is.null(opt) || opt$convergence != 0 || !is.finite(opt$objective)) NULL else opt
       })
       ok <- !vapply(opts, is.null, logical(1))

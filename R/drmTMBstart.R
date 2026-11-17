@@ -735,7 +735,7 @@ varstart <- function(dd, start, re){
 # a random effect standard deviation that ends close to zero may be stuck in the flat likelihood near
 # zero variance rather than estimated as zero: refit once with these standard deviations at their
 # starting values, and keep the better fit
-retryvariances <- function(obj, opt, terms, lower, upper, ctrl){
+retryvariances <- function(obj, opt, terms, lower, upper, control){
   it <- which(names(obj$par) == "theta")
   isd <- it[unlist(lapply(terms, function(tm){
     np <- length(tm$pars)
@@ -745,8 +745,7 @@ retryvariances <- function(obj, opt, terms, lower, upper, ctrl){
   if (length(small) == 0 || !is.finite(opt$objective)) return(opt)
   p <- opt$par
   p[small] <- obj$par[small]
-  opt2 <- tryCatch(suppressWarnings(nlminb(start=p, objective=obj$fn, gradient=obj$gr, lower=lower, upper=upper, control=ctrl)),
-                   error=function(e) NULL)
+  opt2 <- tryCatch(suppressWarnings(fitopt(obj, p, lower, upper, control)), error=function(e) NULL)
   if (!is.null(opt2) && is.finite(opt2$objective) && opt2$objective < opt$objective - 1e-6) opt2 else opt
 }
 

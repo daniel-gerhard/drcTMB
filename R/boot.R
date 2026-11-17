@@ -25,13 +25,10 @@ bootstrap <- function(object, nsim=500, seed=NULL, progress=interactive()){
   if (!inherits(object, "drmTMB")) stop("object must be a drmTMB object.")
   sims <- simulate(object, nsim=nsim, seed=seed)
   pars <- object$obj$env$parList(object$opt$par)
-  # iteration limits of the fit
-  control <- if (is.null(object$control)) drmTMBcontrol() else object$control
-  ctrl <- list(iter.max=control$iter.max, eval.max=control$eval.max)
   pb <- progressbar(nsim, progress)
   est <- t(sapply(sims, function(y){
     on.exit(pb$tick())
-    opt <- refitopt(object, y, pars, ctrl)
+    opt <- refitopt(object, y, pars)
     if (is.null(opt) || opt$convergence != 0 || !is.finite(opt$objective)) return(rep(NA, length(object$opt$par)))
     opt$par
   }))
@@ -68,15 +65,16 @@ confint.bootstrap.drmTMB <- function(object, parm=NULL, level=0.95, ...){
 }
 
 # fit of the model to a simulated response y, starting at the parameters pars (as parList), with the
-# bounds of the fit and the iteration limits ctrl; NULL if the optimiser fails
-refitopt <- function(fit, y, pars, ctrl){
+# bounds and the optimiser settings of the fit; NULL if the optimiser fails
+refitopt <- function(fit, y, pars){
   env <- fit$obj$env
   rnd <- !is.null(env$random)
   dat <- env$data
   dat$y <- y
   obj <- MakeADFun(dat, pars, map=env$map, random=if (rnd) "u", DLL=env$DLL, silent=TRUE)
-  opt <- suppressWarnings(try(nlminb(obj$par, obj$fn, obj$gr, if (!rnd) obj$he,
-                                     lower=fit$lower, upper=fit$upper, control=ctrl), silent=TRUE))
+  control <- fitcontrol(fit)
+  setinner(obj, control)
+  opt <- suppressWarnings(try(fitopt(obj, obj$par, fit$lower, fit$upper, control, he=if (!rnd) obj$he), silent=TRUE))
   if (inherits(opt, "try-error")) NULL else opt
 }
 
@@ -84,7 +82,7 @@ refitopt <- function(fit, y, pars, ctrl){
 # starting at the estimates and at the starting values of drmTMB for y, as parameters that are not
 # identified under a smaller model (e.g. b3 and b4 for a flat curve) often lead the fit from the
 # estimates to a worse local optimum; NA if neither fit gives a finite value
-refitnll <- function(fit, y, ctrl){
+refitnll <- function(fit, y){
   env <- fit$obj$env
   dat <- env$data
   pars <- env$parList(fit$opt$par)
@@ -106,7 +104,7 @@ refitnll <- function(fit, y, ctrl){
     pars2$u[] <- 0
   }
   nll <- vapply(list(pars, if (!is.null(sv)) pars2), function(p){
-    opt <- refitopt(fit, y, p, ctrl)
+    opt <- refitopt(fit, y, p)
     if (is.null(opt) || !is.finite(opt$objective)) NA else opt$objective
   }, numeric(1))
   if (all(is.na(nll))) NA else min(nll, na.rm=TRUE)
