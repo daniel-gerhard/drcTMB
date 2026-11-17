@@ -120,6 +120,9 @@ has changed by p% of the difference between the asymptote at low doses
 Profile likelihood confidence intervals of the effective doses are
 computed by `confint()`; `method = "wald"` gives Wald intervals and
 `method = "boot"` parametric bootstrap intervals.
+Robust (sandwich) standard errors, also for clustered data, are
+available through the `vcov.` argument of `summary()`, `confint()`,
+`predict()`, `ed()` and `bmd()`, e.g. `ed(mod, 50, vcov. = vcovrobust)`.
 
 ``` r
 confint(effdose)

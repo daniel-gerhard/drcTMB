@@ -246,7 +246,7 @@ profile.edTMB <- function(fitted, parm=NULL, level=0.99, maxit=100, progress=int
   par0 <- fit$opt$par
   nllmin <- fit$opt$objective
   cutoff <- profcutoff(level, fit)
-  Hfull <- tryCatch(solve(fit$sdrl$cov.fixed), error=function(e) NULL)
+  Hfull <- tryCatch(solve(mlsdr(fit)$cov.fixed), error=function(e) NULL)
   # bounds of the fit
   lo <- if (is.null(fit$lower)) rep(-Inf, length(par0)) else fit$lower
   up <- if (is.null(fit$upper)) rep(Inf, length(par0)) else fit$upper
@@ -509,6 +509,7 @@ edb4 <- function(mod, q, ed, b3, b5, c5=0, alpha=NULL, smooth=0){
 #' @param seed an optional seed for the random number generator of the bootstrap
 #' @param boot a bootstrap sample of the model from \code{\link{bootstrap}}, used instead of new
 #'   simulations; implies \code{method="boot"}
+#' @param vcov. for drmTMB objects, the covariance of the estimated parameters for Wald intervals: a matrix as vcov() of the fit, or a function of the fit that returns one, e.g. the sandwich covariance \code{\link{vcovrobust}}; implies \code{method="wald"}. Effective doses computed with vcov. (see \code{\link{ed}}) get Wald intervals by default.
 #' @param ... further arguments passed to \code{\link{profile.drmTMB}}, \code{\link{profile.edTMB}} or
 #'   \code{\link{bootstrap}}, e.g. \code{progress=FALSE}
 #'
@@ -516,7 +517,13 @@ edb4 <- function(mod, q, ed, b3, b5, c5=0, alpha=NULL, smooth=0){
 #' @export
 #' @name confint.drmTMB
 #' @aliases confint.drmTMB confint.edTMB
-confint.drmTMB <- function(object, parm=NULL, level=0.95, method=c("profile", "wald", "boot"), nsim=500, seed=NULL, boot=NULL, ...){
+confint.drmTMB <- function(object, parm=NULL, level=0.95, method=c("profile", "wald", "boot"), nsim=500, seed=NULL, boot=NULL, vcov.=NULL, ...){
+  # a covariance vcov. is only used by Wald intervals, the default with it
+  if (!is.null(vcov.)){
+    if (!missing(method) && !identical(match.arg(method), "wald") || !is.null(boot)) stop("vcov. is only used by Wald intervals, method=\"wald\".")
+    method <- "wald"
+    object <- vcovfit(object, vcov.)
+  }
   method <- if (!is.null(boot)) "boot" else match.arg(method)
   est <- coef(object)
   parm <- parmindex(parm, est, "parameters")
@@ -525,7 +532,7 @@ confint.drmTMB <- function(object, parm=NULL, level=0.95, method=c("profile", "w
     return(confint(profile(object, parm=parm, level=level, ...), level=level))
   }
   if (method == "boot") return(confint(getboot(object, boot, nsim, seed, ...), parm=parm, level=level))
-  se <- sqrt(diag(vcov(object)))[parm]
+  se <- sqrt(diag(fixedcov(object)))[parm]
   # t quantiles for the coefficients b1-b5 with small-sample inference
   z <- ifelse(parm <= sum(!object$fix), zquant(object, level), qnorm((1 + level)/2))
   natscale(cbind(est[parm] - z*se, est[parm] + z*se), names(est)[parm], corr2names(object), level, restrans(object))
@@ -534,6 +541,9 @@ confint.drmTMB <- function(object, parm=NULL, level=0.95, method=c("profile", "w
 #' @rdname confint.drmTMB
 #' @export
 confint.edTMB <- function(object, parm=NULL, level=0.95, method=c("profile", "wald", "boot"), nsim=500, seed=NULL, boot=NULL, ...){
+  # effective doses with a covariance vcov.: Wald intervals by default, as profile and bootstrap
+  # intervals do not use it
+  if (missing(method) && is.null(boot) && isTRUE(object$fit$vcovuser)) method <- "wald"
   method <- if (!is.null(boot)) "boot" else match.arg(method)
   est <- coef(object)
   parm <- parmindex(parm, est, "effective doses")

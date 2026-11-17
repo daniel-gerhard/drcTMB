@@ -4,12 +4,14 @@
 \alias{peak}
 \title{Peak of hormesis and substrate inhibition curves}
 \usage{
-peak(x, linfct = NULL, newdata = NULL, random = TRUE)
+peak(x, linfct = NULL, newdata = NULL, random = TRUE, vcov. = NULL)
 }
 \arguments{
 \item{x}{a drmTMB object of the braincousens, cedergreen or haldane model}
 
 \item{linfct, newdata, random}{the curves, as in \code{\link{ed}}}
+
+\item{vcov.}{the covariance of the estimated parameters, as in \code{\link{ed}}}
 }
 \value{
 an edTMB object

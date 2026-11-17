@@ -14,6 +14,7 @@
 #' @param boot a bootstrap sample of the model from \code{\link{bootstrap}}. predict then gives the standard deviation of the bootstrap predictions as se.fit, percentile confidence intervals, and prediction intervals simulated at the bootstrap fits, including their variance parameters. The bootstrap responses have new random effects, so for random=TRUE the random effects of the fitted groups are drawn, for each bootstrap fit, from the Laplace approximation of their conditional distribution given the original data at the parameters of that fit.
 #' @param type type of prediction: "response" (default), the mean response at the doses of newdata, or "parameters", the parameters b1-b5 of the curve of each row of newdata (with its covariates in fform and, with random=TRUE, the random effects of its groups); newdata then needs no dose. The standard errors of the parameters are those of the estimates, by the delta method, and their confidence intervals are computed on the scale of the link and back-transformed; with random=TRUE, they include the uncertainty of the predicted random effects of the fitted groups. Prediction intervals of the parameters add the variance of the random effects of the terms without a fitted level, the parameters of a new group, and are not available with boot.
 #' @param scale for type="parameters", the scale of the parameters: "original" (default) or "link", the scale of the coefficients, see the argument parlink of \code{\link{drmTMB}}.
+#' @param vcov. for summary and predict, the covariance of the estimated parameters for the standard errors and Wald intervals: a matrix as vcov() of the fit, or a function of the fit that returns one, e.g. the sandwich covariance \code{\link{vcovrobust}}. NULL (default) for vcov() of the fit. The prediction intervals of predict that are simulated use it for the draws of the fixed parameters.
 #' @param ... anything else
 #'
 #' @return Estimated model coefficients, variance-covariance matrix, or predictions.
@@ -61,7 +62,8 @@ print.drmTMB <- function(x, digits=max(3L, getOption("digits") - 3L), ...){
 
 #' @rdname drmTMB-methods
 #' @export
-summary.drmTMB <- function(object, ...){
+summary.drmTMB <- function(object, vcov.=NULL, ...){
+  object <- vcovfit(object, vcov.)
   dat <- object$obj$env$data
   m <- drcmodel(object$model)
   vcs <- recov(object)
@@ -126,8 +128,8 @@ summary.drmTMB <- function(object, ...){
               coefficients=coefs, fixed=userfixed(object), varcor=vcs, residpar=residpar(object), rdf=object$rdf,
               singular=singular, dispersion=dispersion, atbound=atbound(object),
               convergence=object$opt$convergence, message=object$opt$message,
-              maxgrad=max(abs(gr)), pdHess=object$sdrl$pdHess, prior=object$prior, bmdpar=object$bmdpar,
-              resstruct=resinfo(object))
+              maxgrad=max(abs(gr)), pdHess=mlsdr(object)$pdHess, prior=object$prior, bmdpar=object$bmdpar,
+              resstruct=resinfo(object), vcovuser=isTRUE(object$vcovuser))
   class(res) <- "summary.drmTMB"
   res
 }
@@ -147,6 +149,7 @@ print.summary.drmTMB <- function(x, digits=max(3L, getOption("digits") - 3L), ..
   printprior(x$prior)
   cat("\nCoefficients", if (!is.null(x$prior)) " (posterior modes)", ":\n", sep="")
   printCoefmat(x$coefficients, digits=digits)
+  if (isTRUE(x$vcovuser)) cat("Standard errors from the covariance vcov.\n")
   if (length(x$atbound) > 0) cat("At a bound: ", paste(names(x$atbound), "=", format(x$atbound, digits=digits), collapse=", "),
                                   "; the standard errors and Wald intervals do not account for the bound.\n", sep="")
   if (!is.null(x$bmdpar)) printbmdpar(x$bmdpar, x$coefficients["log_bmd", 1], digits)
@@ -258,10 +261,12 @@ residuals.drmTMB <- function(object, type=c("pearson", "response", "quantile"), 
 #' @rdname drmTMB-methods
 #' @export
 predict.drmTMB <- function(object, newdata=NULL, random=TRUE, se.fit=FALSE, interval=c("none", "confidence", "prediction"), level=0.95, boot=NULL, nsim=1000, seed=NULL,
-                           type=c("response", "parameters"), scale=c("original", "link"), ...){
+                           type=c("response", "parameters"), scale=c("original", "link"), vcov.=NULL, ...){
   interval <- match.arg(interval)
   type <- match.arg(type)
   nobmdpar(object, "predict")
+  if (!is.null(vcov.) && !is.null(boot)) stop("give either vcov. or boot.")
+  object <- vcovfit(object, vcov.)
   scale <- match.arg(scale)
   if (is.null(newdata)) newdata <- object$data
   if (type == "parameters") return(predictpars(object, newdata, random, se.fit, interval, level, boot, nsim, seed, scale))
@@ -594,6 +599,15 @@ conddraw <- function(obj, par){
 jointdraws <- function(object, nsim){
   env <- object$obj$env
   r <- env$random
+  # a covariance vcov. (see vcovfit), possibly singular
+  if (isTRUE(object$vcovuser)){
+    m <- object$opt$par
+    if (is.null(r)) return(psddraws(m, fixedcov(object), nsim))
+    m <- numeric(length(env$par))
+    m[-r] <- object$opt$par
+    m[r] <- object$sdrl$par.random
+    return(psddraws(m, jointcovuser(object, jointsdr(object)$jointPrecision), nsim))
+  }
   if (is.null(r)){
     m <- object$opt$par
     R <- tryCatch(chol(fixedcov(object)), error=function(e) NULL)
@@ -886,10 +900,10 @@ varscale <- function(object){
 }
 
 # covariance of the estimated parameters: the inverse Hessian, with the block of the coefficients
-# b1-b5 scaled by varscale for small-sample inference
+# b1-b5 scaled by varscale for small-sample inference; a covariance given as vcov. (see vcovfit) as it is
 fixedcov <- function(object){
   vc <- object$sdrl$cov.fixed
-  s <- varscale(object)
+  s <- if (isTRUE(object$vcovuser)) 1 else varscale(object)
   if (s != 1){
     d <- rep(1, nrow(vc))
     d[seq_len(sum(!object$fix))] <- sqrt(s)

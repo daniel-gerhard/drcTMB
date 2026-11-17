@@ -32,6 +32,8 @@ S3method(print,summary.drmTMB)
 S3method(profile,drmTMB)
 S3method(profile,edTMB)
 S3method(residuals,drmTMB)
+S3method(sandwich::bread,drmTMB)
+S3method(sandwich::estfun,drmTMB)
 S3method(simulate,drmTMB)
 S3method(summary,drmTMB)
 S3method(vcov,drmTMB)
@@ -66,6 +68,7 @@ export(student_t)
 export(var_exp)
 export(var_ident)
 export(var_power)
+export(vcovrobust)
 importFrom(Matrix,
   bdiag,
   t

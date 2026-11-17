@@ -13,6 +13,7 @@
   nsim = 500,
   seed = NULL,
   boot = NULL,
+  vcov. = NULL,
   ...
 )
 
@@ -45,6 +46,8 @@ starting at the estimates. Fits that do not converge are left out, with a messag
 
 \item{boot}{a bootstrap sample of the model from \code{\link{bootstrap}}, used instead of new
 simulations; implies \code{method="boot"}}
+
+\item{vcov.}{for drmTMB objects, the covariance of the estimated parameters for Wald intervals: a matrix as vcov() of the fit, or a function of the fit that returns one, e.g. the sandwich covariance \code{\link{vcovrobust}}; implies \code{method="wald"}. Effective doses computed with vcov. (see \code{\link{ed}}) get Wald intervals by default.}
 
 \item{...}{further arguments passed to \code{\link{profile.drmTMB}}, \code{\link{profile.edTMB}} or
 \code{\link{bootstrap}}, e.g. \code{progress=FALSE}}

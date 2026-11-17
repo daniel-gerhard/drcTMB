@@ -61,6 +61,8 @@ Type drcTMB(objective_function<Type>* obj) {
   DATA_IVECTOR(xinf);
   DATA_IVECTOR(eord);
   DATA_IVECTOR(elen);
+  DATA_INTEGER(scores);    // 1: ADREPORT the contributions nlli of the observations to the negative log-likelihood
+                           // (robust variance; a series with a correlation structure at its first observation)
   PARAMETER_VECTOR(b1);
   PARAMETER_VECTOR(b2);
   PARAMETER_VECTOR(b3);
@@ -78,6 +80,8 @@ Type drcTMB(objective_function<Type>* obj) {
 
   Type nll = 0;
   int n = y.size();
+  vector<Type> nlli(n);
+  nlli.setZero();
 
   // priors: the negative log density of each prior at its parameter, on the scale of the prior, with the
   // log Jacobian of the transformation from the parameter, renormalised to the range of the parameter
@@ -227,9 +231,9 @@ Type drcTMB(objective_function<Type>* obj) {
       Type fe = xinf(i) == 0 ? curveat(mod, clink, Type(xe(i)), fp, alpha, smooth) : Type(1);
       Type p = fe - f;
       pev(i) = p;
-      if (y(i) > 0) nll -= w(i) * y(i) * log(CppAD::CondExpGt(p, Type(1e-300), p, Type(1e-300)));
+      if (y(i) > 0) nlli(i) = -w(i) * y(i) * log(CppAD::CondExpGt(p, Type(1e-300), p, Type(1e-300)));
     } else if (!resid){
-      nll +=-w(i) * loglik(fam, y(i), f, bn(i), phi);
+      nlli(i) = -w(i) * loglik(fam, y(i), f, bn(i), phi);
       SIMULATE {
         y(i) = simobs(fam, f, bn(i), phi);
       }
@@ -245,7 +249,7 @@ Type drcTMB(objective_function<Type>* obj) {
     if (ctype == 0){
       // independent residuals, weighted as the other families
       for (int i = 0; i < n; i++){
-        nll -= w(i) * (dnorm(e(i), Type(0), sd(i), true) - (fam == 8 ? Type(log(y(i))) : Type(0)));
+        nlli(i) = -w(i) * (dnorm(e(i), Type(0), sd(i), true) - (fam == 8 ? Type(log(y(i))) : Type(0)));
         SIMULATE {
           e(i) = rnorm(Type(0), sd(i));
         }
@@ -270,20 +274,24 @@ Type drcTMB(objective_function<Type>* obj) {
             S(a, b) = S(b, a) = r * sd(ia) * sd(ib);
           }
         }
+        // weights are 1 with a correlation structure; the weight of the first observation of the series
+        // (0 for the series outside a cluster of the robust variance) applies to the whole series
         density::MVNORM_t<Type> nld(S);
-        nll += nld(es);
+        nlli(cord(off)) += w(cord(off)) * nld(es);
         SIMULATE {
           es = nld.simulate();
           for (int a = 0; a < m; a++) e(cord(off + a)) = es(a);
         }
         off += m;
       }
-      if (fam == 8) for (int i = 0; i < n; i++) nll += log(y(i));
+      if (fam == 8) for (int i = 0; i < n; i++) nlli(i) += w(i) * log(y(i));
     }
     SIMULATE {
       for (int i = 0; i < n; i++) y(i) = fam == 8 ? Type(fy(i) * exp(e(i))) : Type(fy(i) + e(i));
     }
   }
+  nll += nlli.sum();
+  if (scores == 1) ADREPORT(nlli);
   // event data: multinomial counts of each series with its total, by conditional binomial draws over
   // its intervals in the order of their start
   if (fam == 9){

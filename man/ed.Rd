@@ -11,7 +11,8 @@ ed(
   newdata = NULL,
   random = TRUE,
   residual = FALSE,
-  type = c("relative", "absolute")
+  type = c("relative", "absolute"),
+  vcov. = NULL
 )
 }
 \arguments{
@@ -28,6 +29,8 @@ ed(
 \item{residual}{logical, if TRUE, the residual variance is included in the standard error estimation (gaussian family only)}
 
 \item{type}{"relative" (default) for effective doses relative to the asymptotes, or "absolute" for the doses at which the curves reach the responses in respLev, on the scale of the response (proportions for binomial, beta-binomial and beta). Absolute effective doses depend on the asymptotes, and on their random effects; responses outside the range of a curve give NA, with a warning. The exponential and power models, without an upper asymptote, have absolute effective doses only.}
+
+\item{vcov.}{the covariance of the estimated parameters for the standard errors: a matrix as vcov() of the fit, or a function of the fit that returns one, e.g. the sandwich covariance \code{\link{vcovrobust}}; NULL (default) for vcov() of the fit. \code{\link{confint.edTMB}} then gives Wald intervals by default.}
 }
 \value{
 a edTMB object

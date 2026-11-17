@@ -8,6 +8,7 @@
 #' @param residual logical, if TRUE, the residual variance is included in the standard error estimation (gaussian family only)
 #' @param type "relative" (default) for effective doses relative to the asymptotes, or "absolute" for the doses at which the curves reach the responses in respLev, on the scale of the response (proportions for binomial, beta-binomial and beta). Absolute effective doses depend on the asymptotes, and on their random effects; responses outside the range of a curve give NA, with a warning. The exponential and power models, without an upper asymptote, have absolute effective doses only.
 #'
+#' @param vcov. the covariance of the estimated parameters for the standard errors: a matrix as vcov() of the fit, or a function of the fit that returns one, e.g. the sandwich covariance \code{\link{vcovrobust}}; NULL (default) for vcov() of the fit. \code{\link{confint.edTMB}} then gives Wald intervals by default.
 #' @details Without random effects, or with \code{random=FALSE}, the effective doses are those of the
 #' population curves, with all random effects at zero, and their standard errors include the
 #' uncertainty of the fixed effects only. With \code{random=TRUE}, the standard errors also include the
@@ -34,9 +35,10 @@
 #' @return a edTMB object
 #' @export
 #'
-ed <- function(x, respLev=50, linfct=NULL, newdata=NULL, random=TRUE, residual=FALSE, type=c("relative", "absolute")){
+ed <- function(x, respLev=50, linfct=NULL, newdata=NULL, random=TRUE, residual=FALSE, type=c("relative", "absolute"), vcov.=NULL){
   type <- match.arg(type)
   nobmdpar(x, "ed")
+  x <- vcovfit(x, vcov.)
   if (is.na(drcmodel(x$model)$ed)) stop("the ", x$model, " model has no effective doses.")
   if (drcmodel(x$model)$ed %in% "unbounded" && type == "relative") stop("the ", x$model, " model has no upper asymptote, so no relative effective doses; use type=\"absolute\" with responses in respLev, or bmd().")
   edcore(x, respLev, linfct, newdata, random, residual, type)
@@ -62,11 +64,13 @@ ed <- function(x, respLev=50, linfct=NULL, newdata=NULL, random=TRUE, residual=F
 #'
 #' @param x a drmTMB object of the braincousens, cedergreen or haldane model
 #' @param linfct,newdata,random the curves, as in \code{\link{ed}}
+#' @param vcov. the covariance of the estimated parameters, as in \code{\link{ed}}
 #'
 #' @return an edTMB object
 #' @export
-peak <- function(x, linfct=NULL, newdata=NULL, random=TRUE){
+peak <- function(x, linfct=NULL, newdata=NULL, random=TRUE, vcov.=NULL){
   nobmdpar(x, "peak")
+  x <- vcovfit(x, vcov.)
   m <- drcmodel(x$model)
   if (is.null(m$hormesis) && is.null(m$peak)) stop("peak is only available for the hormesis and substrate inhibition models ", modelswith(function(m) !is.null(m$hormesis) || !is.null(m$peak)), ".")
   # the dose (1) and the response (2) at the peak of every curve
@@ -354,7 +358,8 @@ reweights <- function(object, rl, r){
 # sdreport of a fit with random effects with the joint precision of the fixed and random effects, from
 # the Hessian of the fit (sdreport would otherwise recompute it by finite differences)
 jointsdr <- function(object){
-  H <- if (isTRUE(object$sdrl$pdHess)) solve(object$sdrl$cov.fixed)
+  sd0 <- mlsdr(object)
+  H <- if (isTRUE(sd0$pdHess)) solve(sd0$cov.fixed)
   sdreport(object$obj, par.fixed=object$opt$par, hessian.fixed=H, getJointPrecision=TRUE)
 }
 
@@ -365,7 +370,8 @@ jointcov <- function(object, all=FALSE){
   env <- object$obj$env
   sdr <- jointsdr(object)
   id <- c(if (all) seq_along(env$par)[-env$random] else seq_len(sum(!object$fix)), env$random)
-  C <- tryCatch(solve(sdr$jointPrecision), error=function(e) NULL)
+  C <- if (isTRUE(object$vcovuser)) jointcovuser(object, sdr$jointPrecision)
+       else tryCatch(solve(sdr$jointPrecision), error=function(e) NULL)
   if (is.null(C)) stop("the joint precision matrix of the coefficients and random effects is singular; check the convergence of the fit.")
   as.matrix(C)[id, id, drop=FALSE]
 }
