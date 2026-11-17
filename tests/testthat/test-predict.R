@@ -78,6 +78,27 @@ test_that("prediction intervals for groups in the data and for new groups", {
   expect_equal(unname(q[, 1]), pn$fit[1:3] - z*sdp0, tolerance=0.05)
 })
 
+test_that("standard errors with random effects equal the delta method with the joint covariance", {
+  skip_if_not_installed("numDeriv")
+  d <- simgroups(ng=12, nrep=2, seed=5)
+  u1 <- rnorm(12, 0, 0.3)
+  u2 <- rnorm(12, 0, 0.6)
+  d$y <- drcmean("loglogistic", d$dose, c(1, 8, -1.5, 3, 0)) + u2[d$grp] + rnorm(nrow(d), 0, 0.3)
+  d$y <- d$y + drcmean("loglogistic", d$dose, c(1 + u1[d$grp], 0, -1.5, 3, 0)) - drcmean("loglogistic", d$dose, c(1, 0, -1.5, 3, 0))
+  f <- fit4(y ~ dose, rform=list(b1 ~ 1 | grp, b2 ~ 1 | grp), data=d, model="loglogistic")
+  expect_equal(f$opt$convergence, 0)
+  nd <- data.frame(dose=c(0, 2, 16, 2), grp=factor(c("1", "2", "3", "new")))
+  env <- f$obj$env
+  sdr <- TMB::sdreport(f$obj, getJointPrecision=TRUE)
+  C <- solve(as.matrix(sdr$jointPrecision))
+  par <- env$last.par.best
+  for (random in c(TRUE, FALSE)){
+    pd <- preddata(f, nd, random)
+    G <- numDeriv::jacobian(function(p) predmean(pd, draweta(f, pd, p)), par)
+    expect_equal(predict(f, nd, random=random, se.fit=TRUE)$se.fit, sqrt(diag(G %*% C %*% t(G))), tolerance=1e-5)
+  }
+})
+
 test_that("confidence intervals stay in the range of the mean", {
   set.seed(2)
   dp <- data.frame(dose=rep(c(0, 1, 2, 4, 8, 16), each=3))

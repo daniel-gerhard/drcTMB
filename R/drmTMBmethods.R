@@ -418,24 +418,28 @@ predmean <- function(pd, eta){
   linkfun(pd$clink, f, inverse=TRUE)
 }
 
-# standard errors of the predicted means by the delta method of TMB: the mean at the new doses is
-# reported by the template, at the estimates; with random effects, sdreport includes the uncertainty
-# of the predicted random effects
+# standard errors of the predicted means by the delta method: the mean in a row depends on the
+# parameters only through its linear predictors of b1-b5, so its gradient is the sum of the derivatives
+# w.r.t. the linear predictors (from the drcMean template) times their gradients (see etajac); with
+# random=TRUE they include the uncertainty of the predicted random effects of the fitted levels
 predictse <- function(object, pd){
-  env <- object$obj$env
-  dat <- env$data
-  dat$xp <- pd$x
-  for (i in 1:5) dat[[paste("Xp", i, sep="")]] <- pd$Xs[[i]]
-  # TMB reads sparse matrices in triplet form
-  dat$Zp <- as(as(pd$Zp, "TsparseMatrix"), "generalMatrix")
-  rnd <- !is.null(env$random)
-  obj <- MakeADFun(dat, env$parList(object$opt$par), map=env$map, random=if (rnd) "u",
-                   DLL="drcTMB_TMBExports", silent=TRUE)
-  # the likelihood is unchanged: the Hessian of the fit is reused
-  H <- if (isTRUE(object$sdrl$pdHess)) solve(fixedcov(object))
-  sdr <- sdreport(obj, par.fixed=object$opt$par, hessian.fixed=H, getReportCovariance=FALSE)
-  s <- summary(sdr, "report")
-  unname(s[rownames(s) == "mu", 2])
+  ej <- etajac(object, pd)
+  g <- meangrad(pd)
+  J <- Reduce("+", lapply(1:5, function(k) g[, k] * ej$J[[k]]))
+  sqrt(rowSums((J %*% ej$C) * J))
+}
+
+# derivatives of the means at the doses in pd w.r.t. their linear predictors of b1-b5, a column for
+# each parameter; NA for rows with missing doses or linear predictors
+meangrad <- function(pd){
+  g <- matrix(NA_real_, length(pd$x), 5)
+  ok <- !is.na(pd$x) & rowSums(is.na(pd$eta)) == 0
+  if (!any(ok)) return(g)
+  obj <- MakeADFun(list(model="drcMean", mod=pd$mod, lnk=as.integer(pd$lnk), clink=as.integer(pd$clink),
+                        alpha=alphavalue(pd$alpha), smooth=pd$smooth, x=pd$x[ok]),
+                   list(eta=pd$eta[ok, , drop=FALSE]), DLL="drcTMB_TMBExports", silent=TRUE)
+  g[ok, ] <- matrix(obj$gr(), ncol=5)
+  g
 }
 
 # parameters b1-b5 of the curves in the rows of newdata (predict with type="parameters"), on their
@@ -500,6 +504,15 @@ predictpars <- function(object, newdata, random, se.fit, interval, level, boot, 
 # method: they are linear in the free coefficients and, with random=TRUE, in the random effects of the
 # fitted levels, with the joint covariance of both
 predparse <- function(object, pd){
+  ej <- etajac(object, pd)
+  se <- sapply(1:5, function(k) sqrt(rowSums((ej$J[[k]] %*% ej$C) * ej$J[[k]])))
+  matrix(se, nrow=length(pd$x))
+}
+
+# gradients of the linear predictors of b1-b5 in pd (J, a matrix for each parameter with a row for each
+# row of pd) w.r.t. the free coefficients and, with random effects of fitted levels in pd, the random
+# effects, and the joint covariance C of these parameters
+etajac <- function(object, pd){
   env <- object$obj$env
   np <- length(env$par)
   nb <- sum(!object$fix)
@@ -507,14 +520,11 @@ predparse <- function(object, pd){
   usere <- !is.null(r) && ncol(pd$Zp) > 0 && any(pd$Zp != 0)
   id <- c(seq_len(nb), if (usere) r)
   C <- if (usere) jointcov(object) else fixedcov(object)[seq_len(nb), seq_len(nb), drop=FALSE]
-  # derivatives of the linear predictors w.r.t. each parameter in id; draweta includes the fixed coefficients
+  # the linear predictors are linear in the parameters; draweta includes the fixed coefficients
   e0 <- draweta(object, pd, numeric(np))
-  J <- lapply(id, function(j) draweta(object, pd, replace(numeric(np), j, 1)) - e0)
-  se <- sapply(1:5, function(k){
-    Jk <- matrix(sapply(J, function(Jj) Jj[, k]), nrow=length(pd$x))
-    sqrt(rowSums((Jk %*% C) * Jk))
-  })
-  matrix(se, nrow=length(pd$x))
+  Jp <- lapply(id, function(j) draweta(object, pd, replace(numeric(np), j, 1)) - e0)
+  J <- lapply(1:5, function(k) matrix(sapply(Jp, function(Jj) Jj[, k]), nrow=length(pd$x)))
+  list(J=J, C=C)
 }
 
 # linear predictors of b1-b5 at a parameter vector par (as obj$env$par), with the random effects of

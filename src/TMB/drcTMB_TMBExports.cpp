@@ -4,6 +4,7 @@
 #include <TMB.hpp>
 #include "drcBMD.hpp"
 #include "drcED.hpp"
+#include "drcMean.hpp"
 #include "drcTMB.hpp"
 
 template<class Type>
@@ -13,6 +14,8 @@ Type objective_function<Type>::operator() () {
     return drcBMD(this);
   } else if(model == "drcED") {
     return drcED(this);
+  } else if(model == "drcMean") {
+    return drcMean(this);
   } else if(model == "drcTMB") {
     return drcTMB(this);
   } else {
