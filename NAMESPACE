@@ -21,8 +21,10 @@ S3method(predict,drmTMB)
 S3method(print,bmdbayes)
 S3method(print,bmdma)
 S3method(print,bootstrap.drmTMB)
+S3method(print,drccor)
 S3method(print,drcmarglik)
 S3method(print,drcprior)
+S3method(print,drcvar)
 S3method(print,drmTMB)
 S3method(print,edTMB)
 S3method(print,efsapriors)
@@ -40,6 +42,12 @@ export(bmdbayesmodels)
 export(bmdefsa)
 export(bmdma)
 export(bootstrap)
+export(cor_ar1)
+export(cor_car1)
+export(cor_cs)
+export(cor_exp)
+export(cor_gaus)
+export(cor_spher)
 export(drmTMB)
 export(drmTMBcontrol)
 export(drmTMBstart)
@@ -55,6 +63,9 @@ export(normal)
 export(peak)
 export(pert)
 export(student_t)
+export(var_exp)
+export(var_ident)
+export(var_power)
 importFrom(Matrix,
   bdiag,
   t
@@ -77,6 +88,7 @@ importFrom(stats,
   anova,
   approx,
   as.formula,
+  ave,
   coef,
   coefficients,
   complete.cases,
@@ -85,6 +97,7 @@ importFrom(stats,
   cov.wt,
   dbeta,
   df.residual,
+  dist,
   dlnorm,
   dnorm,
   dt,
@@ -94,6 +107,7 @@ importFrom(stats,
   lm.wfit,
   logLik,
   lowess,
+  median,
   model.frame,
   model.matrix,
   model.response,

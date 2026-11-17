@@ -433,4 +433,53 @@ Type lpdfprior(int type, Type z, vector<Type> h){
   }
 }
 
+// variance function g of the residual standard deviation sigma g at the covariate v (stratum st): 0 none,
+// 1 power |v|^delta, 2 exponential exp(delta v), 3 separate standard deviations exp(lambda) of the strata
+// (lambda 0 for the first stratum)
+template<class Type>
+Type varfun(int vtype, Type v, int st, vector<Type> vpar){
+  switch (vtype){
+  case 1:
+    return exp(vpar(0) * log(fabs(v)));
+  case 2:
+    return exp(vpar(0) * v);
+  case 3:
+    return st > 0 ? Type(exp(vpar(st - 1))) : Type(1);
+  default:
+    return 1;
+  }
+}
+
+// correlation of two residuals of a series at positions pa and pb (distinct), with the unconstrained
+// parameters cpar: 1 AR1 rho^k = rpow(k) (integer lag k), 2 CAR1 phi^d, phi = invlogit(cpar(0)),
+// 3 compound symmetry rho in (-1/(m-1), 1), 4 exponential exp(-d/range), 5 Gaussian exp(-(d/range)^2),
+// 6 spherical, with range = exp(cpar(0)) and, with a nugget, the factor 1 - invlogit(cpar(1))
+template<class Type>
+Type corvalue(int ctype, int cnug, vector<Type> cpar, vector<Type> rpow, vector<Type> pa, vector<Type> pb, int m){
+  Type d2 = 0;
+  for (int k = 0; k < pa.size(); k++) d2 += (pa(k) - pb(k)) * (pa(k) - pb(k));
+  Type d = sqrt(d2);
+  switch (ctype){
+  case 1: {
+    int k = (int) std::round(asDouble(d));
+    return rpow(k);
+  }
+  case 2:
+    return exp(d * log(invlogit(cpar(0))));
+  case 3: {
+    Type lo = m > 1 ? Type(-1.0 / (m - 1)) : Type(-1);
+    return lo + (1 - lo) * invlogit(cpar(0));
+  }
+  default: {
+    Type z = d / exp(cpar(0));
+    Type r;
+    if (ctype == 4) r = exp(-z);
+    else if (ctype == 5) r = exp(-z * z);
+    else r = CppAD::CondExpLt(z, Type(1), Type(1 - 1.5 * z + 0.5 * z * z * z), Type(0));
+    if (cnug == 1) r *= 1 - invlogit(cpar(1));
+    return r;
+  }
+  }
+}
+
 #endif

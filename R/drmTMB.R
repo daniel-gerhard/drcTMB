@@ -15,8 +15,14 @@
 #' @param smooth smoothing of the threshold of the nec model: the width of the smoothed threshold relative to the smallest interval between doses, a number of at least 0; 0 is an exact threshold. The default is 0.1 with random effects on b4, and 0 otherwise. Only for the nec model, see Details.
 #' @param parlink links of the parameters b1-b5: NULL for the defaults of the model, a single link for the asymptotes b1 and b2, or links named by parameter, e.g. c(b1="logit", b2="logit", b4="log"), where the parameters not named keep their defaults. b1 and b2 have the link "identity" (default), "log" or "logit"; b4 has "identity" (default) or "log" for the models with a positive b4 (not logistic, gompertz, multistage, exponential and power); b5 has the log link for the asymmetry of logistic and loglogistic and the shape of nec; the other parameters have the identity link. The coefficients, and start, fix, lower, upper and linfct of \code{\link{ed}}, are on the scale of the links, see Details.
 #' @param curvelink link of the whole curve: "identity" (default), the curve is the mean (the median for the lognormal family, the probability for binomial, beta-binomial and beta); "log" (gaussian, lognormal, poisson, nbinom2, nbinom1) or "logit" and "probit" (binomial, betabinomial, beta), the mean (median, probability) is the inverse link of the curve. Unlike parlink, which applies to the linear predictors of the parameters, curvelink applies to the response; b1 and b2 are then on the scale of the curve link and keep the identity parlink. See Details.
-#' @param prior NULL (default) for maximum likelihood without priors, or a named list of prior distributions (see \code{\link{priors}}), e.g. list(b2=normal(8, 2), b4=pert(0.5, 3, 10), sd=half_normal(1)): by parameter b1-b5, for parameters with a single coefficient, on the scale of the parameter (after the inverse link); by coefficient name, e.g. "b4:herbicideB", on the scale of the coefficient (the link); "sd" for all standard deviations of the random effects, or "sd:b1|group" for one of them; and "sigma" (gaussian, lognormal), "phi" (beta, nbinom1, betabinomial) or "theta" (nbinom2) for the residual parameter, on their natural scale. See Details.
+#' @param prior NULL (default) for maximum likelihood without priors, or a named list of prior distributions (see \code{\link{priors}}), e.g. list(b2=normal(8, 2), b4=pert(0.5, 3, 10), sd=half_normal(1)): by parameter b1-b5, for parameters with a single coefficient, on the scale of the parameter (after the inverse link); by coefficient name, e.g. "b4:herbicideB", on the scale of the coefficient (the link); "sd" for all standard deviations of the random effects, or "sd:b1|group" for one of them; and "sigma" (gaussian, lognormal), "phi" (beta, nbinom1, betabinomial) or "theta" (nbinom2) for the residual parameter, on their natural scale; and the parameters of a residual correlation structure and variance function on their natural scale, "cor:rho" (AR1, compound symmetry), "cor:phi" (CAR1), "cor:range", "cor:nugget", "var:delta" (power, exponential) and "var:ratio:<stratum>" (separate standard deviations, the ratio to the first stratum), see \code{\link{correlation}}. See Details.
 #' @param bmdpar NULL (default) for the standard parameterisation, or a list with a benchmark response bmr and its definition def as in \code{\link{bmd}}, e.g. list(bmr=0.1, def="relative"), for the BMD parameterisation: b4 is replaced by the log benchmark dose, coefficient log_bmd, and computed from it. See Details.
+#' @param correlation NULL (default) for independent residuals, or a residual correlation structure within
+#'   series, e.g. \code{cor_car1(~ time | subject)}, for the gaussian and lognormal families; see
+#'   \code{\link{correlation}}.
+#' @param variance NULL (default) for a constant residual standard deviation, or a variance function, e.g.
+#'   \code{var_power()} (a power of the fitted mean) or \code{var_ident(~ 1 | group)}, for the gaussian and
+#'   lognormal families; see \code{\link{correlation}}.
 #' @param gsl a vector of lower bounds for a grid search, same length as start; NA for the default range. If gsl, gsu and gsn are all NULL, no grid search is performed. See \code{\link{drmTMBstart}}.
 #' @param gsu a vector of upper bounds for a grid search, same length as start; NA for the default range.
 #' @param gsn number of grid points for each parameter, a single number or a vector with the same length as start. \code{gsn=10} alone runs a grid search over the default ranges.
@@ -188,15 +194,28 @@
 #' \code{simulate} and \code{\link{bootstrap}} are available for these fits; \code{ed}, \code{bmd},
 #' \code{peak} and \code{predict} need the standard parameterisation.
 #'
+#' With \code{correlation} or \code{variance} (gaussian and lognormal families), the residuals of each
+#' series are multivariate normal with a correlation structure, and their standard deviations sigma g
+#' depend on a covariate or the fitted mean, as in gnls and nlme of nlme (see \code{\link{correlation}});
+#' random effects can be combined with them. The parameters (cor_par:..., var_par:...) are estimated
+#' with the coefficients and follow log_sigma in \code{coef} and \code{vcov}; \code{summary} and
+#' \code{confint} give them on their natural scale, and \code{anova} compares fits with and without them.
+#' Small-sample inference (\code{smallsample}) is not used. Weights cannot be combined with a correlation
+#' structure. Pearson residuals are divided by sigma g; quantile residuals are in addition normalized,
+#' decorrelated within series. Prediction intervals use the standard deviation sigma g at newdata, which
+#' then needs the covariate of the variance function; \code{ed(residual=TRUE)} and the BMD definition
+#' "sd" are not available with a variance function.
+#'
 #' @return A drmTMB object
 #' @export
 
-drmTMB <- function(form, fform=NULL, rform=NULL, data, start=NULL, fix=NULL, weights=NULL, lower=-Inf, upper=Inf, family="gaussian", model="logistic", alpha=NULL, smooth=NULL, parlink=NULL, curvelink="identity", prior=NULL, bmdpar=NULL, gsl=NULL, gsu=NULL, gsn=NULL, control=list()){
+drmTMB <- function(form, fform=NULL, rform=NULL, data, start=NULL, fix=NULL, weights=NULL, lower=-Inf, upper=Inf, family="gaussian", model="logistic", alpha=NULL, smooth=NULL, parlink=NULL, curvelink="identity", prior=NULL, bmdpar=NULL, correlation=NULL, variance=NULL, gsl=NULL, gsu=NULL, gsn=NULL, control=list()){
   start0 <- start
   fix0 <- fix
   # control list
   control <- do.call(drmTMBcontrol, control)
-  dd <- drmTMBdata(form, fform=fform, rform=rform, data=data, weights=weights, family=family, model=model, alpha=alpha, smooth=smooth, parlink=parlink, curvelink=curvelink)
+  dd <- drmTMBdata(form, fform=fform, rform=rform, data=data, weights=weights, family=family, model=model, alpha=alpha, smooth=smooth, parlink=parlink, curvelink=curvelink,
+                   correlation=correlation, variance=variance)
   fixnamed <- !is.null(names(fix))
   start <- parvector(start, dd$npi, NA, "start")
   fix <- parvector(fix, dd$npi, FALSE, "fix")
@@ -213,7 +232,7 @@ drmTMB <- function(form, fform=NULL, rform=NULL, data, start=NULL, fix=NULL, wei
     dd$bmd$b4pos <- dd$bmd$b4pos && identical(lower, -Inf)
     f0 <- drmTMB(form, fform=fform, rform=rform, data=data, start=start0, fix=fix0, weights=weights, lower=lower, upper=upper,
                  family=family, model=model, alpha=alpha, smooth=smooth, parlink=parlink, curvelink=curvelink, prior=prior[names(prior) != "bmd"],
-                 gsl=gsl, gsu=gsu, gsn=gsn, control=control)
+                 correlation=correlation, variance=variance, gsl=gsl, gsu=gsu, gsn=gsn, control=control)
     b0 <- suppressWarnings(bmd(f0, dd$bmd$bmr, dd$bmd$def, scale="conditional"))
     if (is.na(coef(b0))) stop("the curve of the standard fit does not reach the benchmark response; the BMD parameterisation needs a finite BMD.")
     start <- f0$start
@@ -320,6 +339,11 @@ drmTMB <- function(form, fform=NULL, rform=NULL, data, start=NULL, fix=NULL, wei
   }
   res$rform <- rform
   res$reterms <- dd$re$terms
+  res$correlation <- correlation
+  res$variance <- variance
+  res$resnames <- c(dd$cor$cnames, dd$var$vnames)
+  res$cormax <- if (dd$cor$ctype > 0) max(dd$cor$clen)
+  res$varlevels <- dd$var$vlevels
   res$estimates <- opt$par
   res$lower <- lower
   res$upper <- upper
@@ -340,7 +364,8 @@ drmTMB <- function(form, fform=NULL, rform=NULL, data, start=NULL, fix=NULL, wei
   res$ssdrl <- suppressWarnings(summary(res$sdrl))
   # residual degrees of freedom for small-sample inference of gaussian and lognormal models without
   # random effects (lognormal: gaussian for log(y)): observations with positive weights minus free coefficients
-  if (isTRUE(control$smallsample) && family %in% c("gaussian", "lognormal") && length(dd$re$terms) == 0 && is.null(pd$table) && is.null(dd$bmd)){
+  if (isTRUE(control$smallsample) && family %in% c("gaussian", "lognormal") && length(dd$re$terms) == 0 && is.null(pd$table) && is.null(dd$bmd) &&
+      is.null(correlation) && is.null(variance)){
     rdf <- sum(dd$w > 0) - sum(!fix)
     if (rdf > 0) res$rdf <- rdf else warning("no residual degrees of freedom; the standard errors use the maximum likelihood estimate of the residual variance.", call.=FALSE)
   }

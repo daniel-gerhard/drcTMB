@@ -202,9 +202,11 @@ priordata <- function(prior, dd, fix, lower, upper, coefnames){
   }))
 
   entries <- list()
-  add <- function(key, what, idx, trans, p, range, label){
-    entries[[key]] <<- list(what=what, idx=idx, trans=trans, p=p, range=range, label=label)
+  add <- function(key, what, idx, trans, p, range, label, lo=-1){
+    entries[[key]] <<- list(what=what, idx=idx, trans=trans, p=p, range=range, label=label, lo=lo)
   }
+  # parameters of the residual correlation structure and variance function
+  rp <- resprior(dd)
   linkrng <- function(l) switch(l, c(-Inf, Inf), c(0, Inf), c(0, 1))
   parname <- paste("b", 1:5, sep="")
   if (!is.null(dd$bmd)) coefnames[npi == 4] <- "log_bmd"
@@ -239,10 +241,14 @@ priordata <- function(prior, dd, fix, lower, upper, coefnames){
       }
     } else if (identical(nm, vn$resid)){
       add(nm, 2L, 0L, 2L, p, c(0, Inf), nm)
+    } else if (nm %in% names(rp)){
+      r <- rp[[nm]]
+      add(nm, r$what, r$idx, r$trans, p, r$range, nm, if (is.null(r$lo)) -1 else r$lo)
     } else {
       stop("unknown name in prior: ", nm, "; use b1-b5, coefficient names (", paste(coefnames[!fix], collapse=", "), ")",
            if (length(vn$sd) > 0) paste(", sd, ", paste(vn$sd, collapse=", "), sep=""),
-           if (!is.null(vn$resid)) paste(" or", vn$resid) else "", ".")
+           if (!is.null(vn$resid)) paste(" or", vn$resid) else "",
+           if (length(rp) > 0) paste(", ", paste(names(rp), collapse=", "), sep="") else "", ".")
     }
   }
 
@@ -258,8 +264,8 @@ priordata <- function(prior, dd, fix, lower, upper, coefnames){
     mass <- diff(e$p$cdf(r))
     if (!(mass > 0)) stop("the prior ", e$p$name, " of ", e$label, " has no probability within the range of the parameter, (", r[1], ", ", r[2], ").")
     hyp[i, ] <- c(e$p$hyp, rep(0, 4 - length(e$p$hyp)), log(mass))
-    bnd[i, ] <- linkfun(e$trans, r)
-    entries[[i]]$center <- linkfun(e$trans, min(max(e$p$center, r[1]), r[2]))
+    bnd[i, ] <- priortrans(e$trans, r, lo=e$lo)
+    entries[[i]]$center <- priortrans(e$trans, min(max(e$p$center, r[1]), r[2]), lo=e$lo)
   }
   data <- list(prwhat=vapply(entries, function(e) e$what, integer(1)), pridx=vapply(entries, function(e) as.integer(e$idx), integer(1)),
                prtrans=vapply(entries, function(e) as.integer(e$trans), integer(1)), prtype=vapply(entries, function(e) e$p$type, integer(1)),
@@ -284,7 +290,9 @@ priorpos <- function(pdata, fix, parnames){
   free <- cumsum(!fix)
   ith <- which(parnames == "theta")
   ils <- which(parnames == "log_sigma")
+  icp <- which(parnames == "cpar")
+  ivp <- which(parnames == "vpar")
   vapply(seq_along(pdata$prwhat), function(i){
-    switch(pdata$prwhat[i] + 1, free[pdata$pridx[i] + 1], ith[pdata$pridx[i] + 1], ils)
+    switch(pdata$prwhat[i] + 1, free[pdata$pridx[i] + 1], ith[pdata$pridx[i] + 1], ils, icp[pdata$pridx[i] + 1], ivp[pdata$pridx[i] + 1])
   }, numeric(1))
 }

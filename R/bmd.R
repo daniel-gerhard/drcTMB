@@ -74,6 +74,7 @@ bmd <- function(x, bmr=0.1, def=c("excess", "additional", "relative", "sd"), lin
   if (def == "sd"){
     if (!(x$family %in% c("gaussian", "lognormal"))) stop("def=\"sd\" is only available for the gaussian and lognormal families.")
     if (length(terms) > 0) stop("def=\"sd\" is not available for models with random effects: the standard deviation of the response depends on the random effects.")
+    if (!is.null(x$variance)) stop("def=\"sd\" is not available for models with a variance function.")
   }
   if (!is.numeric(bmr) || length(bmr) == 0 || any(!is.finite(bmr)) || any(bmr <= 0)) stop("bmr must be positive.")
   if (def %in% c("excess", "additional") && any(bmr >= 1)) stop("the ", def, " risk bmr must be below 1.")

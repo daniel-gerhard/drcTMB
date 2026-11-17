@@ -14,6 +14,7 @@ bmdparcheck <- function(bmdpar, dd, fix){
   }
   if (def == "sd" && !(dd$family %in% c("gaussian", "lognormal"))) stop("def=\"sd\" is only available for the gaussian and lognormal families.")
   if (def == "sd" && length(dd$re$terms) > 0) stop("def=\"sd\" is not available for models with random effects.")
+  if (def == "sd" && isTRUE(dd$var$vtype > 0)) stop("def=\"sd\" is not available for models with a variance function.")
   m <- drcmodel(dd$mod)
   role <- if (m$ed %in% "polynomial") 4 else if (m$ed %in% "unbounded") 3 else if (m$ed %in% "closed" && m$b4 %in% "scale") 1
           else if (m$ed %in% "closed" && m$b4 %in% "threshold") 2 else NA
