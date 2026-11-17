@@ -276,9 +276,7 @@ bmdmean <- function(d, w){
 bmdcurve <- function(b, i, par){
   fit <- b$fit
   info <- b$bmd[[i]]
-  pv <- fit$start
-  pv[!fit$fix] <- par[seq_len(sum(!fit$fix))]
-  lpv <- as.vector(b$linfct[[i]] %*% pv)
+  lpv <- as.vector(b$linfct[[i]] %*% fullcoef(fit, par))
   bp <- bmdpars(fit, par)
   lnk <- linkindex(fit$parlink)
   if (length(info$wq) > 0){

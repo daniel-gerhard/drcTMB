@@ -108,12 +108,12 @@ bmd <- function(x, bmr=0.1, def=c("excess", "additional", "relative", "sd"), lin
 
   pf <- x$sdrl$par.fixed
   nb <- sum(!x$fix)
-  pv <- x$start
-  pv[!x$fix] <- pf[seq_len(nb)]
+  pv <- fullcoef(x)
   ith <- which(names(pf) == "theta")
   ils <- which(names(pf) == "log_sigma")
-  theta <- unname(pf[ith])
-  ls <- if (length(ils) > 0) unname(pf[ils]) else 0
+  bp <- bmdpars(x, pf)
+  theta <- bp$theta
+  ls <- bp$ls
   uhat <- if (length(terms) > 0) x$sdrl$par.random else numeric(0)
   nu <- length(uhat)
   nbmd <- length(linfct)

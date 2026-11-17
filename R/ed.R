@@ -126,8 +126,7 @@ edcore <- function(x, respLev, linfct, newdata, random, residual, type){
   }
   rvar <- if (residual) residpar(x)^2 else 0
 
-  pv <- x$start
-  pv[!x$fix] <- x$sdrl$par.fixed[seq_len(sum(!x$fix))]
+  pv <- fullcoef(x)
   nb <- sum(!x$fix)
   terms <- x$reterms
   uhat <- if (length(terms) > 0) x$sdrl$par.random else numeric(0)
@@ -375,7 +374,7 @@ edlinfct <- function(x, newdata){
   if (length(miss) > 0) stop("newdata needs the covariates of fform: ", paste(miss, collapse=", "), ".")
   Xs <- lapply(x$fterms, function(ft) designmatrix(ft, newdata))
   if (any(sapply(Xs, anyNA))) stop("newdata has missing values in the covariates of fform.")
-  npi <- rep(1:5, sapply(Xs, ncol))
+  npi <- coefpar(x)
   L <- lapply(seq_len(nrow(newdata)), function(r){
     L <- matrix(0, 5, length(npi))
     for (i in 1:5) L[i, npi == i] <- Xs[[i]][r, ]

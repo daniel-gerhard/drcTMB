@@ -229,8 +229,7 @@ profile.edTMB <- function(fitted, parm=NULL, level=0.99, maxit=100, progress=int
   peak <- identical(fitted$type, "peak")
   isbmd <- identical(fitted$type, "bmd")
   if (isbmd && !bmdprofile(fitted, parm)) stop("profiles are not available for marginal BMDs averaged over random effects, or for the BMDs of the ", fit$model, " model: its response at dose zero depends on b4.")
-  pv0 <- fit$start
-  pv0[!fit$fix] <- fit$opt$par[seq_len(sum(!fit$fix))]
+  pv0 <- fullcoef(fit)
   if (peak && any(unlist(fitted$q[parm]) == 2)) stop("profiles are not available for the response at the peak.")
 
   obj <- fit$obj
@@ -255,9 +254,10 @@ profile.edTMB <- function(fitted, parm=NULL, level=0.99, maxit=100, progress=int
   lo <- if (is.null(fit$lower)) rep(-Inf, length(par0)) else fit$lower
   up <- if (is.null(fit$upper)) rep(Inf, length(par0)) else fit$upper
   # free coefficients of the polynomial of the multistage model (b3-b5), in the parameter vector
-  msfree <- c(rep(1:5, sapply(fit$Xs, ncol))[free] %in% 3:5, rep(FALSE, length(par0) - nf))
+  npi <- coefpar(fit)
+  msfree <- c(npi[free] %in% 3:5, rep(FALSE, length(par0) - nf))
   # free coefficients of the rate b3 of the nec model
-  b3free <- c(rep(1:5, sapply(fit$Xs, ncol))[free] == 3, rep(FALSE, length(par0) - nf))
+  b3free <- c(npi[free] == 3, rep(FALSE, length(par0) - nf))
   # log residual standard deviation, for BMDs in standard deviations
   ils <- which(names(par0) == "log_sigma")
   lsval <- function(par) if (length(ils) > 0) par[[ils]] else 0
@@ -577,13 +577,10 @@ confint.edTMB <- function(object, parm=NULL, level=0.95, method=c("profile", "wa
     # conditional distribution at each fit for effective doses of fitted groups
     draws <- bootdraws(fit, getboot(fit, boot, nsim, seed, ...), any(edflag(object, "conditional")[parm]))
     r <- fit$obj$env$random
-    nb <- sum(!fit$fix)
     # effective doses of each bootstrap fit
     eds <- sapply(parm, function(i){
       apply(draws, 2, function(par){
-        pv <- fit$start
-        pv[!fit$fix] <- par[seq_len(nb)]
-        lpv <- as.vector(object$linfct[[i]] %*% pv)
+        lpv <- as.vector(object$linfct[[i]] %*% fullcoef(fit, par))
         if (isTRUE(object$conditional[[i]])) lpv <- lpv + as.vector(object$uweights[[i]] %*% par[r])
         edvalue(object, i, lpv, par)
       })

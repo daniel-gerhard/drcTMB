@@ -81,12 +81,10 @@ summary.drmTMB <- function(object, ...){
   coefs[, 2] <- suppressWarnings(sqrt(diag(fixedcov(object))))[seq_len(nrow(coefs))]
 
   # direction of the curve from the sign of the steepness b3 at the observations
-  npi <- rep(1:5, sapply(object$Xs, ncol))
+  npi <- coefpar(object)
   direction <- NULL
   if (m$b3 %in% "steepness"){
-    b <- object$start
-    b[!object$fix] <- coefs[, 1]
-    s3 <- sign(object$Xs[[3]] %*% b[npi == 3])
+    s3 <- sign(object$Xs[[3]] %*% fullcoef(object)[npi == 3])
     direction <- if (all(s3 > 0)) "increasing" else if (all(s3 < 0)) "decreasing" else "increasing and decreasing"
   }
 
@@ -346,11 +344,10 @@ preddata <- function(object, newdata, random, covs=FALSE){
        else model.frame(form, data=newdata, na.action=na.pass)[, 1]
   n <- length(x)
   Xs <- lapply(object$fterms, function(ft) designmatrix(ft, newdata))
-  npi <- rep(1:5, sapply(Xs, ncol))
+  npi <- coefpar(object)
   ests <- object$ssdrl
   rn <- rownames(ests)
-  cest <- object$start
-  cest[!object$fix] <- ests[rn %in% paste("b", 1:5, sep=""), 1]
+  cest <- fullcoef(object)
   eta <- sapply(1:5, function(i) as.vector(Xs[[i]] %*% cest[npi == i]))
   eta <- matrix(eta, nrow=n)
 
@@ -845,7 +842,7 @@ linktext <- function(link, model){
 
 # coefficients fixed by the user, named; the parameters the model does not use are always fixed
 userfixed <- function(object){
-  npi <- rep(1:5, vapply(object$Xs, ncol, integer(1)))
+  npi <- coefpar(object)
   ufix <- object$fix & !(npi %in% unusedpars(modelindex(object$model)))
   setNames(object$start[ufix], object$coefnames[ufix])
 }
@@ -918,6 +915,17 @@ printresid <- function(family, residpar, digits, rdf=NULL){
   if (family == "nbinom2") cat("\nNegative binomial size (theta): ", format(residpar, digits=digits), "\n", sep="")
   if (family == "betabinomial") cat("\nBeta-binomial precision (phi): ", format(residpar, digits=digits), "\n", sep="")
   if (family == "nbinom1") cat("\nNegative binomial dispersion (phi): ", format(residpar, digits=digits), "\n", sep="")
+}
+
+# index of the parameter (1-5 for b1-b5) of each coefficient of a fit
+coefpar <- function(fit) rep(1:5, vapply(fit$Xs, ncol, integer(1)))
+
+# all coefficients of b1-b5 of a fit, the fixed ones at their values and the free ones from par (by
+# default the estimates; the free coefficients come first in the parameter vectors of TMB)
+fullcoef <- function(fit, par=fit$opt$par){
+  pv <- fit$start
+  pv[!fit$fix] <- par[seq_len(sum(!fit$fix))]
+  pv
 }
 
 # names of the estimated parameters: the free coefficients; for each random effect term the log
