@@ -189,7 +189,7 @@ bmdbayesmodels <- function(object, level=0.90){
 #' @rdname bmdbayes
 #' @export
 print.bmdbayes <- function(x, digits=max(3L, getOption("digits") - 3L), ...){
-  cat("Bayesian model-averaged benchmark dose, ", c(excess="excess risk", additional="additional risk", relative="relative deviation", sd="standard deviations")[[x$def]],
+  cat("Bayesian model-averaged benchmark dose, ", deflabel(x$def),
       " ", format(x$bmr), ", prior ", x$prior, " for the BMD\n",
       if (x$method == "laplace") "Laplace approximation" else "Importance sampling", "\n\n", sep="")
   print(cbind(x$models, bmdbayesmodels(x)), digits=digits)

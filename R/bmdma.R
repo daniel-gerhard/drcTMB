@@ -182,7 +182,7 @@ bmdma <- function(..., bmr=0.1, def=c("excess", "additional", "relative", "sd"),
 #' @rdname bmdma
 #' @export
 print.bmdma <- function(x, digits=max(3L, getOption("digits") - 3L), ...){
-  cat("Model-averaged benchmark doses, ", c(excess="excess risk", additional="additional risk", relative="relative deviation", sd="standard deviations")[[x$def]],
+  cat("Model-averaged benchmark doses, ", deflabel(x$def),
       ", averaged ", if (x$average == "curve") "curves" else "BMDs", if (any(vapply(x$bmds, function(b) length(b$fit$reterms) > 0, logical(1)))) paste(",", x$scale, "BMD"), ":\n\n", sep="")
   tab <- x$models
   est <- matrix(vapply(x$bmds, function(b) unname(b$estimates), numeric(length(x$estimates))), length(x$estimates))

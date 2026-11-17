@@ -168,7 +168,7 @@ cordata <- function(correlation, data){
   grp <- groupfactor(sf$grp, data)
   pos <- posmatrix(sf$pos, data)
   type <- correlation$type
-  if (type %in% c("ar1", "car1", "exp", "gaus", "spher") && is.null(pos) && type != "ar1"){
+  if (type %in% c("car1", "exp", "gaus", "spher") && is.null(pos)){
     stop("the ", cortext(correlation), " structure needs the positions of the observations, e.g. ~ time | subject.")
   }
   if (type %in% c("ar1", "car1") && !is.null(pos) && ncol(pos) > 1) stop("the ", type, " structure needs a single time variable.")
@@ -189,13 +189,14 @@ cordata <- function(correlation, data){
     if (anyDuplicated(key)) stop("the positions of the observations must be distinct within each series of the correlation structure.")
   }
   m <- max(clen)
+  if (m < 2) stop("the series of the correlation structure have one observation each; there is nothing to correlate.")
   cmaxk <- if (type == "ar1") as.integer(max(unlist(tapply(pos[, 1], grp, function(p) diff(range(p)))), 0)) else 0L
   # starting values on the unconstrained scale: correlation 0.2, range a third of the median distance
   # within series, nugget 0.1
   if (type == "ar1") cpar <- c("rho"=atanh(0.2))
   if (type == "car1") cpar <- c("phi"=qlogis(0.2))
   if (type == "cs"){
-    lo <- if (m > 1) -1/(m - 1) else -1
+    lo <- cslower(m)
     cpar <- c("rho"=qlogis((0.2 - lo)/(1 - lo)))
   }
   if (type %in% c("exp", "gaus", "spher")){
@@ -205,7 +206,6 @@ cordata <- function(correlation, data){
     cpar <- c("range"=log(median(dl)/3))
     if (correlation$nugget) cpar <- c(cpar, "nugget"=qlogis(0.1))
   }
-  if (m < 2) stop("the series of the correlation structure have one observation each; there is nothing to correlate.")
   list(ctype=match(type, c("ar1", "car1", "cs", "exp", "gaus", "spher")), cnug=as.integer(correlation$nugget),
        cord=as.integer(o - 1), clen=as.integer(clen), cpos=pos, cmaxk=cmaxk, cpar=cpar, cnames=paste("cor_par:", names(cpar), sep=""))
 }
@@ -244,7 +244,7 @@ restrans <- function(object){
   out <- list()
   if (!is.null(cs)){
     m <- object$cormax
-    lo <- if (!is.null(m) && m > 1) -1/(m - 1) else -1
+    lo <- cslower(m)
     if (cs$type == "ar1") out[["cor_par:rho"]] <- list(name="cor:rho", f=tanh)
     if (cs$type == "car1") out[["cor_par:phi"]] <- list(name="cor:phi", f=plogis)
     if (cs$type == "cs") out[["cor_par:rho"]] <- list(name="cor:rho", f=function(p) lo + (1 - lo)*plogis(p))
@@ -313,7 +313,7 @@ cormatrix <- function(object, pos, cpar=NULL){
   r <- switch(dat$ctype,
               tanh(cpar[1])^round(d),
               plogis(cpar[1])^d,
-              {lo <- if (object$cormax > 1) -1/(object$cormax - 1) else -1; matrix(lo + (1 - lo)*plogis(cpar[1]), m, m)},
+              {lo <- cslower(object$cormax); matrix(lo + (1 - lo)*plogis(cpar[1]), m, m)},
               exp(-d/exp(cpar[1])),
               exp(-(d/exp(cpar[1]))^2),
               {z <- d/exp(cpar[1]); ifelse(z < 1, 1 - 1.5*z + 0.5*z^3, 0)})
@@ -346,7 +346,7 @@ resprior <- function(dd){
   vd <- dd$var
   if (!is.null(cd) && cd$ctype > 0){
     m <- max(cd$clen)
-    lo <- if (m > 1) -1/(m - 1) else -1
+    lo <- cslower(m)
     for (j in seq_along(cd$cnames)){
       nm <- sub("^cor_par:", "", cd$cnames[j])
       tr <- switch(cd$ctype, list(5L, c(-1, 1)), list(3L, c(0, 1)), list(6L, c(lo, 1)), NULL, NULL, NULL)
@@ -373,3 +373,6 @@ priortrans <- function(trans, x, inverse=FALSE, lo=-1){
   if (trans == 6) return(if (inverse) lo + (1 - lo)*plogis(x) else qlogis((x - lo)/(1 - lo)))
   linkfun(trans, x, inverse=inverse)
 }
+
+# lower bound of the compound symmetry correlation for series of up to m observations, -1/(m - 1)
+cslower <- function(m) if (!is.null(m) && m > 1) -1/(m - 1) else -1

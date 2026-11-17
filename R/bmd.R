@@ -68,15 +68,8 @@ bmd <- function(x, bmr=0.1, def=c("excess", "additional", "relative", "sd"), lin
   mod <- modelindex(x$model)
   m <- drcmodel(mod)
   if (is.na(m$ed) || m$ed %in% "hormesis") stop("benchmark doses are not available for the ", x$model, " model.")
-  if (def %in% c("excess", "additional") && !(x$family %in% c("binomial", "betabinomial", "beta"))){
-    stop("the ", def, " risk is for responses that are proportions (binomial, betabinomial or beta family); use def=\"relative\" or \"sd\".")
-  }
   terms <- x$reterms
-  if (def == "sd"){
-    if (!(x$family %in% c("gaussian", "lognormal"))) stop("def=\"sd\" is only available for the gaussian and lognormal families.")
-    if (length(terms) > 0) stop("def=\"sd\" is not available for models with random effects: the standard deviation of the response depends on the random effects.")
-    if (!is.null(x$variance)) stop("def=\"sd\" is not available for models with a variance function.")
-  }
+  bmddefcheck(def, x$family, length(terms) > 0, !is.null(x$variance))
   if (!is.numeric(bmr) || length(bmr) == 0 || any(!is.finite(bmr)) || any(bmr <= 0)) stop("bmr must be positive.")
   if (def %in% c("excess", "additional") && any(bmr >= 1)) stop("the ", def, " risk bmr must be below 1.")
 
@@ -341,4 +334,22 @@ bmdprofile <- function(object, parm){
   fit <- object$fit
   m <- drcmodel(fit$model)
   !any(object$integrated[parm]) && !(m$b4 %in% "location") && smoothwidth(fit$smooth) == 0
+}
+
+# checks of the definition def of the benchmark response for a model of the family, with random effects
+# (re) or a variance function (var), shared by bmd and the BMD parameterisation (bmdparcheck)
+bmddefcheck <- function(def, family, re, var){
+  if (def %in% c("excess", "additional") && !(family %in% c("binomial", "betabinomial", "beta"))){
+    stop("the ", def, " risk is for responses that are proportions (binomial, betabinomial or beta family); use def=\"relative\" or \"sd\".")
+  }
+  if (def == "sd"){
+    if (!(family %in% c("gaussian", "lognormal"))) stop("def=\"sd\" is only available for the gaussian and lognormal families.")
+    if (re) stop("def=\"sd\" is not available for models with random effects: the standard deviation of the response depends on the random effects.")
+    if (var) stop("def=\"sd\" is not available for models with a variance function.")
+  }
+}
+
+# label of a definition of the benchmark response, for printing
+deflabel <- function(def){
+  c(excess="excess risk", additional="additional risk", relative="relative deviation", sd="standard deviations")[[def]]
 }
