@@ -137,7 +137,7 @@ natscale <- function(ci, rn, corr2, level, rt=NULL){
   two <- rn %in% corr2
   ci[two, ] <- ci[two, ] / sqrt(1 + ci[two, ]^2)
   rn[two] <- sub("^corr_par:", "corr:", rn[two])
-  dimnames(ci) <- list(rn, paste(format(100*c((1 - level)/2, (1 + level)/2), trim=TRUE, scientific=FALSE, digits=3), "%"))
+  dimnames(ci) <- list(rn, cilabels(level))
   ci
 }
 
@@ -171,7 +171,7 @@ utils::globalVariables(c("par", "deviance", "cutoff"))
 # of freedom, or with small-sample inference (rdf of the fit) the F-based cutoff, equivalent to a t
 # interval: the profile deviance of a gaussian model is sum(w) log(RSS/RSSmin), so
 # (RSS - RSSmin)/(RSSmin/rdf) <= F(1, rdf) gives sum(w) log(1 + F(1, rdf)/rdf)
-profcutoff <- function(level, fit=NULL){
+profcutoff <- function(level, fit){
   if (is.null(fit$rdf)) return(qchisq(level, 1))
   sum(fit$obj$env$data$w) * log(1 + qf(level, 1, fit$rdf)/fit$rdf)
 }
@@ -229,17 +229,13 @@ profile.edTMB <- function(fitted, parm=NULL, level=0.99, maxit=100, progress=int
   peak <- identical(fitted$type, "peak")
   isbmd <- identical(fitted$type, "bmd")
   if (isbmd && !bmdprofile(fitted, parm)) stop("profiles are not available for marginal BMDs averaged over random effects, or for the BMDs of the ", fit$model, " model: its response at dose zero depends on b4.")
-  pv0 <- fit$start
-  pv0[!fit$fix] <- fit$opt$par[seq_len(sum(!fit$fix))]
+  pv0 <- fullcoef(fit)
   if (peak && any(unlist(fitted$q[parm]) == 2)) stop("profiles are not available for the response at the peak.")
 
   obj <- fit$obj
   # keep the state of the TMB object, as tmbprofile does
-  keep <- c("last.par.best", "random.start", "value.best", "last.par", "inner.control", "tracemgc")
-  old <- mget(keep, envir=obj$env, ifnotfound=list(NULL))
-  on.exit(for (v in keep) assign(v, old[[v]], envir=obj$env))
-  obj$env$inner.control$trace <- FALSE
-  obj$env$tracemgc <- FALSE
+  restore <- tmbquiet(obj)
+  on.exit(restore())
 
   mod <- modelindex(fit$model)
   m <- drcmodel(mod)
@@ -255,9 +251,10 @@ profile.edTMB <- function(fitted, parm=NULL, level=0.99, maxit=100, progress=int
   lo <- if (is.null(fit$lower)) rep(-Inf, length(par0)) else fit$lower
   up <- if (is.null(fit$upper)) rep(Inf, length(par0)) else fit$upper
   # free coefficients of the polynomial of the multistage model (b3-b5), in the parameter vector
-  msfree <- c(rep(1:5, sapply(fit$Xs, ncol))[free] %in% 3:5, rep(FALSE, length(par0) - nf))
+  npi <- coefpar(fit)
+  msfree <- c(npi[free] %in% 3:5, rep(FALSE, length(par0) - nf))
   # free coefficients of the rate b3 of the nec model
-  b3free <- c(rep(1:5, sapply(fit$Xs, ncol))[free] == 3, rep(FALSE, length(par0) - nf))
+  b3free <- c(npi[free] == 3, rep(FALSE, length(par0) - nf))
   # log residual standard deviation, for BMDs in standard deviations
   ils <- which(names(par0) == "log_sigma")
   lsval <- function(par) if (length(ils) > 0) par[[ils]] else 0
@@ -572,30 +569,26 @@ confint.edTMB <- function(object, parm=NULL, level=0.95, method=c("profile", "wa
     return(confint(profile(object, parm=parm, level=level, ...), level=level))
   }
   if (method == "boot"){
-    fit <- object$fit
     # parameters of the bootstrap fits, with random effects of the fitted groups drawn from their
     # conditional distribution at each fit for effective doses of fitted groups
     draws <- bootdraws(fit, getboot(fit, boot, nsim, seed, ...), any(edflag(object, "conditional")[parm]))
     r <- fit$obj$env$random
-    nb <- sum(!fit$fix)
     # effective doses of each bootstrap fit
     eds <- sapply(parm, function(i){
       apply(draws, 2, function(par){
-        pv <- fit$start
-        pv[!fit$fix] <- par[seq_len(nb)]
-        lpv <- as.vector(object$linfct[[i]] %*% pv)
+        lpv <- as.vector(object$linfct[[i]] %*% fullcoef(fit, par))
         if (isTRUE(object$conditional[[i]])) lpv <- lpv + as.vector(object$uweights[[i]] %*% par[r])
         edvalue(object, i, lpv, par)
       })
     })
     ci <- t(apply(matrix(eds, ncol=length(parm)), 2, quantile, probs=c((1 - level)/2, (1 + level)/2), na.rm=TRUE, names=FALSE))
-    dimnames(ci) <- list(names(est)[parm], paste(format(100*c((1 - level)/2, (1 + level)/2), trim=TRUE, scientific=FALSE, digits=3), "%"))
+    dimnames(ci) <- list(names(est)[parm], cilabels(level))
     return(ci)
   }
   se <- sqrt(diag(vcov(object)))[parm]
   z <- if (is.null(object$fit)) qnorm((1 + level)/2) else zquant(object$fit, level)
   ci <- cbind(est[parm] - z*se, est[parm] + z*se)
-  dimnames(ci) <- list(names(est)[parm], paste(format(100*c((1 - level)/2, (1 + level)/2), trim=TRUE, scientific=FALSE, digits=3), "%"))
+  dimnames(ci) <- list(names(est)[parm], cilabels(level))
   ci
 }
 
@@ -616,3 +609,6 @@ parmindex <- function(parm, est, what){
   if (any(is.na(parm)) || any(parm < 1 | parm > length(est))) stop("unknown ", what, " in parm.")
   parm
 }
+
+# column labels of two-sided intervals of probability level, e.g. "2.5 %" and "97.5 %"
+cilabels <- function(level) paste(format(100*c((1 - level)/2, (1 + level)/2), trim=TRUE, scientific=FALSE, digits=3), "%")

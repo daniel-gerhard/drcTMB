@@ -182,7 +182,7 @@ bmdma <- function(..., bmr=0.1, def=c("excess", "additional", "relative", "sd"),
 #' @rdname bmdma
 #' @export
 print.bmdma <- function(x, digits=max(3L, getOption("digits") - 3L), ...){
-  cat("Model-averaged benchmark doses, ", c(excess="excess risk", additional="additional risk", relative="relative deviation", sd="standard deviations")[[x$def]],
+  cat("Model-averaged benchmark doses, ", deflabel(x$def),
       ", averaged ", if (x$average == "curve") "curves" else "BMDs", if (any(vapply(x$bmds, function(b) length(b$fit$reterms) > 0, logical(1)))) paste(",", x$scale, "BMD"), ":\n\n", sep="")
   tab <- x$models
   est <- matrix(vapply(x$bmds, function(b) unname(b$estimates), numeric(length(x$estimates))), length(x$estimates))
@@ -234,7 +234,7 @@ confint.bmdma <- function(object, parm=NULL, level=0.90, method=c("boot", "buckl
     z <- qnorm(probs[2])
     ci <- cbind(est[parm] - z*se, est[parm] + z*se)
   }
-  dimnames(ci) <- list(names(est)[parm], paste(format(100*probs, trim=TRUE, scientific=FALSE, digits=3), "%"))
+  dimnames(ci) <- list(names(est)[parm], cilabels(level))
   ci
 }
 
@@ -276,9 +276,7 @@ bmdmean <- function(d, w){
 bmdcurve <- function(b, i, par){
   fit <- b$fit
   info <- b$bmd[[i]]
-  pv <- fit$start
-  pv[!fit$fix] <- par[seq_len(sum(!fit$fix))]
-  lpv <- as.vector(b$linfct[[i]] %*% pv)
+  lpv <- as.vector(b$linfct[[i]] %*% fullcoef(fit, par))
   bp <- bmdpars(fit, par)
   lnk <- linkindex(fit$parlink)
   if (length(info$wq) > 0){

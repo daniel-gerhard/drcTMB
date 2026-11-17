@@ -392,9 +392,7 @@ drmTMB <- function(form, fform=NULL, rform=NULL, data, start=NULL, fix=NULL, wei
   class(res) <- "drmTMB"
   # hormesis models: a decreasing curve, which returns to b1 at high doses for braincousens (b3 < -1)
   if (!is.null(m$hormesis)){
-    pv <- start
-    pv[!fix] <- opt$par[seq_len(sum(!fix))]
-    b3 <- as.vector(dd$Xs[[3]] %*% pv[dd$npi == 3])
+    b3 <- as.vector(dd$Xs[[3]] %*% fullcoef(res)[dd$npi == 3])
     b3max <- m$hormesis$b3max
     if (any(b3 >= b3max)){
       warning("the ", model, " model is meant for decreasing curves, with b3 < ", b3max,
@@ -410,10 +408,7 @@ drmTMB <- function(form, fform=NULL, rform=NULL, data, start=NULL, fix=NULL, wei
 # warnings for exact thresholds b4 of a nec fit at a dose, where the Hessian and Wald standard errors
 # are not valid, and for thresholds above the highest dose, where b4 is not identified
 necwarn <- function(fit){
-  pv <- fit$start
-  pv[!fit$fix] <- fit$opt$par[seq_len(sum(!fit$fix))]
-  npi <- rep(1:5, sapply(fit$Xs, ncol))
-  b4 <- unique(linkfun(linkindex(fit$parlink)[4], as.vector(fit$Xs[[4]] %*% pv[npi == 4]), inverse=TRUE))
+  b4 <- unique(linkfun(linkindex(fit$parlink)[4], as.vector(fit$Xs[[4]] %*% fullcoef(fit)[coefpar(fit) == 4]), inverse=TRUE))
   x <- fit$obj$env$data$x
   xd <- unique(x)
   tol <- 1e-6 * diff(range(x))

@@ -12,7 +12,7 @@ drmTMBcontrol(
 )
 }
 \arguments{
-\item{optimiser}{character string specifying the optimiser to use}
+\item{optimiser}{the optimiser; only "nlminb" is available}
 
 \item{iter.max}{maximum number of iterations of the optimiser, see \code{\link{nlminb}}.}
 

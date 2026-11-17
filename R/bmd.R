@@ -68,52 +68,25 @@ bmd <- function(x, bmr=0.1, def=c("excess", "additional", "relative", "sd"), lin
   mod <- modelindex(x$model)
   m <- drcmodel(mod)
   if (is.na(m$ed) || m$ed %in% "hormesis") stop("benchmark doses are not available for the ", x$model, " model.")
-  if (def %in% c("excess", "additional") && !(x$family %in% c("binomial", "betabinomial", "beta"))){
-    stop("the ", def, " risk is for responses that are proportions (binomial, betabinomial or beta family); use def=\"relative\" or \"sd\".")
-  }
   terms <- x$reterms
-  if (def == "sd"){
-    if (!(x$family %in% c("gaussian", "lognormal"))) stop("def=\"sd\" is only available for the gaussian and lognormal families.")
-    if (length(terms) > 0) stop("def=\"sd\" is not available for models with random effects: the standard deviation of the response depends on the random effects.")
-    if (!is.null(x$variance)) stop("def=\"sd\" is not available for models with a variance function.")
-  }
+  bmddefcheck(def, x$family, length(terms) > 0, !is.null(x$variance))
   if (!is.numeric(bmr) || length(bmr) == 0 || any(!is.finite(bmr)) || any(bmr <= 0)) stop("bmr must be positive.")
   if (def %in% c("excess", "additional") && any(bmr >= 1)) stop("the ", def, " risk bmr must be below 1.")
 
   # curves and benchmark responses, paired as in ed
-  rows <- NULL
-  if (!is.null(newdata)){
-    if (!is.null(linfct)) stop("give either linfct or newdata, not both.")
-    nl <- edlinfct(x, newdata)
-    rows <- rep(seq_along(nl), length(bmr))
-    linfct <- rep(nl, length(bmr))
-    bmr <- rep(bmr, each=length(nl))
-  }
-  if (is.null(linfct)) linfct <- diag(5)
-  if (!is.list(linfct)) linfct <- list(linfct)
-  if (length(bmr) != length(linfct)){
-    if (length(bmr) == 1) bmr <- rep(bmr, length(linfct))
-    if (length(linfct) == 1) linfct <- rep(linfct, length(bmr))
-    if (length(bmr) != length(linfct)) stop("bmr and linfct must have the same length or one of them must be of length 1.")
-  }
-  if (is.null(names(linfct))) names(linfct) <- paste("lf", seq_along(linfct), sep="")
-  ncf <- length(x$start)
-  for (L in linfct){
-    if (!is.matrix(L) || nrow(L) != 5 || ncol(L) != ncf){
-      stop("each matrix in linfct must have 5 rows (b1-b5) and one column for each of the ", ncf,
-           " model coefficients: ", paste(x$coefnames, collapse=", "), ".",
-           if (is.null(newdata) && ncf > 5) " Alternatively, give the covariate values of the curves in newdata.")
-    }
-  }
+  ec <- edcurves(x, bmr, linfct, newdata, "bmr")
+  linfct <- ec$linfct
+  bmr <- ec$lev
+  rows <- ec$rows
 
   pf <- x$sdrl$par.fixed
   nb <- sum(!x$fix)
-  pv <- x$start
-  pv[!x$fix] <- pf[seq_len(nb)]
+  pv <- fullcoef(x)
   ith <- which(names(pf) == "theta")
   ils <- which(names(pf) == "log_sigma")
-  theta <- unname(pf[ith])
-  ls <- if (length(ils) > 0) unname(pf[ils]) else 0
+  bp <- bmdpars(x, pf)
+  theta <- bp$theta
+  ls <- bp$ls
   uhat <- if (length(terms) > 0) x$sdrl$par.random else numeric(0)
   nu <- length(uhat)
   nbmd <- length(linfct)
@@ -276,16 +249,16 @@ bmdroot <- function(g, x0){
 # their parameters theta, as in the drcBMD template
 recholesky <- function(fit, theta){
   tnp <- vapply(fit$reterms, function(tm) length(tm$pars), integer(1))
+  tix <- thetaindex(fit$reterms)
   C <- matrix(0, sum(tnp), sum(tnp))
-  toff <- 0
   coff <- 0
-  for (np in tnp){
+  for (t in seq_along(tnp)){
+    np <- tnp[t]
     L <- diag(np)
-    L[upper.tri(L)] <- theta[toff + np + seq_len(np*(np - 1)/2)]
+    L[upper.tri(L)] <- theta[tix[[t]]$corr]
     L <- t(L)
     L <- L / sqrt(rowSums(L^2))
-    C[coff + seq_len(np), coff + seq_len(np)] <- exp(theta[toff + seq_len(np)]) * L
-    toff <- toff + np + np*(np - 1)/2
+    C[coff + seq_len(np), coff + seq_len(np)] <- exp(theta[tix[[t]]$sd]) * L
     coff <- coff + np
   }
   C
@@ -341,4 +314,22 @@ bmdprofile <- function(object, parm){
   fit <- object$fit
   m <- drcmodel(fit$model)
   !any(object$integrated[parm]) && !(m$b4 %in% "location") && smoothwidth(fit$smooth) == 0
+}
+
+# checks of the definition def of the benchmark response for a model of the family, with random effects
+# (re) or a variance function (var), shared by bmd and the BMD parameterisation (bmdparcheck)
+bmddefcheck <- function(def, family, re, var){
+  if (def %in% c("excess", "additional") && !(family %in% c("binomial", "betabinomial", "beta"))){
+    stop("the ", def, " risk is for responses that are proportions (binomial, betabinomial or beta family); use def=\"relative\" or \"sd\".")
+  }
+  if (def == "sd"){
+    if (!(family %in% c("gaussian", "lognormal"))) stop("def=\"sd\" is only available for the gaussian and lognormal families.")
+    if (re) stop("def=\"sd\" is not available for models with random effects: the standard deviation of the response depends on the random effects.")
+    if (var) stop("def=\"sd\" is not available for models with a variance function.")
+  }
+}
+
+# label of a definition of the benchmark response, for printing
+deflabel <- function(def){
+  c(excess="excess risk", additional="additional risk", relative="relative deviation", sd="standard deviations")[[def]]
 }

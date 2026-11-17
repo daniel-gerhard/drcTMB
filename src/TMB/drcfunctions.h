@@ -1,11 +1,11 @@
-// Helper functions shared by the drcTMB objective function.
+// Helper functions shared by the templates drcTMB, drcED and drcBMD.
 // Kept in a .h file (not .hpp) so TMBtools does not treat it as a model.
 
 #ifndef DRCFUNCTIONS_H
 #define DRCFUNCTIONS_H
 
-// inverse link for the asymptote parameters b1 and b2, and for b4
-// lnk: 1 = identity, 2 = log, 3 = logit
+// inverse link of the parameters b1-b5 (parlink) and of the curve (curvelink)
+// lnk: 1 = identity, 2 = log, 3 = logit, 4 = probit
 template<class Type>
 Type linkinv(int lnk, Type eta){
   switch (lnk){
@@ -480,6 +480,25 @@ Type corvalue(int ctype, int cnug, vector<Type> cpar, vector<Type> rpow, vector<
     return r;
   }
   }
+}
+
+// parameters b1-b5 of a curve from their linear predictors eta (with the random effects) and links lnk;
+// in the BMD parameterisation, b4 (bmdp) and for the quadratic exponential model b3 (qe) are computed
+// from the BMD (f4bmd, f3bmd)
+template<class Type>
+vector<Type> curvepars(vector<int> lnk, vector<Type> eta, bool qe, Type f3bmd, bool bmdp, Type f4bmd){
+  vector<Type> f(5);
+  for (int k = 0; k < 5; k++) f(k) = linkinv(lnk(k), eta(k));
+  if (qe) f(2) = f3bmd;
+  if (bmdp) f(3) = f4bmd;
+  return f;
+}
+
+// the curve at dose x, with the parameters f (see curvepars) and the curve link clink: the mean, median
+// or probability
+template<class Type>
+Type curveat(int mod, int clink, Type x, vector<Type> f, Type alpha, Type smooth){
+  return linkinv(clink, drcmean(mod, x, f(0), f(1), f(2), f(3), f(4), alpha, smooth));
 }
 
 #endif

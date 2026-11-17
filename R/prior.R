@@ -137,7 +137,8 @@ print.drcprior <- function(x, ...){
   invisible(x)
 }
 
-# log density of a prior at z, as lpdfprior in the TMB template (without the normalisation)
+# log density of a prior at z, as lpdfprior in the TMB template (without the normalisation); the R
+# version of the template's density, used by the tests as their reference
 lpdfprior <- function(p, z){
   h <- p$hyp
   # a prior of the negative or of the exponential of the parameter
@@ -172,11 +173,16 @@ priorvarnames <- function(terms, family){
 # (beta, nbinom1, betabinomial) or "theta" (nbinom2), on their natural scale. Specific names take
 # precedence over b1-b5 and "sd". lower and upper are the bounds of all coefficients (start).
 #
-# Returns the data of the template (prwhat: 0 coefficient, 1 theta, 2 log_sigma; pridx: index from 0
-# in the coefficients b1-b5 (all, including fixed ones) or in theta; prtrans: 1 none, 2 exp, 3 inverse
-# logit from the optimised value to the scale of the prior; prtype and prhyp, with the log of the
-# probability of the range of the parameter in column 5), the bounds of the optimised values implied
-# by the support of the priors, and a table of the priors for printing.
+# The parameters of a residual correlation structure and variance function have priors by their natural
+# names, e.g. "cor:phi" or "var:ratio:B" (see resprior).
+#
+# Returns the data of the template (prwhat: 0 coefficient, 1 theta, 2 log_sigma, 3 cpar, 4 vpar; pridx:
+# index from 0 in the coefficients b1-b5 (all, including fixed ones), theta, cpar or vpar; prtrans: 1 none,
+# 2 exp, 3 inverse logit, 5 tanh, 6 the compound symmetry correlation, from the optimised value to the
+# scale of the prior; prpost: the prior is of 1 the parameter, 2 its negative, 3 its exponential, 4 pnorm,
+# 5 plogis; prtype and prhyp, with the log of the probability of the range of the parameter in column 5),
+# the bounds of the optimised values implied by the support of the priors, and a table of the priors for
+# printing.
 priordata <- function(prior, dd, fix, lower, upper, coefnames){
   empty <- list(prwhat=integer(0), pridx=integer(0), prtrans=integer(0), prtype=integer(0), prpost=integer(0), prhyp=matrix(0, 0, 5))
   if (is.null(prior) || length(prior) == 0) return(list(data=empty, table=NULL))
@@ -188,18 +194,8 @@ priordata <- function(prior, dd, fix, lower, upper, coefnames){
   npi <- dd$npi
   terms <- dd$re$terms
   vn <- priorvarnames(terms, dd$family)
-  ntheta <- sum(vapply(terms, function(tm){
-    np <- length(tm$pars)
-    np + np*(np - 1)/2
-  }, numeric(1)))
-  # position of the log standard deviations in theta
-  sdpos <- unlist(lapply(seq_along(terms), function(t){
-    off <- sum(vapply(terms[seq_len(t - 1)], function(tm){
-      np <- length(tm$pars)
-      np + np*(np - 1)/2
-    }, numeric(1)))
-    off + seq_along(terms[[t]]$pars) - 1
-  }))
+  # position of the log standard deviations in theta, from 0
+  sdpos <- unlist(lapply(thetaindex(terms), function(ix) ix$sd)) - 1
 
   entries <- list()
   add <- function(key, what, idx, trans, p, range, label, lo=-1){
@@ -270,7 +266,7 @@ priordata <- function(prior, dd, fix, lower, upper, coefnames){
   }
   data <- list(prwhat=vapply(entries, function(e) e$what, integer(1)), pridx=vapply(entries, function(e) as.integer(e$idx), integer(1)),
                prtrans=vapply(entries, function(e) as.integer(e$trans), integer(1)), prtype=vapply(entries, function(e) e$p$type, integer(1)),
-               prpost=vapply(entries, function(e) if (is.null(e$p$post)) 1L else as.integer(e$p$post), integer(1)),
+               prpost=vapply(entries, function(e) as.integer(e$p$post), integer(1)),
                prhyp=hyp)
   data <- lapply(data, unname)
   table <- data.frame(parameter=vapply(entries, function(e) e$label, character(1)),

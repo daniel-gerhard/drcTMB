@@ -89,7 +89,7 @@ refitnll <- function(fit, y, ctrl){
   dat <- env$data
   pars <- env$parList(fit$opt$par)
   dd <- list(y=y, x=dat$x, w=dat$w, bn=dat$bn, mod=dat$mod, lnk=dat$lnk, clink=clinkof(fit), Xs=fit$Xs,
-             npi=rep(1:5, vapply(fit$Xs, ncol, integer(1))), family=fit$family)
+             npi=coefpar(fit), family=fit$family)
   start <- fit$start
   start[!fit$fix] <- NA
   # event data: the cumulative proportions of the series

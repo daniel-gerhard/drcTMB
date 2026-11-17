@@ -46,13 +46,7 @@
 #' 
 #' @rdname drmTMB-methods
 print.drmTMB <- function(x, digits=max(3L, getOption("digits") - 3L), ...){
-  if (!is.null(x$call)){
-    cat("Call:\n")
-    print(x$call)
-    cat("\n")
-  }
-  cat("Model:  ", x$model, if (!is.null(x$alpha)) paste(" (alpha = ", x$alpha, ")", sep=""), smoothtext(x$smooth), "\n", sep="")
-  cat("Family: ", x$family, ", ", linktext(x$parlink, x$model), curvelinktext(x$curvelink), "\n", sep="")
+  printheader(x)
 
   printprior(x$prior)
   cat("\nCoefficients", if (!is.null(x$prior)) " (posterior modes)", ":\n", sep="")
@@ -81,26 +75,21 @@ summary.drmTMB <- function(object, ...){
   coefs[, 2] <- suppressWarnings(sqrt(diag(fixedcov(object))))[seq_len(nrow(coefs))]
 
   # direction of the curve from the sign of the steepness b3 at the observations
-  npi <- rep(1:5, sapply(object$Xs, ncol))
+  npi <- coefpar(object)
   direction <- NULL
   if (m$b3 %in% "steepness"){
-    b <- object$start
-    b[!object$fix] <- coefs[, 1]
-    s3 <- sign(object$Xs[[3]] %*% b[npi == 3])
+    s3 <- sign(object$Xs[[3]] %*% fullcoef(object)[npi == 3])
     direction <- if (all(s3 > 0)) "increasing" else if (all(s3 < 0)) "decreasing" else "increasing and decreasing"
   }
 
   # standard deviations at the boundary (singular fit): the likelihood is flat in the log standard
   # deviation, which gives a very large or no standard error, independent of the scale of the parameter
   ses <- ests[rownames(ests) == "theta", 2]
-  toff <- 0
-  singular <- unlist(lapply(vcs, function(vc){
-    np <- length(vc$pars)
-    se <- ses[toff + seq_len(np)]
-    toff <<- toff + np + np*(np - 1)/2
+  singular <- unlist(Map(function(vc, ix){
+    se <- ses[ix$sd]
     nm <- paste(vc$group, vc$labels)
     nm[!is.finite(se) | se > 100 | vc$sd < 1e-8]
-  }))
+  }, vcs, thetaindex(object$reterms)))
 
   # Pearson dispersion for the families without a dispersion parameter, conditional on the
   # random effects; residual degrees of freedom from the number of estimated parameters
@@ -111,14 +100,8 @@ summary.drmTMB <- function(object, ...){
     dispersion <- c(chisq=chisq, df=rdf, ratio=chisq/rdf)
   }
   if (object$family %in% c("poisson", "binomial")){
-    mu <- predict(object)
-    if (object$family == "poisson"){
-      r2 <- (dat$y - mu)^2 / mu
-    } else {
-      r2 <- (dat$y - dat$bn*mu)^2 / (dat$bn*mu*(1 - mu))
-    }
+    chisq <- sum(residuals(object, type="pearson")^2)
     rdf <- nobs(object) - attr(ll, "df")
-    chisq <- sum(dat$w * r2)
     dispersion <- c(chisq=chisq, df=rdf, ratio=chisq/rdf)
   }
 
@@ -130,7 +113,6 @@ summary.drmTMB <- function(object, ...){
   # gradient projected on the bounds: zero for coefficients at a bound that the likelihood pushes
   # against
   gr <- as.vector(object$obj$gr(object$opt$par))
-  nb <- sum(!object$fix)
   if (!is.null(object$lower)){
     lo <- object$lower
     up <- object$upper
@@ -153,13 +135,7 @@ summary.drmTMB <- function(object, ...){
 #' @rdname drmTMB-methods
 #' @export
 print.summary.drmTMB <- function(x, digits=max(3L, getOption("digits") - 3L), ...){
-  if (!is.null(x$call)){
-    cat("Call:\n")
-    print(x$call)
-    cat("\n")
-  }
-  cat("Model:  ", x$model, if (!is.null(x$alpha)) paste(" (alpha = ", x$alpha, ")", sep=""), smoothtext(x$smooth), if (!is.null(x$direction)) paste(",", x$direction, "curve"), "\n", sep="")
-  cat("Family: ", x$family, ", ", linktext(x$parlink, x$model), curvelinktext(x$curvelink), "\n", sep="")
+  printheader(x, x$direction)
 
   cat("\nNumber of observations: ", x$nobs, sep="")
   if (!is.null(x$ntrials)) cat(", number of trials: ", x$ntrials, sep="")
@@ -250,7 +226,6 @@ residuals.drmTMB <- function(object, type=c("pearson", "response", "quantile"), 
 
   if (type == "pearson"){
     v <- switch(object$family,
-                gaussian=phi^2,
                 poisson=mu,
                 binomial=mu*(1 - mu)/n,
                 betabinomial=mu*(1 - mu)/n*(1 + (n - 1)/(phi + 1)),
@@ -290,6 +265,7 @@ predict.drmTMB <- function(object, newdata=NULL, random=TRUE, se.fit=FALSE, inte
   scale <- match.arg(scale)
   if (is.null(newdata)) newdata <- object$data
   if (type == "parameters") return(predictpars(object, newdata, random, se.fit, interval, level, boot, nsim, seed, scale))
+  if (interval == "prediction" && object$family == "event") stop("prediction intervals are not available for event data; use interval=\"confidence\" for the cumulative proportion of events.")
   pd <- preddata(object, newdata, random, covs=interval == "prediction")
   fit <- predmean(pd, pd$eta)
   if (!se.fit && interval == "none") return(fit)
@@ -311,7 +287,6 @@ predict.drmTMB <- function(object, newdata=NULL, random=TRUE, se.fit=FALSE, inte
                             else t(apply(bc, 1, quantile, probs=probs, na.rm=TRUE, names=FALSE))
   }
 
-  if (interval == "prediction" && object$family == "event") stop("prediction intervals are not available for event data; use interval=\"confidence\" for the cumulative proportion of events.")
   if (interval == "prediction"){
     if (object$family == "gaussian" && is.null(boot)){
       # new observation: uncertainty of the mean, residual variance, and the variance of the random
@@ -346,11 +321,10 @@ preddata <- function(object, newdata, random, covs=FALSE){
        else model.frame(form, data=newdata, na.action=na.pass)[, 1]
   n <- length(x)
   Xs <- lapply(object$fterms, function(ft) designmatrix(ft, newdata))
-  npi <- rep(1:5, sapply(Xs, ncol))
+  npi <- coefpar(object)
   ests <- object$ssdrl
   rn <- rownames(ests)
-  cest <- object$start
-  cest[!object$fix] <- ests[rn %in% paste("b", 1:5, sep=""), 1]
+  cest <- fullcoef(object)
   eta <- sapply(1:5, function(i) as.vector(Xs[[i]] %*% cest[npi == i]))
   eta <- matrix(eta, nrow=n)
 
@@ -654,16 +628,16 @@ predsim <- function(object, pd, draws, trials, probs, vardraws=FALSE){
   env <- object$obj$env
   n <- length(pd$x)
   pest <- env$parList(object$opt$par)
+  tix <- thetaindex(object$reterms)
   sims <- apply(draws, 2, function(par){
     eta <- draweta(object, pd, par)
     if (vardraws) pest <- env$parList(par=par)
-    toff <- 0
     for (t in seq_along(object$reterms)){
       tm <- object$reterms[[t]]
       np <- length(tm$pars)
-      sdt <- exp(pest$theta[toff + seq_len(np)])
-      Ct <- corrmatrix(pest$theta[toff + np + seq_len(np*(np - 1)/2)], np)
-      toff <- toff + np + np*(np - 1)/2
+      ix <- tix[[t]]
+      sdt <- exp(pest$theta[ix$sd])
+      Ct <- corrmatrix(pest$theta[ix$corr], np)
       new <- which(pd$newgroup[, t])
       if (length(new) > 0){
         E <- matrix(rnorm(length(new)*np), ncol=np) %*% chol(Ct) %*% diag(sdt, nrow=np)
@@ -787,16 +761,15 @@ recov <- function(object){
   rn <- rownames(ests)
   thetas <- ests[rn %in% "theta", 1]
   corrs <- ests[rn %in% "corr", 1]
-  toff <- 0
   coff <- 0
-  lapply(object$reterms, function(tm){
+  Map(function(tm, ix){
     np <- length(tm$pars)
-    sdm <- exp(thetas[toff + seq_len(np)])
+    sdm <- exp(thetas[ix$sd])
+    # the reported correlation matrices of the terms, np x np each
     cr <- matrix(corrs[coff + seq_len(np*np)], nrow=np)
-    toff <<- toff + np + np*(np-1)/2
     coff <<- coff + np*np
     list(pars=tm$pars, labels=relabels(tm), group=tm$group, sd=sdm, corr=cr, cov=diag(sdm, nrow=np) %*% cr %*% diag(sdm, nrow=np))
-  })
+  }, object$reterms, thetaindex(object$reterms))
 }
 
 
@@ -843,9 +816,21 @@ linktext <- function(link, model){
   out
 }
 
+# call, model and family of a fit or its summary, with the direction of the curve (summary)
+printheader <- function(x, direction=NULL){
+  if (!is.null(x$call)){
+    cat("Call:\n")
+    print(x$call)
+    cat("\n")
+  }
+  cat("Model:  ", x$model, if (!is.null(x$alpha)) paste(" (alpha = ", x$alpha, ")", sep=""), smoothtext(x$smooth),
+      if (!is.null(direction)) paste(",", direction, "curve"), "\n", sep="")
+  cat("Family: ", x$family, ", ", linktext(x$parlink, x$model), curvelinktext(x$curvelink), "\n", sep="")
+}
+
 # coefficients fixed by the user, named; the parameters the model does not use are always fixed
 userfixed <- function(object){
-  npi <- rep(1:5, vapply(object$Xs, ncol, integer(1)))
+  npi <- coefpar(object)
   ufix <- object$fix & !(npi %in% unusedpars(modelindex(object$model)))
   setNames(object$start[ufix], object$coefnames[ufix])
 }
@@ -918,6 +903,40 @@ printresid <- function(family, residpar, digits, rdf=NULL){
   if (family == "nbinom2") cat("\nNegative binomial size (theta): ", format(residpar, digits=digits), "\n", sep="")
   if (family == "betabinomial") cat("\nBeta-binomial precision (phi): ", format(residpar, digits=digits), "\n", sep="")
   if (family == "nbinom1") cat("\nNegative binomial dispersion (phi): ", format(residpar, digits=digits), "\n", sep="")
+}
+
+# silence the TMB object of a fit for evaluations of its objective at other parameters (tracing of the
+# inner optimisation), and return a function that restores its state (best parameters, random effects
+# start), as tmbprofile does: restore <- tmbquiet(obj); on.exit(restore())
+tmbquiet <- function(obj){
+  keep <- c("last.par.best", "random.start", "value.best", "last.par", "inner.control", "tracemgc")
+  old <- mget(keep, envir=obj$env, ifnotfound=list(NULL))
+  obj$env$inner.control$trace <- FALSE
+  obj$env$tracemgc <- FALSE
+  function() for (v in keep) assign(v, old[[v]], envir=obj$env)
+}
+
+# positions (from 1) of the log standard deviations (sd) and of the correlation parameters (corr) of
+# each random effect term in theta, the variance parameters of the template
+thetaindex <- function(terms){
+  off <- 0
+  lapply(terms, function(tm){
+    np <- length(tm$pars)
+    ix <- list(sd=off + seq_len(np), corr=off + np + seq_len(np*(np - 1)/2))
+    off <<- off + np + np*(np - 1)/2
+    ix
+  })
+}
+
+# index of the parameter (1-5 for b1-b5) of each coefficient of a fit
+coefpar <- function(fit) rep(1:5, vapply(fit$Xs, ncol, integer(1)))
+
+# all coefficients of b1-b5 of a fit, the fixed ones at their values and the free ones from par (by
+# default the estimates; the free coefficients come first in the parameter vectors of TMB)
+fullcoef <- function(fit, par=fit$opt$par){
+  pv <- fit$start
+  pv[!fit$fix] <- par[seq_len(sum(!fit$fix))]
+  pv
 }
 
 # names of the estimated parameters: the free coefficients; for each random effect term the log

@@ -173,7 +173,7 @@ coef.bmdbayes <- function(object, ...){
 confint.bmdbayes <- function(object, parm=NULL, level=0.90, ...){
   probs <- c((1 - level)/2, (1 + level)/2)
   ci <- matrix(exp(bmdbayesq(object, probs)), 1)
-  dimnames(ci) <- list("BMD", paste(format(100*probs, trim=TRUE, scientific=FALSE, digits=3), "%"))
+  dimnames(ci) <- list("BMD", cilabels(level))
   ci
 }
 
@@ -189,7 +189,7 @@ bmdbayesmodels <- function(object, level=0.90){
 #' @rdname bmdbayes
 #' @export
 print.bmdbayes <- function(x, digits=max(3L, getOption("digits") - 3L), ...){
-  cat("Bayesian model-averaged benchmark dose, ", c(excess="excess risk", additional="additional risk", relative="relative deviation", sd="standard deviations")[[x$def]],
+  cat("Bayesian model-averaged benchmark dose, ", deflabel(x$def),
       " ", format(x$bmr), ", prior ", x$prior, " for the BMD\n",
       if (x$method == "laplace") "Laplace approximation" else "Importance sampling", "\n\n", sep="")
   print(cbind(x$models, bmdbayesmodels(x)), digits=digits)

@@ -5,8 +5,9 @@
 #' proportional to its prior probability times its marginal likelihood.
 #'
 #' The fit needs a proper prior for every estimated parameter (see \code{\link{priors}}): all free
-#' coefficients, the standard deviations of the random effects and the residual parameter (sigma, phi
-#' or theta); with a flat prior, the marginal likelihood is not defined. Correlations of random effects
+#' coefficients, the standard deviations of the random effects, the residual parameter (sigma, phi
+#' or theta) and the parameters of a residual correlation structure or variance function (see
+#' \code{\link{correlation}}); with a flat prior, the marginal likelihood is not defined. Correlations of random effects
 #' have no priors, so that random effects of several parameters or with slopes need independent terms
 #' (\code{||} or separate formulas). The random effects are integrated out by the Laplace approximation
 #' of the fit.
@@ -133,11 +134,8 @@ mlis <- function(object, n, df, iters=3, alpha=0.2){
   R0 <- chol(object$sdrl$cov.fixed)
   b <- mlbounds(object)
   # keep the state of the TMB object, as tmbprofile does
-  keep <- c("last.par.best", "random.start", "value.best", "last.par", "inner.control", "tracemgc")
-  old <- mget(keep, envir=obj$env, ifnotfound=list(NULL))
-  on.exit(for (v in keep) assign(v, old[[v]], envir=obj$env))
-  obj$env$inner.control$trace <- FALSE
-  obj$env$tracemgc <- FALSE
+  restore <- tmbquiet(obj)
+  on.exit(restore())
   nllfun <- function(p){
     if (any(p <= b$lo | p >= b$up)) return(Inf)
     v <- tryCatch(suppressWarnings(as.numeric(obj$fn(p))), error=function(e) NA_real_)

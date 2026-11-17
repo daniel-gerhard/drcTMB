@@ -28,8 +28,9 @@ proportional to its prior probability times its marginal likelihood.
 }
 \details{
 The fit needs a proper prior for every estimated parameter (see \code{\link{priors}}): all free
-coefficients, the standard deviations of the random effects and the residual parameter (sigma, phi
-or theta); with a flat prior, the marginal likelihood is not defined. Correlations of random effects
+coefficients, the standard deviations of the random effects, the residual parameter (sigma, phi
+or theta) and the parameters of a residual correlation structure or variance function (see
+\code{\link{correlation}}); with a flat prior, the marginal likelihood is not defined. Correlations of random effects
 have no priors, so that random effects of several parameters or with slopes need independent terms
 (\code{||} or separate formulas). The random effects are integrated out by the Laplace approximation
 of the fit.

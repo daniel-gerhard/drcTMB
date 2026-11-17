@@ -39,8 +39,8 @@ Type drcTMB(objective_function<Type>* obj) {
   DATA_INTEGER(bdef);      // definition of the benchmark response, see bmdtarget
   DATA_SCALAR(bbmr);       // benchmark response
   DATA_INTEGER(binc);      // direction of the curve: 1 increasing, -1 decreasing
-  DATA_INTEGER(b4pos);
-  DATA_SCALAR(bdmax);      // BMD parameterisation of the quadratic exponential model (b4role 5): the highest dose     // 1: b4 must not be negative (default lower bound 0 of the standard parameterisation)
+  DATA_INTEGER(b4pos);     // 1: b4 must not be negative (default lower bound 0 of the standard parameterisation)
+  DATA_SCALAR(bdmax);      // BMD parameterisation of the quadratic exponential model (b4role 5): the highest dose
   DATA_IVECTOR(prwhat);    // priors: 0 = coefficient of b1-b5, 1 = theta, 2 = log_sigma, 3 = cpar, 4 = vpar; length zero without priors
   DATA_IVECTOR(pridx);     // index (from 0) in the coefficients b1-b5, concatenated, or in theta
   DATA_IVECTOR(prtrans);   // from the parameter to the scale of the prior: 1 identity, 2 exp, 3 inverse logit, 5 tanh, 6 compound symmetry
@@ -82,13 +82,6 @@ Type drcTMB(objective_function<Type>* obj) {
                            // the standard deviations of the strata to the first (separate); length zero without
 
   Type phi = exp(log_sigma);
-  if (fam == 1 || fam == 8){
-    Type sigma = phi;
-    ADREPORT(sigma);
-  }
-  if (fam == 4){
-    ADREPORT(phi);
-  }
 
   Type nll = 0;
   int n = y.size();
@@ -229,28 +222,16 @@ Type drcTMB(objective_function<Type>* obj) {
   vector<Type> fy(n);
   // event data: probabilities of the intervals
   vector<Type> pev(fam == 9 ? n : 0);
+  vector<Type> eta(5);
   for (int i = 0; i < n; i++){
-    f = drcmean(mod, x(i),
-                linkinv(lnk(0), Type(Xb1(i) + Zu(i, 0))),
-                linkinv(lnk(1), Type(Xb2(i) + Zu(i, 1))),
-                qe ? f3bmd : linkinv(lnk(2), Type(Xb3(i) + Zu(i, 2))),
-                bmdpar == 1 ? f4bmd : linkinv(lnk(3), Type(Xb4(i) + Zu(i, 3))),
-                linkinv(lnk(4), Type(Xb5(i) + Zu(i, 4))), alpha, smooth);
-    f = linkinv(clink, f);
+    eta << Xb1(i) + Zu(i, 0), Xb2(i) + Zu(i, 1), Xb3(i) + Zu(i, 2), Xb4(i) + Zu(i, 3), Xb5(i) + Zu(i, 4);
+    vector<Type> fp = curvepars(lnk, eta, qe, f3bmd, bmdpar == 1, f4bmd);
+    f = curveat(mod, clink, Type(x(i)), fp, alpha, smooth);
     fy(i) = f;
     if (fam == 9){
       // probability f(end) - f(start) of the interval, with f(Inf) = 1; impossible intervals with events
       // (probability not positive) get a large penalty instead of a non-finite log-likelihood
-      Type fe = 1;
-      if (xinf(i) == 0){
-        fe = drcmean(mod, xe(i),
-                     linkinv(lnk(0), Type(Xb1(i) + Zu(i, 0))),
-                     linkinv(lnk(1), Type(Xb2(i) + Zu(i, 1))),
-                     qe ? f3bmd : linkinv(lnk(2), Type(Xb3(i) + Zu(i, 2))),
-                     bmdpar == 1 ? f4bmd : linkinv(lnk(3), Type(Xb4(i) + Zu(i, 3))),
-                     linkinv(lnk(4), Type(Xb5(i) + Zu(i, 4))), alpha, smooth);
-        fe = linkinv(clink, fe);
-      }
+      Type fe = xinf(i) == 0 ? curveat(mod, clink, Type(xe(i)), fp, alpha, smooth) : Type(1);
       Type p = fe - f;
       pev(i) = p;
       if (y(i) > 0) nll -= w(i) * y(i) * log(CppAD::CondExpGt(p, Type(1e-300), p, Type(1e-300)));
@@ -366,13 +347,8 @@ Type drcTMB(objective_function<Type>* obj) {
     vector<Type> Xpb5 = Xp5 * b5;
     vector<Type> mu(npred);
     for (int i = 0; i < npred; i++){
-      mu(i) = drcmean(mod, xp(i),
-                      linkinv(lnk(0), Type(Xpb1(i) + Zup(i, 0))),
-                      linkinv(lnk(1), Type(Xpb2(i) + Zup(i, 1))),
-                      qe ? f3bmd : linkinv(lnk(2), Type(Xpb3(i) + Zup(i, 2))),
-                      bmdpar == 1 ? f4bmd : linkinv(lnk(3), Type(Xpb4(i) + Zup(i, 3))),
-                      linkinv(lnk(4), Type(Xpb5(i) + Zup(i, 4))), alpha, smooth);
-      mu(i) = linkinv(clink, mu(i));
+      eta << Xpb1(i) + Zup(i, 0), Xpb2(i) + Zup(i, 1), Xpb3(i) + Zup(i, 2), Xpb4(i) + Zup(i, 3), Xpb5(i) + Zup(i, 4);
+      mu(i) = curveat(mod, clink, Type(xp(i)), curvepars(lnk, eta, qe, f3bmd, bmdpar == 1, f4bmd), alpha, smooth);
     }
     ADREPORT(mu);
   }

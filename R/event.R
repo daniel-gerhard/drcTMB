@@ -56,16 +56,6 @@ eventstartdd <- function(dd, y=dd$y){
   dd
 }
 
-# the rows of dd with positive weight, for lmstart
-ddrows <- function(dd, keep){
-  dd$x <- dd$x[keep]
-  dd$y <- dd$y[keep]
-  dd$w <- dd$w[keep]
-  dd$bn <- dd$bn[keep]
-  dd$Xs <- lapply(dd$Xs, function(X) X[keep, , drop=FALSE])
-  dd
-}
-
 # probabilities of the intervals of event data, f(end) - f(start) with f(Inf) = 1, at the curves of the
 # observations (random=TRUE with the fitted random effects)
 eventprob <- function(object, random=TRUE){
