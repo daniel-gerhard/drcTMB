@@ -21,6 +21,7 @@
 #' @param nodes number of Gauss-Hermite quadrature nodes per random coefficient for the marginal mean;
 #'   the default decreases with the number of random coefficients, from 30 for one to 5 for five or more
 #'
+#' @param vcov. the covariance of the estimated parameters, as in \code{\link{ed}}
 #' @details With the response mu0 at dose zero, the BMD is the dose at which the curve reaches the
 #' response
 #' \itemize{
@@ -60,10 +61,11 @@
 #' @return an edTMB object, as from \code{\link{ed}}, with the BMDs and their covariance matrix
 #' @export
 bmd <- function(x, bmr=0.1, def=c("excess", "additional", "relative", "sd"), linfct=NULL, newdata=NULL,
-                scale=c("marginal", "conditional"), nodes=NULL){
+                scale=c("marginal", "conditional"), nodes=NULL, vcov.=NULL){
   def <- match.arg(def)
   scale <- match.arg(scale)
   nobmdpar(x, "bmd")
+  x <- vcovfit(x, vcov.)
   if (identical(x$family, "event")) stop("benchmark doses are not available for event data; use ed() for the times of a proportion of events.")
   mod <- modelindex(x$model)
   m <- drcmodel(mod)

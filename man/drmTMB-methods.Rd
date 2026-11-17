@@ -18,7 +18,7 @@
 \usage{
 \method{print}{drmTMB}(x, digits = max(3L, getOption("digits") - 3L), ...)
 
-\method{summary}{drmTMB}(object, ...)
+\method{summary}{drmTMB}(object, vcov. = NULL, ...)
 
 \method{print}{summary.drmTMB}(x, digits = max(3L, getOption("digits") - 3L), ...)
 
@@ -49,6 +49,7 @@
   seed = NULL,
   type = c("response", "parameters"),
   scale = c("original", "link"),
+  vcov. = NULL,
   ...
 )
 
@@ -64,6 +65,8 @@
 \item{digits}{number of significant digits in the printed output}
 
 \item{...}{anything else}
+
+\item{vcov.}{for summary and predict, the covariance of the estimated parameters for the standard errors and Wald intervals: a matrix as vcov() of the fit, or a function of the fit that returns one, e.g. the sandwich covariance \code{\link{vcovrobust}}. NULL (default) for vcov() of the fit. The prediction intervals of predict that are simulated use it for the draws of the fixed parameters.}
 
 \item{random}{logical, if TRUE, the random effects are included in the predictions, fitted values and residuals (conditional residuals). For simulate, if TRUE, new random effects are drawn for each simulation, otherwise the fitted random effects are kept.
 For prediction intervals, random=TRUE gives the interval of a new observation in the group of each row of newdata, and random=FALSE the interval of a new observation in a new group, including the variance of the random effects. Rows of newdata with a level that is not in the fitted data are treated as new groups for that random effect term.}

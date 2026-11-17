@@ -11,7 +11,8 @@ bmd(
   linfct = NULL,
   newdata = NULL,
   scale = c("marginal", "conditional"),
-  nodes = NULL
+  nodes = NULL,
+  vcov. = NULL
 )
 }
 \arguments{
@@ -36,6 +37,8 @@ the BMD of the typical curve, with the random effects at zero}
 
 \item{nodes}{number of Gauss-Hermite quadrature nodes per random coefficient for the marginal mean;
 the default decreases with the number of random coefficients, from 30 for one to 5 for five or more}
+
+\item{vcov.}{the covariance of the estimated parameters, as in \code{\link{ed}}}
 }
 \value{
 an edTMB object, as from \code{\link{ed}}, with the BMDs and their covariance matrix

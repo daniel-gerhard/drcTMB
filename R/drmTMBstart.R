@@ -554,7 +554,7 @@ drmTMBobj <- function(dd, start, fix, rform=NULL){
   dlist <- list(model="drcTMB", y=dd$y, x=dd$x, w=dd$w, bn=dd$bn, fam=dd$fam, mod=dd$mod, alpha=alphavalue(dd$alpha), smooth=smoothwidth(dd$smooth), lnk=as.integer(dd$lnk), clink=as.integer(dd$clink),
                 tnp=tnp, tnl=tnl, tpar=as.integer(unlist(lapply(re$terms, function(tm) tm$pars)) - 1),
                 tzb=if (length(re$terms) > 0) tzbvec(re$terms) else integer(0),
-                simre=1L, Z=re$Z)
+                simre=1L, scores=0L, Z=re$Z)
   # priors, without those on the variances of the random effects for a fit without them
   pd <- if (is.null(dd$prior)) priordata(NULL)$data else dd$prior
   if (length(re$terms) == 0) pd <- priorsubset(pd, pd$prwhat != 1)
