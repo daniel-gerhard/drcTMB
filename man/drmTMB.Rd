@@ -194,8 +194,9 @@ models of glm. Effective doses of \code{\link{ed}} refer to the curve f, so that
 e.g. the ED50 of the curve; absolute effective doses take responses on the scale of the response.
 \code{predict}, \code{fitted}, \code{residuals} and \code{simulate} are on the scale of the response,
 and the benchmark doses of \code{\link{bmd}} and \code{bmdpar} are defined on the scale of the response,
-e.g. the relative change of the median. \code{\link{peak}} and \code{ed(residual=TRUE)} are not
-available with a curve link.
+e.g. the relative change of the median. \code{\link{peak}} gives the peak dose of the curve and the
+response at the peak on the scale of the response. \code{ed(residual=TRUE)} is not available with a
+curve link.
 
 Gaussian models without random effects are estimated by maximum likelihood, but by default
 (\code{smallsample=TRUE} in \code{\link{drmTMBcontrol}}) their inference follows lm, nls and drc:

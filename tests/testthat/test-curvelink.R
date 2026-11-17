@@ -93,9 +93,6 @@ test_that("simulation on the scale of the response; checks of the curve link", {
   expect_error(drmTMB(rootl ~ conc, data=ry, model="weibull2", curvelink="log", parlink=c(b1="log")), "identity parlink")
   expect_error(drmTMB(rootl ~ conc, data=ry, model="weibull2", curvelink=c("log", "log")), "single link")
   expect_error(ed(fl, 50, residual=TRUE), "not available for fits with a curvelink")
-  data(lettuce)
-  fh <- drmTMB(weight ~ conc, data=lettuce, model="braincousens", curvelink="log")
-  expect_error(peak(fh), "not available for fits with a curvelink")
   # beta-binomial with the probit link of the curve, for overdispersed litters (the daphnids are not
   # overdispersed): the parameters are recovered
   set.seed(5)
@@ -106,4 +103,41 @@ test_that("simulation on the scale of the response; checks of the curve link", {
   fbb <- drmTMB(cbind(y, n - y) ~ dose, data=dl, family="betabinomial", model="power", curvelink="probit", start=c(b3=1), fix=c(b3=TRUE))
   expect_equal(fbb$opt$convergence, 0)
   expect_equal(unname(coef(fbb)[1:2]), c(-1.5, 0.05), tolerance=0.15)
+})
+
+test_that("peak with a curve link: the peak of the curve, the response on the scale of the response", {
+  data(lettuce)
+  fh <- drmTMB(weight ~ conc, data=lettuce, model="braincousens", curvelink="log")
+  pk <- peak(fh)
+  # the same fit with the curve on the link scale: the peak of the curve itself
+  fc <- fh
+  fc$curvelink <- NULL
+  pc <- peak(fc)
+  expect_equal(coef(pk)[[1]], coef(pc)[[1]], tolerance=1e-8)
+  expect_equal(coef(pk)[[2]], exp(coef(pc)[[2]]), tolerance=1e-8)
+  # the peak of the predicted response
+  op <- optimise(function(x) predict(fh, newdata=data.frame(conc=x)), c(0.01, 10), maximum=TRUE, tol=1e-10)
+  expect_equal(coef(pk)[[1]], op$maximum, tolerance=1e-4)
+  expect_equal(coef(pk)[[2]], op$objective, tolerance=1e-8)
+  # delta method: the response exp(f) at the peak, with standard error exp(f) times that of f
+  expect_equal(sqrt(diag(vcov(pk))), c(1, exp(coef(pc)[[2]]))*sqrt(diag(vcov(pc))), tolerance=1e-6, ignore_attr=TRUE)
+  expect_equal(vcov(pk)[1, 2], exp(coef(pc)[[2]])*vcov(pc)[1, 2], tolerance=1e-6)
+  # Wald and bootstrap intervals of the response on the scale of the response
+  cw <- confint(pk, method="wald")
+  expect_equal(unname(cw[2, ]), coef(pk)[[2]] + qt(c(0.025, 0.975), df.residual(fh))*sqrt(vcov(pk)[2, 2]))
+  expect_message(cp <- confint(pk, method="profile"), "Wald intervals for the response at the peak")
+  expect_equal(cp[2, ], cw[2, ])
+  # bootstrap: the response at the peak of each refitted curve on the scale of the response, close to Wald
+  cb <- suppressMessages(confint(pk, method="boot", nsim=50, seed=1, progress=FALSE))
+  expect_lt(max(abs(cb[2, ] - cw[2, ])), 0.5*diff(cw[2, ]))
+
+  # haldane with the logit link of a binomial curve
+  set.seed(2)
+  dh <- data.frame(dose=rep(c(0.5, 1, 2, 4, 8, 16, 32), each=4), n=40)
+  dh$y <- rbinom(nrow(dh), dh$n, plogis(-2 + 4*dh$dose/(2 + dh$dose + dh$dose^2/10)))
+  fb <- drmTMB(cbind(y, n - y) ~ dose, data=dh, model="haldane", family="binomial", curvelink="logit")
+  pb <- peak(fb)
+  expect_equal(coef(pb)[[1]], sqrt(coef(fb)[["b4:(Intercept)"]]/coef(fb)[["b5:(Intercept)"]]), tolerance=1e-8)
+  expect_equal(coef(pb)[[2]], predict(fb, newdata=data.frame(dose=coef(pb)[[1]]))[[1]], tolerance=1e-8)
+  expect_true(coef(pb)[[2]] > 0 && coef(pb)[[2]] < 1)
 })

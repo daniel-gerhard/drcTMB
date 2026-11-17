@@ -21,7 +21,9 @@ hormesis models the peak has no closed form: it is found numerically, and its de
 standard errors, follow from the implicit function theorem, as for the effective doses of
 \code{\link{ed}}. Curves without a stimulation (b5 <= 0, or a curve that does not decrease at high
 doses) have no peak, and give NA with a warning. For haldane, the peak is at the dose sqrt(b4/b5), the
-optimal substrate concentration sqrt(Km Ki); without inhibition (b5 = 0) there is no peak.
+optimal substrate concentration sqrt(Km Ki); without inhibition (b5 = 0) there is no peak. With a
+\code{curvelink}, the peak dose is that of the curve, as the link is monotone, and the response at the
+peak is on the scale of the response, the inverse link of the curve at the peak.
 }
 \details{
 The result is an edTMB object, as from \code{\link{ed}}, with the dose and the response at the
