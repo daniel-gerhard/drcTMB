@@ -353,3 +353,26 @@ test_that("small-sample inference of gaussian models without random effects", {
   dg$y <- drcmean("loglogistic", dg$dose, c(1, 8, -1.5, 3, 0)) + rnorm(6, 0, 0.5)[dg$grp] + rnorm(nrow(dg), 0, 0.3)
   expect_null(df.residual(fit4(y ~ dose, rform=b2 ~ 1 | grp, data=dg, model="loglogistic")))
 })
+
+test_that("drmTMBstart takes named start and fix values as drmTMB", {
+  ry <- drcData::ryegrass
+  s <- drmTMBstart(rootl ~ conc, data=ry, model="loglogistic", start=c(b5=0), fix=c(b5=TRUE))
+  expect_equal(s[["b5:(Intercept)"]], 0)
+  f <- drmTMB(rootl ~ conc, data=ry, model="loglogistic", start=c(b5=0), fix=c(b5=TRUE))
+  expect_equal(unname(s), unname(f$start))
+  expect_error(drmTMBstart(rootl ~ conc, data=ry, model="loglogistic", fix=c(b5=TRUE)), "give the values of the fixed parameters")
+})
+
+test_that("confint checks parm; simulate does not depend on the state of the TMB object", {
+  ry <- drcData::ryegrass
+  f <- drmTMB(rootl ~ conc, data=ry, model="loglogistic", start=c(b5=0), fix=c(b5=TRUE))
+  expect_error(confint(f, parm=10, method="wald"), "unknown parameters")
+  expect_error(confint(ed(f, 50), parm=3, method="wald"), "unknown effective doses")
+  set.seed(1)
+  d <- expand.grid(x=c(0, 1, 2, 4, 8), g=factor(1:6))
+  d$y <- 1 + (5 + rnorm(6)[d$g] - 1)/(1 + (d$x/2)^2) + rnorm(nrow(d), 0, 0.3)
+  fr <- drmTMB(y ~ x, rform=b2 ~ 1 | g, data=d, model="loglogistic", start=c(b5=0), fix=c(b5=TRUE))
+  s1 <- simulate(fr, seed=2, random=FALSE)
+  invisible(fr$obj$fn(fr$opt$par + 0.5))
+  expect_equal(simulate(fr, seed=2, random=FALSE), s1)
+})

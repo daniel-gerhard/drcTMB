@@ -156,3 +156,18 @@ test_that("bootstrap tests of a random effect on the boundary", {
   expect_gt(sum(lr < 1e-6), 0)
   expect_true(a[["Pr(boot)"]][2] >= 1/20 && a[["Pr(boot)"]][2] <= 1)
 })
+
+test_that("F-tests are refused with variance functions, correlation structures and priors", {
+  ry <- drcData::ryegrass
+  f0 <- drmTMB(rootl ~ conc, data=ry, model="loglogistic", start=c(b5=0), fix=c(b5=TRUE))
+  fv <- drmTMB(rootl ~ conc, data=ry, model="loglogistic", start=c(b5=0), fix=c(b5=TRUE), variance=var_power())
+  expect_error(anova(f0, fv, test="F"), "variance function")
+  fp <- drmTMB(rootl ~ conc, data=ry, model="loglogistic", start=c(b5=0), fix=c(b5=TRUE), prior=list(b2=normal(8, 2)))
+  expect_error(suppressWarnings(suppressMessages(anova(f0, fp, test="F"))), "priors")
+  # observations with weight 0 do not count for the residual degrees of freedom
+  w <- rep(1, nrow(ry))
+  w[1] <- 0
+  g0 <- drmTMB(rootl ~ conc, data=ry, weights=w, model="loglogistic", start=c(b5=0), fix=c(b5=TRUE))
+  g1 <- drmTMB(rootl ~ conc, data=ry, weights=w, model="loglogistic")
+  expect_equal(anova(g0, g1, test="F")$Res.Df, c(df.residual(g0), df.residual(g1)))
+})

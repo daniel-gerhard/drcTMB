@@ -164,8 +164,10 @@ Type drcTMB(objective_function<Type>* obj) {
       density::UNSTRUCTURED_CORR_t<Type> nldens(corr_transf);
       density::VECSCALE_t<density::UNSTRUCTURED_CORR_t<Type> > scnldens = density::VECSCALE(nldens, sd);
 
+      // the random coefficients of each level as a column; transposed once, not for every level
+      array<Type> Ut = U.transpose();
       for (int j = 0; j < nl; j++){
-        nll += scnldens(U.transpose().col(j));
+        nll += scnldens(Ut.col(j));
       }
 
       // new random effects for each level
@@ -279,6 +281,7 @@ Type drcTMB(objective_function<Type>* obj) {
       vector<Type> rpow(cmaxk + 1);
       rpow(0) = 1;
       if (ctype == 1) for (int k = 1; k <= cmaxk; k++) rpow(k) = rpow(k - 1) * tanh(cpar(0));
+      int cm = clen.maxCoeff();
       int off = 0;
       for (int s = 0; s < clen.size(); s++){
         int m = clen(s);
@@ -289,7 +292,7 @@ Type drcTMB(objective_function<Type>* obj) {
           es(a) = e(ia);
           for (int b = 0; b <= a; b++){
             int ib = cord(off + b);
-            Type r = a == b ? Type(1) : corvalue(ctype, cnug, cpar, rpow, vector<Type>(cpos.row(ia)), vector<Type>(cpos.row(ib)), clen.maxCoeff());
+            Type r = a == b ? Type(1) : corvalue(ctype, cnug, cpar, rpow, vector<Type>(cpos.row(ia)), vector<Type>(cpos.row(ib)), cm);
             S(a, b) = S(b, a) = r * sd(ia) * sd(ib);
           }
         }

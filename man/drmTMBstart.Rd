@@ -30,15 +30,15 @@ drmTMBstart(
 
 \item{data}{a data.frame object. Observations with missing values in the variables of the model or in the weights are left out.}
 
-\item{start}{a vector with starting values for each model parameter. Only NA entries are replaced.}
+\item{start}{starting values, as in \code{\link{drmTMB}}: named by parameter, e.g. c(b5=0), or one entry for each coefficient. Only NA entries are replaced.}
 
-\item{fix}{a binary vector with same length as start. If TRUE, a model coefficient is fixed to the starting value. Parameters not used by the model (b5 except for logistic, loglogistic, braincousens, cedergreen, multistage and nec, b3 for michaelismenten, asymptoticregression and exponentialdecay, b2-b5 for constant) are always fixed, at 0 unless given in start.}
+\item{fix}{logical, the coefficients fixed at their starting values, as in \code{\link{drmTMB}}: named by parameter, e.g. c(b5=TRUE), or one entry for each coefficient. Parameters not used by the model are always fixed, at 0 unless given in start, and b1 of event data at 0.}
 
 \item{weights}{a vector of weights, one for each row of data.}
 
-\item{family}{Specify the distributional assumptions. One of "gaussian", "lognormal", "binomial", "betabinomial", "beta", "poisson", "nbinom2", and "nbinom1". For the lognormal family, log(y) is normal with mean log f(x) and standard deviation sigma: the curve f is the median of a positive response, with a constant coefficient of variation, as in PROAST and BMDS; the mean is f(x) exp(sigma^2/2). The negative binomial families are for overdispersed counts, with variance mu (1 + mu/theta) for nbinom2 and mu (1 + phi) for nbinom1, and the beta-binomial family for overdispersed binomial counts, with variance n mu (1 - mu) (1 + (n - 1)/(phi + 1)) for n trials, as in glmmTMB.}
+\item{family}{the distribution of the response, see \code{\link{drmTMB}}.}
 
-\item{model}{Specify the nonlinear model. One of "logistic", "loglogistic", "weibull1", "weibull2", "lognormal", "michaelismenten", "asymptoticregression", "exponentialdecay", "gompertz", "gamma", "multistage", "nec", "braincousens", "cedergreen", "constant".}
+\item{model}{the dose-response model, see \code{\link{drmTMB}}.}
 
 \item{alpha}{the exponent of the hormesis term of the cedergreen model, see \code{\link{drmTMB}}.}
 

@@ -226,7 +226,8 @@ priordata <- function(prior, dd, fix, lower, upper, coefnames){
       l <- dd$lnk[k]
       rng <- linkfun(l, c(lower[id], upper[id]), inverse=TRUE)
       rng <- c(max(rng[1], linkrng(l)[1]), min(rng[2], linkrng(l)[2]))
-      if (!(nm %in% names(entries))) add(nm, 0L, id - 1L, l, p, rng, nm)
+      # a prior of the coefficient by name takes precedence
+      if (!(coefnames[id] %in% names(prior))) add(nm, 0L, id - 1L, l, p, rng, nm)
     } else if (nm %in% coefnames){
       id <- match(nm, coefnames)
       if (fix[id]) stop("the prior for ", nm, " is for a fixed coefficient.")

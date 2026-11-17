@@ -25,11 +25,11 @@
 #' @param form formula with name of response and dose scale
 #' @param fform fixed effects for the model parameters: a formula of the form b2 + b4 ~ Stress, or a list of such formulas, e.g. list(b2 ~ Stress, b4 ~ Stress + Time). Parameters not listed have a single intercept (~ 1). A list of five right-hand side formulas, one for each of b1-b5 (X1 = ~ 1, ..., X5 = ~ 1), is also accepted.
 #' @param data a data.frame object. Observations with missing values in the variables of the model or in the weights are left out.
-#' @param start a vector with starting values for each model parameter. Only NA entries are replaced.
-#' @param fix a binary vector with same length as start. If TRUE, a model coefficient is fixed to the starting value. Parameters not used by the model (b5 except for logistic, loglogistic, braincousens, cedergreen, multistage and nec, b3 for michaelismenten, asymptoticregression and exponentialdecay, b2-b5 for constant) are always fixed, at 0 unless given in start.
+#' @param start starting values, as in \code{\link{drmTMB}}: named by parameter, e.g. c(b5=0), or one entry for each coefficient. Only NA entries are replaced.
+#' @param fix logical, the coefficients fixed at their starting values, as in \code{\link{drmTMB}}: named by parameter, e.g. c(b5=TRUE), or one entry for each coefficient. Parameters not used by the model are always fixed, at 0 unless given in start, and b1 of event data at 0.
 #' @param weights a vector of weights, one for each row of data.
-#' @param family Specify the distributional assumptions. One of "gaussian", "lognormal", "binomial", "betabinomial", "beta", "poisson", "nbinom2", and "nbinom1". For the lognormal family, log(y) is normal with mean log f(x) and standard deviation sigma: the curve f is the median of a positive response, with a constant coefficient of variation, as in PROAST and BMDS; the mean is f(x) exp(sigma^2/2). The negative binomial families are for overdispersed counts, with variance mu (1 + mu/theta) for nbinom2 and mu (1 + phi) for nbinom1, and the beta-binomial family for overdispersed binomial counts, with variance n mu (1 - mu) (1 + (n - 1)/(phi + 1)) for n trials, as in glmmTMB.
-#' @param model Specify the nonlinear model. One of "logistic", "loglogistic", "weibull1", "weibull2", "lognormal", "michaelismenten", "asymptoticregression", "exponentialdecay", "gompertz", "gamma", "multistage", "nec", "braincousens", "cedergreen", "constant".
+#' @param family the distribution of the response, see \code{\link{drmTMB}}.
+#' @param model the dose-response model, see \code{\link{drmTMB}}.
 #' @param alpha the exponent of the hormesis term of the cedergreen model, see \code{\link{drmTMB}}.
 #' @param smooth smoothing of the threshold of the nec model, relative to the smallest interval between doses, see \code{\link{drmTMB}}; without random effects, the default is 0, an exact threshold.
 #' @param parlink links of the parameters b1-b5, see \code{\link{drmTMB}}.
@@ -44,14 +44,33 @@
 #'
 drmTMBstart <- function(form, fform=NULL, data, start=NULL, fix=NULL, weights=NULL, family="gaussian", model="logistic", alpha=NULL, smooth=NULL, parlink=NULL, curvelink="identity", method="lm", gsl=NULL, gsu=NULL, gsn=NULL){
   dd <- drmTMBdata(form, fform=fform, data=data, weights=weights, family=family, model=model, alpha=alpha, smooth=smooth, parlink=parlink, curvelink=curvelink)
-  if (is.null(start)) start <- rep(NA, sum(dd$npars))
-  if (is.null(fix)) fix <- rep(FALSE, sum(dd$npars))
-  fix[dd$npi %in% unusedpars(dd$mod)] <- TRUE
-  sv <- drmTMBstartvals(dd, start, fix, method=method, gsl=gsl, gsu=gsu, gsn=gsn)
+  sf <- startfix(start, fix, dd)
+  sv <- drmTMBstartvals(dd, sf$start, sf$fix, method=method, gsl=gsl, gsu=gsu, gsn=gsn)
   names(sv) <- coefnames(dd$Xs)
   sv
 }
 
+
+# start and fix vectors of the coefficients from the arguments of drmTMB and drmTMBstart (named by
+# parameter, e.g. c(b5=0), or one entry per coefficient), with the unused parameters fixed and, for event
+# data, b1 fixed at 0
+startfix <- function(start, fix, dd){
+  fixnamed <- !is.null(names(fix))
+  start <- parvector(start, dd$npi, NA, "start")
+  fix <- parvector(fix, dd$npi, FALSE, "fix")
+  if (fixnamed && any(fix & is.na(start))){
+    stop("give the values of the fixed parameters in start, e.g. start=c(b5=0), fix=c(b5=TRUE).")
+  }
+  fix[dd$npi %in% unusedpars(dd$mod)] <- TRUE
+  # event data: the cumulative proportion of events is 0 at time 0, b1 = 0
+  if (identical(dd$family, "event")){
+    if (dd$npars[1] != 1) stop("b1 of event data is fixed at 0; it cannot depend on covariates.")
+    if (!is.na(start[dd$npi == 1]) && start[dd$npi == 1] != 0) stop("b1 of event data is fixed at 0, the proportion of events at time 0.")
+    start[dd$npi == 1] <- 0
+    fix[dd$npi == 1] <- TRUE
+  }
+  list(start=start, fix=fix)
+}
 
 # model data shared by drmTMB and drmTMBstart
 drmTMBdata <- function(form, fform=NULL, rform=NULL, data, weights=NULL, family="gaussian", model="logistic", alpha=NULL, smooth=NULL, parlink=NULL, curvelink="identity",
@@ -282,12 +301,9 @@ lmstart <- function(dd, start, fix){
     cand <- do.call(rbind, lapply(b4grid, function(b4){
       dr <- max(xd) - b4
       b3grid <- if (kn[1]) linkfun(dd$lnk[3], start[npi == 3][1], inverse=TRUE) else exp(seq(log(0.1/dr), log(100/dr), length.out=50))
-      do.call(rbind, lapply(b3grid, function(b3){
-        a <- asymfit(yd, drcmeanR(dd$mod, xd, 0, 1, b3, b4, b5, smooth=smoothwidth(dd$smooth)), f1, f2, known1, known2)
-        data.frame(b3=b3, b4=b4, rss=a$rss, f1=a$f[1], f2=a$f[2])
-      }))
+      cbind(b3=b3grid, b4=b4)
     }))
-    best <- cand[which.min(cand$rss), ]
+    best <- gridbest(cand, function(p) drcmeanR(dd$mod, xd, 0, 1, p[["b3"]], p[["b4"]], b5, smooth=smoothwidth(dd$smooth)), yd, f1, f2, known1, known2)
     f1 <- linkrange(dd$lnk[1], best$f1, dd$family)
     f2 <- linkrange(dd$lnk[2], best$f2, dd$family)
     return(projectstart(dd, start, fix, c(linkfun(dd$lnk[1], f1), linkfun(dd$lnk[2], f2), linkfun(dd$lnk[3], best$b3),
@@ -304,12 +320,9 @@ lmstart <- function(dd, start, fix){
     pkgrid <- exp(seq(log(min(xp)/2), log(max(xp)*10), length.out=30))
     cand <- do.call(rbind, lapply(b4grid, function(b4){
       b5grid <- if (kn[2]) linkfun(dd$lnk[5], start[npi == 5][1], inverse=TRUE) else c(0, b4/pkgrid^2)
-      do.call(rbind, lapply(b5grid, function(b5){
-        a <- asymfit(yd, drcmeanR(dd$mod, xd, 0, 1, 0, b4, b5), f1, f2, known1, known2)
-        data.frame(b4=b4, b5=b5, rss=a$rss, f1=a$f[1], f2=a$f[2])
-      }))
+      cbind(b4=b4, b5=b5grid)
     }))
-    best <- cand[which.min(cand$rss), ]
+    best <- gridbest(cand, function(p) drcmeanR(dd$mod, xd, 0, 1, 0, p[["b4"]], p[["b5"]]), yd, f1, f2, known1, known2)
     f1 <- linkrange(dd$lnk[1], best$f1, dd$family)
     f2 <- linkrange(dd$lnk[2], best$f2, dd$family)
     return(projectstart(dd, start, fix, c(linkfun(dd$lnk[1], f1), linkfun(dd$lnk[2], f2), 0,
@@ -504,6 +517,15 @@ gridrange <- function(dd, start){
 }
 
 
+# the candidate (row of the matrix cand, named parameters) whose shape F = shape(candidate) gives the
+# smallest residual sum of squares of the asymptotes fitted to the means yd (see asymfit); a list with the
+# parameters of the candidate and the fitted asymptotes f1 and f2
+gridbest <- function(cand, shape, yd, f1, f2, known1, known2){
+  fits <- lapply(seq_len(nrow(cand)), function(j) asymfit(yd, shape(cand[j, ]), f1, f2, known1, known2))
+  j <- which.min(vapply(fits, function(a) a$rss, numeric(1)))
+  c(as.list(cand[j, ]), list(f1=fits[[j]]$f[1], f2=fits[[j]]$f[2]))
+}
+
 # TMB objective function for given starting values
 drmTMBobj <- function(dd, start, fix, rform=NULL){
   npi <- dd$npi
@@ -658,11 +680,23 @@ varstart <- function(dd, start, re){
     fb <- fscale[tm$pars] / cov
     est <- matrix(NA, nl, np)
     for (l in seq_len(nl)){
-      M <- sapply(seq_len(np), function(j) as.vector(Zt[[tm$zcol[j]]][, l]) * D[, tm$pars[j]])
+      # the rows of level l and their design values, from the sparse columns
+      ent <- lapply(Zt, function(Zc){
+        k <- Zc@p[l] + seq_len(Zc@p[l + 1] - Zc@p[l])
+        list(i=Zc@i[k] + 1, x=Zc@x[k])
+      })
+      rows <- sort(unique(unlist(lapply(ent, function(e) e$i))))
+      M <- sapply(seq_len(np), function(j){
+        e <- ent[[tm$zcol[j]]]
+        z <- numeric(length(rows))
+        z[match(e$i, rows)] <- e$x
+        z * D[rows, tm$pars[j]]
+      })
       M <- matrix(M, ncol=np)
-      i <- which(ok & rowSums(M != 0) > 0)
+      keep <- ok[rows] & rowSums(M != 0) > 0
+      i <- rows[keep]
       if (length(i) <= np) next
-      fit <- lm.wfit(M[i, , drop=FALSE], r[i], w[i])
+      fit <- lm.wfit(M[keep, , drop=FALSE], r[i], w[i])
       if (fit$rank < np) next
       est[l, ] <- fit$coefficients
       rss <<- rss + sum(w[i] * fit$residuals^2)

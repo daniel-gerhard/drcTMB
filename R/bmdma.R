@@ -6,7 +6,8 @@
 #'
 #' @param ... drmTMB objects, fitted to the same response, doses and weights; the models and families
 #'   may differ (e.g. gaussian and lognormal, whose AICs are comparable). Arguments are named by the
-#'   argument names, or by the expressions.
+#'   argument names, or by the expressions. The fits are maximum likelihood fits without priors; for
+#'   fits with priors, see \code{\link{bmdbayes}}.
 #' @param bmr,def,newdata,scale,nodes the benchmark response and the definition, the covariates of the
 #'   curves, and the BMD of the marginal or conditional curve with random effects, as in
 #'   \code{\link{bmd}}; newdata cannot give fitted groups of random effects, and \code{def="sd"} with
@@ -70,6 +71,9 @@ bmdma <- function(..., bmr=0.1, def=c("excess", "additional", "relative", "sd"),
   fits <- namefits(list(...), as.list(substitute(list(...)))[-1])
   K <- length(fits)
   if (K < 2) stop("give at least two fitted models.")
+  if (any(vapply(fits, function(f) !is.null(f$prior), logical(1)))){
+    stop("bmdma averages maximum likelihood fits with AIC or BIC weights; for fits with priors use bmdbayes.")
+  }
   samedata(fits)
   nconv <- vapply(fits, function(f) f$opt$convergence != 0, logical(1))
   if (any(nconv)) warning("the fits of ", paste(names(fits)[nconv], collapse=", "), " did not converge; their AICs and BMDs may be unreliable.", call.=FALSE)

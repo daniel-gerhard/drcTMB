@@ -81,12 +81,16 @@ anova.drmTMB <- function(object, ..., test=c("Chisq", "F", "boot"), nsim=1000, s
     if (length(fam) != 1 || !(fam %in% c("gaussian", "lognormal")) || any(vapply(fits, function(f) length(f$reterms) > 0, logical(1)))){
       stop("F-tests are only available for gaussian or lognormal models without random effects; use test=\"Chisq\".")
     }
+    if (any(vapply(fits, function(f) !is.null(f$variance) || !is.null(f$correlation) || !is.null(f$prior), logical(1)))){
+      stop("F-tests are not available for models with a variance function, a correlation structure or priors; use test=\"Chisq\".")
+    }
     # weighted residual sums of squares (of log(y) for lognormal), residual degrees of freedom without the residual sd
     rss <- vapply(fits[ord], function(f){
       r <- if (fam == "lognormal") log(f$obj$env$data$y) - log(predict(f)) else residuals(f, type="response")
       sum(f$obj$env$data$w * r^2)
     }, numeric(1))
-    rdf <- nobs(object) - (np - 1)
+    # observations with positive weights, as the residual degrees of freedom of drmTMB
+    rdf <- sum(object$obj$env$data$w > 0) - (np - 1)
     k <- length(fits)
     fval <- c(NA, -diff(rss)/df[-1] / (rss[k]/rdf[k]))
     tab <- data.frame(ic, Res.Df=rdf, RSS=rss, F=fval, Df=df,
