@@ -173,7 +173,7 @@ coef.bmdbayes <- function(object, ...){
 confint.bmdbayes <- function(object, parm=NULL, level=0.90, ...){
   probs <- c((1 - level)/2, (1 + level)/2)
   ci <- matrix(exp(bmdbayesq(object, probs)), 1)
-  dimnames(ci) <- list("BMD", paste(format(100*probs, trim=TRUE, scientific=FALSE, digits=3), "%"))
+  dimnames(ci) <- list("BMD", cilabels(level))
   ci
 }
 

@@ -137,7 +137,7 @@ natscale <- function(ci, rn, corr2, level, rt=NULL){
   two <- rn %in% corr2
   ci[two, ] <- ci[two, ] / sqrt(1 + ci[two, ]^2)
   rn[two] <- sub("^corr_par:", "corr:", rn[two])
-  dimnames(ci) <- list(rn, paste(format(100*c((1 - level)/2, (1 + level)/2), trim=TRUE, scientific=FALSE, digits=3), "%"))
+  dimnames(ci) <- list(rn, cilabels(level))
   ci
 }
 
@@ -582,13 +582,13 @@ confint.edTMB <- function(object, parm=NULL, level=0.95, method=c("profile", "wa
       })
     })
     ci <- t(apply(matrix(eds, ncol=length(parm)), 2, quantile, probs=c((1 - level)/2, (1 + level)/2), na.rm=TRUE, names=FALSE))
-    dimnames(ci) <- list(names(est)[parm], paste(format(100*c((1 - level)/2, (1 + level)/2), trim=TRUE, scientific=FALSE, digits=3), "%"))
+    dimnames(ci) <- list(names(est)[parm], cilabels(level))
     return(ci)
   }
   se <- sqrt(diag(vcov(object)))[parm]
   z <- if (is.null(object$fit)) qnorm((1 + level)/2) else zquant(object$fit, level)
   ci <- cbind(est[parm] - z*se, est[parm] + z*se)
-  dimnames(ci) <- list(names(est)[parm], paste(format(100*c((1 - level)/2, (1 + level)/2), trim=TRUE, scientific=FALSE, digits=3), "%"))
+  dimnames(ci) <- list(names(est)[parm], cilabels(level))
   ci
 }
 
@@ -609,3 +609,6 @@ parmindex <- function(parm, est, what){
   if (any(is.na(parm)) || any(parm < 1 | parm > length(est))) stop("unknown ", what, " in parm.")
   parm
 }
+
+# column labels of two-sided intervals of probability level, e.g. "2.5 %" and "97.5 %"
+cilabels <- function(level) paste(format(100*c((1 - level)/2, (1 + level)/2), trim=TRUE, scientific=FALSE, digits=3), "%")

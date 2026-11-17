@@ -234,7 +234,7 @@ confint.bmdma <- function(object, parm=NULL, level=0.90, method=c("boot", "buckl
     z <- qnorm(probs[2])
     ci <- cbind(est[parm] - z*se, est[parm] + z*se)
   }
-  dimnames(ci) <- list(names(est)[parm], paste(format(100*probs, trim=TRUE, scientific=FALSE, digits=3), "%"))
+  dimnames(ci) <- list(names(est)[parm], cilabels(level))
   ci
 }
 

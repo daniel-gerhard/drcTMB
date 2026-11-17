@@ -46,13 +46,7 @@
 #' 
 #' @rdname drmTMB-methods
 print.drmTMB <- function(x, digits=max(3L, getOption("digits") - 3L), ...){
-  if (!is.null(x$call)){
-    cat("Call:\n")
-    print(x$call)
-    cat("\n")
-  }
-  cat("Model:  ", x$model, if (!is.null(x$alpha)) paste(" (alpha = ", x$alpha, ")", sep=""), smoothtext(x$smooth), "\n", sep="")
-  cat("Family: ", x$family, ", ", linktext(x$parlink, x$model), curvelinktext(x$curvelink), "\n", sep="")
+  printheader(x)
 
   printprior(x$prior)
   cat("\nCoefficients", if (!is.null(x$prior)) " (posterior modes)", ":\n", sep="")
@@ -141,13 +135,7 @@ summary.drmTMB <- function(object, ...){
 #' @rdname drmTMB-methods
 #' @export
 print.summary.drmTMB <- function(x, digits=max(3L, getOption("digits") - 3L), ...){
-  if (!is.null(x$call)){
-    cat("Call:\n")
-    print(x$call)
-    cat("\n")
-  }
-  cat("Model:  ", x$model, if (!is.null(x$alpha)) paste(" (alpha = ", x$alpha, ")", sep=""), smoothtext(x$smooth), if (!is.null(x$direction)) paste(",", x$direction, "curve"), "\n", sep="")
-  cat("Family: ", x$family, ", ", linktext(x$parlink, x$model), curvelinktext(x$curvelink), "\n", sep="")
+  printheader(x, x$direction)
 
   cat("\nNumber of observations: ", x$nobs, sep="")
   if (!is.null(x$ntrials)) cat(", number of trials: ", x$ntrials, sep="")
@@ -826,6 +814,18 @@ linktext <- function(link, model){
   out <- if (is.na(m$b2)) paste(asym, "link for b1") else if (length(asym) == 1) paste(asym, "link for the asymptotes") else paste(link[["b1"]], "link for b1,", link[["b2"]], "link for b2")
   if (link[["b4"]] != "identity") out <- paste(out, ", ", link[["b4"]], " link for b4", sep="")
   out
+}
+
+# call, model and family of a fit or its summary, with the direction of the curve (summary)
+printheader <- function(x, direction=NULL){
+  if (!is.null(x$call)){
+    cat("Call:\n")
+    print(x$call)
+    cat("\n")
+  }
+  cat("Model:  ", x$model, if (!is.null(x$alpha)) paste(" (alpha = ", x$alpha, ")", sep=""), smoothtext(x$smooth),
+      if (!is.null(direction)) paste(",", direction, "curve"), "\n", sep="")
+  cat("Family: ", x$family, ", ", linktext(x$parlink, x$model), curvelinktext(x$curvelink), "\n", sep="")
 }
 
 # coefficients fixed by the user, named; the parameters the model does not use are always fixed
