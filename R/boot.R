@@ -94,6 +94,13 @@ refitnll <- function(fit, y, ctrl){
              npi=rep(1:5, vapply(fit$Xs, ncol, integer(1))), family=fit$family)
   start <- fit$start
   start[!fit$fix] <- NA
+  # event data: the cumulative proportions of the series
+  if (identical(fit$family, "event")){
+    dd$series <- fit$series
+    dd$xe <- ifelse(dat$xinf == 1, Inf, dat$xe)
+    dd <- eventstartdd(dd)
+    dd <- ddrows(dd, dd$w > 0)
+  }
   sv <- tryCatch(lmstart(dd, start, fit$fix), error=function(e) NULL)
   pars2 <- pars
   if (!is.null(sv)){

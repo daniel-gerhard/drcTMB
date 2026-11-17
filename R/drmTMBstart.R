@@ -55,14 +55,15 @@ drmTMBstart <- function(form, fform=NULL, data, start=NULL, fix=NULL, weights=NU
 
 # model data shared by drmTMB and drmTMBstart
 drmTMBdata <- function(form, fform=NULL, rform=NULL, data, weights=NULL, family="gaussian", model="logistic", alpha=NULL, smooth=NULL, parlink=NULL, curvelink="identity",
-                       correlation=NULL, variance=NULL){
+                       correlation=NULL, variance=NULL, series=NULL){
   fform <- fforms(fform)
   if (is.null(weights)) weights <- rep(1, nrow(data))
   if (length(weights) != nrow(data)) stop("weights must have one entry for each row of data.")
 
   # observations with missing values in the variables of the model or in the weights are left out
   rfl <- if (inherits(rform, "formula")) list(rform) else rform
-  vars <- c(all.vars(form), unlist(lapply(fform, all.vars)), unlist(lapply(rfl, function(f) all.vars(f[[3]]))), corvars(correlation, variance))
+  vars <- c(all.vars(form), unlist(lapply(fform, all.vars)), unlist(lapply(rfl, function(f) all.vars(f[[3]]))), corvars(correlation, variance),
+            if (inherits(series, "formula")) all.vars(series))
   keep <- complete.cases(data[, intersect(vars, names(data)), drop=FALSE]) & !is.na(weights)
   data <- data[keep, , drop=FALSE]
   weights <- weights[keep]
@@ -80,10 +81,16 @@ drmTMBdata <- function(form, fform=NULL, rform=NULL, data, weights=NULL, family=
 
   # model
   mod <- modelindex(model)
-  fam <- which(family == c("gaussian", "poisson", "binomial", "beta", "nbinom2", "nbinom1", "betabinomial", "lognormal"))
+  fam <- which(family == c("gaussian", "poisson", "binomial", "beta", "nbinom2", "nbinom1", "betabinomial", "lognormal", "event"))
   if (length(mod) != 1) stop("Unknown model: ", model)
-  if (length(fam) != 1) stop("Unknown family: ", family, "; one of gaussian, lognormal, poisson, binomial, betabinomial, beta, nbinom2, nbinom1.")
+  if (length(fam) != 1) stop("Unknown family: ", family, "; one of gaussian, lognormal, poisson, binomial, betabinomial, beta, nbinom2, nbinom1, event.")
   m <- drcmodel(mod)
+  event <- family == "event"
+  if (event && !(model %in% eventmodels)) stop("the event family needs a model whose curve is a distribution function of the time: ", paste(eventmodels, collapse=", "), ".")
+  # event data: the proportion b2 of units with an event on the logit scale by default
+  if (event && !("b2" %in% names(parlink)) && !(is.character(parlink) && is.null(names(parlink)) && length(parlink) == 1)){
+    parlink <- c(parlink, b2="logit")
+  }
   link <- parlinks(parlink, m, model)
   lnk <- linkindex(link)
   # link of the curve: the mean (median, probability) is the inverse link of the curve
@@ -103,7 +110,16 @@ drmTMBdata <- function(form, fform=NULL, rform=NULL, data, weights=NULL, family=
 
   # response
   y <- mr <- model.response(mf, "any")
-  if (family %in% c("binomial", "betabinomial") & ncol(as.matrix(mr)) == 2){
+  xe <- NULL
+  if (event){
+    if (ncol(mf) != 3) stop("the event family needs the formula count ~ start + end, with the number of events in each time interval.")
+    xe <- as.numeric(mf[, 3])
+    if (any(y < 0) || any(abs(y - round(y)) > 1e-8)) stop("the counts of event data must be non-negative integers.")
+    if (any(mf[, 2] < 0) || any(!is.finite(mf[, 2])) || any(!(xe > mf[, 2]))) stop("the intervals of event data need 0 <= start < end (end = Inf for the units without an event).")
+  }
+  if (event){
+    bn <- rep(0, length(y))
+  } else if (family %in% c("binomial", "betabinomial") & ncol(as.matrix(mr)) == 2){
     bn <- mr[,1] + mr[,2]
     y <- mr[,1]
   } else if (family == "betabinomial"){
@@ -142,10 +158,14 @@ drmTMBdata <- function(form, fform=NULL, rform=NULL, data, weights=NULL, family=
   if (cd$ctype > 0 && any(weights != 1)) stop("weights cannot be combined with a correlation structure.")
   vd <- vardata(variance, data)
 
+  # event data: series of the rows, and the template data
+  if (!event && !is.null(series)) stop("series is only used by the event family.")
+  es <- if (event) eventseries(series, data, Xs, re)
+
   list(y=y, x=mf[,2], w=weights, bn=bn, fam=fam, mod=mod, alpha=alpha, smooth=smooth, lnk=lnk, re=re,
        Xs=Xs, fform=fform, fterms=fterms, npars=npars, npi=rep(1:5, npars),
        family=family, model=model, parlink=link, curvelink=curvelink, clink=linkindex(curvelink), data=data,
-       cor=cd, var=vd)
+       cor=cd, var=vd, xe=xe, series=es, ev=eventdata(mf[, 2], xe, es))
 }
 
 # design matrix of a parameter for data, with the terms, factor levels and contrasts of the fit
@@ -160,6 +180,11 @@ designmatrix <- function(ft, data){
 # starting values for all fixed-effect parameters; only NA entries of start are replaced
 drmTMBstartvals <- function(dd, start, fix, method="lm", gsl=NULL, gsu=NULL, gsn=NULL){
   method <- match.arg(method, c("lm", "grid"))
+  # event data: the cumulative proportions of the series at the end times
+  if (identical(dd$family, "event")){
+    dd <- eventstartdd(dd)
+    dd <- ddrows(dd, dd$w > 0)
+  }
   sv <- lmstart(dd, start, fix)
   if (method == "grid") sv <- gridstart(dd, sv, fix, gsl, gsu, gsn)
   sv
@@ -491,7 +516,7 @@ drmTMBobj <- function(dd, start, fix, rform=NULL){
   # drmTMB), so placeholders
   bmdp <- !is.null(dd$bmd)
   vs <- if (bmdp) list(theta=numeric(sum(tnp + tnp*(tnp - 1)/2)), log_sigma=0)
-        else if (length(re$terms) > 0) varstart(dd, start, re) else list(theta=numeric(0))
+        else if (length(re$terms) > 0) varstart(if (identical(dd$family, "event")) eventstartdd(dd) else dd, start, re) else list(theta=numeric(0))
   stheta <- vs$theta
   up <- rep(0, sum(tnp*tnl))
   dlist <- list(model="drcTMB", y=dd$y, x=dd$x, w=dd$w, bn=dd$bn, fam=dd$fam, mod=dd$mod, alpha=alphavalue(dd$alpha), smooth=smoothwidth(dd$smooth), lnk=as.integer(dd$lnk), clink=as.integer(dd$clink),
@@ -512,7 +537,8 @@ drmTMBobj <- function(dd, start, fix, rform=NULL){
   # residual correlation structure and variance function
   cd <- if (is.null(dd$cor)) cordata(NULL) else dd$cor
   vd <- if (is.null(dd$var)) vardata(NULL) else dd$var
-  datalist <- c(datalist, cd[c("ctype", "cnug", "cord", "clen", "cpos", "cmaxk")], vd[c("vtype", "vfit", "vcov", "vstr")])
+  datalist <- c(datalist, cd[c("ctype", "cnug", "cord", "clen", "cpos", "cmaxk")], vd[c("vtype", "vfit", "vcov", "vstr")],
+                if (is.null(dd$ev)) eventdata(NULL, NULL, NULL) else dd$ev)
 
   # log_sigma: residual sd (gaussian, of log(y) for lognormal), precision (beta, betabinomial), size theta (nbinom2) or dispersion phi
   # (nbinom1); fixed for poisson and binomial
@@ -522,7 +548,7 @@ drmTMBobj <- function(dd, start, fix, rform=NULL){
   if (dd$family == "beta") slsigma <- 10
   if (dd$family %in% c("nbinom2", "nbinom1")) slsigma <- 0
   if (dd$family == "betabinomial") slsigma <- 2
-  if (dd$family %in% c("poisson", "binomial")) slsigma <- 0
+  if (dd$family %in% c("poisson", "binomial", "event")) slsigma <- 0
   parameters <- list(b1=sb[[1]], b2=sb[[2]], b3=sb[[3]], b4=sb[[4]], b5=sb[[5]], u=up, theta=as.numeric(stheta), log_sigma=slsigma,
                      cpar=unname(cd$cpar), vpar=unname(vd$vpar))
 
@@ -535,8 +561,8 @@ drmTMBobj <- function(dd, start, fix, rform=NULL){
       lmap[[paste("b", i, sep="")]] <- as.factor(idp[npi == i])
     }
   }
-  if (dd$family %in% c("poisson", "binomial")) lmap$log_sigma <- factor(NA)
-  if (!(dd$family %in% c("poisson", "binomial")) && !bmdp) parameters$log_sigma <- sigmastart(datalist, parameters, lmap, rform)
+  if (dd$family %in% c("poisson", "binomial", "event")) lmap$log_sigma <- factor(NA)
+  if (!(dd$family %in% c("poisson", "binomial", "event")) && !bmdp) parameters$log_sigma <- sigmastart(datalist, parameters, lmap, rform)
 
   MakeADFun(datalist, parameters, map=lmap, random=if (!is.null(rform)) "u", DLL="drcTMB_TMBExports", silent=TRUE)
 }

@@ -102,7 +102,7 @@ the parameters of a residual correlation structure (cor_par:...) and variance fu
 see \code{\link{correlation}}.
 summary returns a summary.drmTMB object with the coefficient table (Estimate, Std. Error), the
 variance components, log-likelihood, AIC and BIC, sample sizes, a Pearson dispersion statistic for
-poisson and binomial models, and convergence information. logLik returns the log-likelihood at the
+poisson, binomial and event models, and convergence information. logLik returns the log-likelihood at the
 estimates, with the number of free coefficients and variance parameters as degrees of freedom.
 df.residual returns the residual degrees of freedom n - p of gaussian and lognormal models without random
 effects (small-sample inference, see \code{\link{drmTMB}}), and NULL otherwise; as the \code{df}

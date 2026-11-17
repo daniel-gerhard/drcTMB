@@ -277,6 +277,27 @@ linfct <- list("24h"=rbind(c(1, 0, 0, 0, 0, 0, 0),
 ed(dmodg, respLev = 75, linfct = linfct)
 ```
 
+## Time-to-event data
+
+Germination and other time-to-event experiments record the number of events in each time interval, as `type = "event"` in drc. With `family = "event"` and the formula `count ~ start + end`, each row is an interval [start, end) with its number of events, and a row with `end = Inf` holds the units without an event by the end of the experiment. The curve is the cumulative proportion of events, b2 F(t), with b1 fixed at 0 and the proportion b2 of units with an event on the logit scale. For the germination of chickweed seeds, 20% of the seeds germinate, half of them by 196 hours:
+
+```{r}
+data(chickweed)
+cmod <- drmTMB(count ~ start + end, data = chickweed, model = "loglogistic", family = "event",
+               start = c(b5 = 0), fix = c(b5 = TRUE))
+cmod
+plogis(coef(cmod)[1])
+ed(cmod, c(10, 50, 90))
+```
+
+`ed()` gives the times at which a percentage of the germinating seeds has germinated, and with `type = "absolute"` the time at which a proportion of all seeds has germinated, here 10%:
+
+```{r}
+ed(cmod, 0.1, type = "absolute")
+```
+
+Covariates of the curve (`fform`) and random effects (`rform`), e.g. `rform = b4 ~ 1 | dish` for Petri dishes that germinate faster or slower, work as for the other families. The argument `series` identifies the intervals of one dish (by default the rows with the same covariates and levels of the random effects); `simulate()` and `bootstrap()` then draw multinomial counts with the total of each dish, and the residuals and the Pearson dispersion of `summary()` compare the counts with these totals.
+
 ## Random effects
 
 Fitting a 4-parameter log-logistic model to the vinclozolin dataset, which contains luminescence measurements of a dose-response experiment with 6 replications. The model includes correlated random effects for the lower and upper asymptote b1 and b2, with a random intercept for each replication. With only six replications, a model with an additional random effect for the location b4 cannot be estimated reliably. The `lower` argument is used to constrain the asymptotes and b4 to be positive, to improve optimisation. Random slopes are specified as in lme4, e.g. `rform = b4 ~ time | exper` for random intercepts and slopes of b4 in a covariate `time`; `ed()` then needs the value of the covariate in `newdata` to include the variation between replications in the standard errors.

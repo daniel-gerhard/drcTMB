@@ -64,6 +64,7 @@ bmd <- function(x, bmr=0.1, def=c("excess", "additional", "relative", "sd"), lin
   def <- match.arg(def)
   scale <- match.arg(scale)
   nobmdpar(x, "bmd")
+  if (identical(x$family, "event")) stop("benchmark doses are not available for event data; use ed() for the times of a proportion of events.")
   mod <- modelindex(x$model)
   m <- drcmodel(mod)
   if (is.na(m$ed) || m$ed %in% "hormesis") stop("benchmark doses are not available for the ", x$model, " model.")

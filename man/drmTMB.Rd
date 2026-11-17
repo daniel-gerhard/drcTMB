@@ -24,6 +24,7 @@ drmTMB(
   bmdpar = NULL,
   correlation = NULL,
   variance = NULL,
+  series = NULL,
   gsl = NULL,
   gsu = NULL,
   gsn = NULL,
@@ -31,7 +32,8 @@ drmTMB(
 )
 }
 \arguments{
-\item{form}{formula with name of response and dose scale}
+\item{form}{formula with name of response and dose scale; for the event family count ~ start + end,
+the number of events in each time interval (see Details)}
 
 \item{fform}{fixed effects for the model parameters: a formula of the form b2 + b4 ~ Stress, or a list of such formulas, e.g. list(b2 ~ Stress, b4 ~ Stress + Time). Parameters not listed have a single intercept (~ 1). A list of five right-hand side formulas, one for each of b1-b5 (X1 = ~ 1, ..., X5 = ~ 1), is also accepted.}
 
@@ -49,7 +51,7 @@ drmTMB(
 
 \item{upper}{upper bounds for the model coefficients b1-b5, a single value or a vector with the same length as start.}
 
-\item{family}{Specify the distributional assumptions. One of "gaussian", "lognormal", "binomial", "betabinomial", "beta", "poisson", "nbinom2", and "nbinom1". For the lognormal family, log(y) is normal with mean log f(x) and standard deviation sigma: the curve f is the median of a positive response, with a constant coefficient of variation, as in PROAST and BMDS; the mean is f(x) exp(sigma^2/2). The negative binomial families are for overdispersed counts, with variance mu (1 + mu/theta) for nbinom2 and mu (1 + phi) for nbinom1, and the beta-binomial family for overdispersed binomial counts, with variance n mu (1 - mu) (1 + (n - 1)/(phi + 1)) for n trials, as in glmmTMB.}
+\item{family}{Specify the distributional assumptions. One of "gaussian", "lognormal", "binomial", "betabinomial", "beta", "poisson", "nbinom2", "nbinom1", and "event" for time-to-event data, e.g. germination times (see Details). For the lognormal family, log(y) is normal with mean log f(x) and standard deviation sigma: the curve f is the median of a positive response, with a constant coefficient of variation, as in PROAST and BMDS; the mean is f(x) exp(sigma^2/2). The negative binomial families are for overdispersed counts, with variance mu (1 + mu/theta) for nbinom2 and mu (1 + phi) for nbinom1, and the beta-binomial family for overdispersed binomial counts, with variance n mu (1 - mu) (1 + (n - 1)/(phi + 1)) for n trials, as in glmmTMB.}
 
 \item{model}{Specify the nonlinear model. One of "logistic", "loglogistic", "weibull1", "weibull2", "lognormal", "michaelismenten", "asymptoticregression", "exponentialdecay", "gompertz", "gamma", "multistage", "nec", "braincousens", "cedergreen", "haldane", "exponential", "power", "constant". The nec model has a threshold, the exponential and power models have no upper asymptote, the braincousens and cedergreen models describe hormesis, the haldane model substrate inhibition, and the constant model has no dose effect, see Details.}
 
@@ -72,6 +74,11 @@ series, e.g. \code{cor_car1(~ time | subject)}, for the gaussian and lognormal f
 \item{variance}{NULL (default) for a constant residual standard deviation, or a variance function, e.g.
 \code{var_power()} (a power of the fitted mean) or \code{var_ident(~ 1 | group)}, for the gaussian and
 lognormal families; see \code{\link{correlation}}.}
+
+\item{series}{for the event family: a one-sided formula of the series of the rows, e.g. ~ dish, the
+intervals of one Petri dish; by default the rows with the same covariates of the curve (fform) and
+the same levels of the random effect terms. The series are needed by simulate, bootstrap, residuals
+and the dispersion of summary, which need complete series: intervals from 0 to Inf without gaps.}
 
 \item{gsl}{a vector of lower bounds for a grid search, same length as start; NA for the default range. If gsl, gsu and gsn are all NULL, no grid search is performed. See \code{\link{drmTMBstart}}.}
 
@@ -265,4 +272,20 @@ structure. Pearson residuals are divided by sigma g; quantile residuals are in a
 decorrelated within series. Prediction intervals use the standard deviation sigma g at newdata, which
 then needs the covariate of the variance function; \code{ed(residual=TRUE)} and the BMD definition
 "sd" are not available with a variance function.
+
+The event family is for time-to-event data, as \code{type="event"} of drc: each row is a time interval
+[start, end) of a series (e.g. a Petri dish) with the number of events in it, e.g. germinated seeds,
+and a row with end = Inf holds the units without an event by the end of the experiment. The curve is
+the cumulative proportion of events by time t, f(t) = b2 F(t), with b1 fixed at 0 and the proportion
+b2 of units with an event, on the logit scale by default (parlink); the models are those whose F is a
+distribution function of the time: loglogistic, weibull1, weibull2, lognormal, gamma,
+asymptoticregression and michaelismenten. The log-likelihood is the multinomial sum(count log(f(end) -
+f(start))), with f(Inf) = 1, without the multinomial coefficients, as in drc. Covariates (fform) and
+random effects (rform), e.g. of the dishes, are as for the other families. \code{ed} gives the times
+at which a percentage of the units with an event have had it, and with \code{type="absolute"} the
+times at which a proportion of all units has had an event; \code{predict} gives the cumulative
+proportion at the times in the first variable of the formula (start). \code{simulate} and
+\code{\link{bootstrap}} draw multinomial counts with the total of each series; the residuals compare
+the counts with these totals times the probabilities of the intervals, and \code{summary} gives their
+Pearson dispersion. Prediction intervals and benchmark doses are not available.
 }

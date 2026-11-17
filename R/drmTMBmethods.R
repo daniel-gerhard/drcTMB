@@ -31,7 +31,7 @@
 #' see \code{\link{correlation}}.
 #' summary returns a summary.drmTMB object with the coefficient table (Estimate, Std. Error), the
 #' variance components, log-likelihood, AIC and BIC, sample sizes, a Pearson dispersion statistic for
-#' poisson and binomial models, and convergence information. logLik returns the log-likelihood at the
+#' poisson, binomial and event models, and convergence information. logLik returns the log-likelihood at the
 #' estimates, with the number of free coefficients and variance parameters as degrees of freedom.
 #' df.residual returns the residual degrees of freedom n - p of gaussian and lognormal models without random
 #' effects (small-sample inference, see \code{\link{drmTMB}}), and NULL otherwise; as the \code{df}
@@ -105,6 +105,11 @@ summary.drmTMB <- function(object, ...){
   # Pearson dispersion for the families without a dispersion parameter, conditional on the
   # random effects; residual degrees of freedom from the number of estimated parameters
   dispersion <- NULL
+  if (object$family == "event" && eventcompletefit(object)){
+    chisq <- sum(residuals(object, type="pearson")^2)
+    rdf <- nobs(object) - nlevels(object$series) - attr(ll, "df")
+    dispersion <- c(chisq=chisq, df=rdf, ratio=chisq/rdf)
+  }
   if (object$family %in% c("poisson", "binomial")){
     mu <- predict(object)
     if (object$family == "poisson"){
@@ -227,6 +232,9 @@ residuals.drmTMB <- function(object, type=c("pearson", "response", "quantile"), 
   # binomial and beta-binomial: on the scale of proportions
   y <- if (object$family %in% c("binomial", "betabinomial")) cnt/n else cnt
 
+  # event data: counts of the intervals against the multinomial expectations of their series
+  if (object$family == "event") return(eventresid(object, type, random))
+
   if (type == "response") return(y - mu)
 
   # gaussian and lognormal: standardised residuals (of log(y) for lognormal), divided by the residual
@@ -303,6 +311,7 @@ predict.drmTMB <- function(object, newdata=NULL, random=TRUE, se.fit=FALSE, inte
                             else t(apply(bc, 1, quantile, probs=probs, na.rm=TRUE, names=FALSE))
   }
 
+  if (interval == "prediction" && object$family == "event") stop("prediction intervals are not available for event data; use interval=\"confidence\" for the cumulative proportion of events.")
   if (interval == "prediction"){
     if (object$family == "gaussian" && is.null(boot)){
       # new observation: uncertainty of the mean, residual variance, and the variance of the random
@@ -332,7 +341,9 @@ predict.drmTMB <- function(object, newdata=NULL, random=TRUE, se.fit=FALSE, inte
 preddata <- function(object, newdata, random, covs=FALSE){
   form <- object$formula
   form[2] <- NULL
-  x <- model.frame(form, data=newdata, na.action=na.pass)[, 1]
+  # event data: the cumulative proportion of events by the time in the first variable (start)
+  x <- if (identical(object$family, "event")) as.numeric(eval(form[[2]][[2]], newdata, environment(form)))
+       else model.frame(form, data=newdata, na.action=na.pass)[, 1]
   n <- length(x)
   Xs <- lapply(object$fterms, function(ft) designmatrix(ft, newdata))
   npi <- rep(1:5, sapply(Xs, ncol))
@@ -743,6 +754,9 @@ vcov.drmTMB <- function(object, ...){
 #' @rdname drmTMB-methods
 #' @export
 simulate.drmTMB <- function(object, nsim=1, seed=NULL, random=TRUE, ...){
+  if (identical(object$family, "event") && !eventcompletefit(object)){
+    stop("simulating event data needs complete series: intervals of each series from 0 to Inf without gaps; see the argument series of drmTMB.", call.=FALSE)
+  }
   if (!is.null(seed)) set.seed(seed)
   obj <- object$obj
   par <- obj$env$last.par.best
