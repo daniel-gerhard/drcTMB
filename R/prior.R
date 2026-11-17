@@ -188,18 +188,8 @@ priordata <- function(prior, dd, fix, lower, upper, coefnames){
   npi <- dd$npi
   terms <- dd$re$terms
   vn <- priorvarnames(terms, dd$family)
-  ntheta <- sum(vapply(terms, function(tm){
-    np <- length(tm$pars)
-    np + np*(np - 1)/2
-  }, numeric(1)))
-  # position of the log standard deviations in theta
-  sdpos <- unlist(lapply(seq_along(terms), function(t){
-    off <- sum(vapply(terms[seq_len(t - 1)], function(tm){
-      np <- length(tm$pars)
-      np + np*(np - 1)/2
-    }, numeric(1)))
-    off + seq_along(terms[[t]]$pars) - 1
-  }))
+  # position of the log standard deviations in theta, from 0
+  sdpos <- unlist(lapply(thetaindex(terms), function(ix) ix$sd)) - 1
 
   entries <- list()
   add <- function(key, what, idx, trans, p, range, label, lo=-1){

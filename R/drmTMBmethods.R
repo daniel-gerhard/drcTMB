@@ -91,14 +91,11 @@ summary.drmTMB <- function(object, ...){
   # standard deviations at the boundary (singular fit): the likelihood is flat in the log standard
   # deviation, which gives a very large or no standard error, independent of the scale of the parameter
   ses <- ests[rownames(ests) == "theta", 2]
-  toff <- 0
-  singular <- unlist(lapply(vcs, function(vc){
-    np <- length(vc$pars)
-    se <- ses[toff + seq_len(np)]
-    toff <<- toff + np + np*(np - 1)/2
+  singular <- unlist(Map(function(vc, ix){
+    se <- ses[ix$sd]
     nm <- paste(vc$group, vc$labels)
     nm[!is.finite(se) | se > 100 | vc$sd < 1e-8]
-  }))
+  }, vcs, thetaindex(object$reterms)))
 
   # Pearson dispersion for the families without a dispersion parameter, conditional on the
   # random effects; residual degrees of freedom from the number of estimated parameters
@@ -651,16 +648,16 @@ predsim <- function(object, pd, draws, trials, probs, vardraws=FALSE){
   env <- object$obj$env
   n <- length(pd$x)
   pest <- env$parList(object$opt$par)
+  tix <- thetaindex(object$reterms)
   sims <- apply(draws, 2, function(par){
     eta <- draweta(object, pd, par)
     if (vardraws) pest <- env$parList(par=par)
-    toff <- 0
     for (t in seq_along(object$reterms)){
       tm <- object$reterms[[t]]
       np <- length(tm$pars)
-      sdt <- exp(pest$theta[toff + seq_len(np)])
-      Ct <- corrmatrix(pest$theta[toff + np + seq_len(np*(np - 1)/2)], np)
-      toff <- toff + np + np*(np - 1)/2
+      ix <- tix[[t]]
+      sdt <- exp(pest$theta[ix$sd])
+      Ct <- corrmatrix(pest$theta[ix$corr], np)
       new <- which(pd$newgroup[, t])
       if (length(new) > 0){
         E <- matrix(rnorm(length(new)*np), ncol=np) %*% chol(Ct) %*% diag(sdt, nrow=np)
@@ -784,16 +781,15 @@ recov <- function(object){
   rn <- rownames(ests)
   thetas <- ests[rn %in% "theta", 1]
   corrs <- ests[rn %in% "corr", 1]
-  toff <- 0
   coff <- 0
-  lapply(object$reterms, function(tm){
+  Map(function(tm, ix){
     np <- length(tm$pars)
-    sdm <- exp(thetas[toff + seq_len(np)])
+    sdm <- exp(thetas[ix$sd])
+    # the reported correlation matrices of the terms, np x np each
     cr <- matrix(corrs[coff + seq_len(np*np)], nrow=np)
-    toff <<- toff + np + np*(np-1)/2
     coff <<- coff + np*np
     list(pars=tm$pars, labels=relabels(tm), group=tm$group, sd=sdm, corr=cr, cov=diag(sdm, nrow=np) %*% cr %*% diag(sdm, nrow=np))
-  })
+  }, object$reterms, thetaindex(object$reterms))
 }
 
 
@@ -915,6 +911,29 @@ printresid <- function(family, residpar, digits, rdf=NULL){
   if (family == "nbinom2") cat("\nNegative binomial size (theta): ", format(residpar, digits=digits), "\n", sep="")
   if (family == "betabinomial") cat("\nBeta-binomial precision (phi): ", format(residpar, digits=digits), "\n", sep="")
   if (family == "nbinom1") cat("\nNegative binomial dispersion (phi): ", format(residpar, digits=digits), "\n", sep="")
+}
+
+# silence the TMB object of a fit for evaluations of its objective at other parameters (tracing of the
+# inner optimisation), and return a function that restores its state (best parameters, random effects
+# start), as tmbprofile does: restore <- tmbquiet(obj); on.exit(restore())
+tmbquiet <- function(obj){
+  keep <- c("last.par.best", "random.start", "value.best", "last.par", "inner.control", "tracemgc")
+  old <- mget(keep, envir=obj$env, ifnotfound=list(NULL))
+  obj$env$inner.control$trace <- FALSE
+  obj$env$tracemgc <- FALSE
+  function() for (v in keep) assign(v, old[[v]], envir=obj$env)
+}
+
+# positions (from 1) of the log standard deviations (sd) and of the correlation parameters (corr) of
+# each random effect term in theta, the variance parameters of the template
+thetaindex <- function(terms){
+  off <- 0
+  lapply(terms, function(tm){
+    np <- length(tm$pars)
+    ix <- list(sd=off + seq_len(np), corr=off + np + seq_len(np*(np - 1)/2))
+    off <<- off + np + np*(np - 1)/2
+    ix
+  })
 }
 
 # index of the parameter (1-5 for b1-b5) of each coefficient of a fit

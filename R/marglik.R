@@ -133,11 +133,8 @@ mlis <- function(object, n, df, iters=3, alpha=0.2){
   R0 <- chol(object$sdrl$cov.fixed)
   b <- mlbounds(object)
   # keep the state of the TMB object, as tmbprofile does
-  keep <- c("last.par.best", "random.start", "value.best", "last.par", "inner.control", "tracemgc")
-  old <- mget(keep, envir=obj$env, ifnotfound=list(NULL))
-  on.exit(for (v in keep) assign(v, old[[v]], envir=obj$env))
-  obj$env$inner.control$trace <- FALSE
-  obj$env$tracemgc <- FALSE
+  restore <- tmbquiet(obj)
+  on.exit(restore())
   nllfun <- function(p){
     if (any(p <= b$lo | p >= b$up)) return(Inf)
     v <- tryCatch(suppressWarnings(as.numeric(obj$fn(p))), error=function(e) NA_real_)

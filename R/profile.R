@@ -234,11 +234,8 @@ profile.edTMB <- function(fitted, parm=NULL, level=0.99, maxit=100, progress=int
 
   obj <- fit$obj
   # keep the state of the TMB object, as tmbprofile does
-  keep <- c("last.par.best", "random.start", "value.best", "last.par", "inner.control", "tracemgc")
-  old <- mget(keep, envir=obj$env, ifnotfound=list(NULL))
-  on.exit(for (v in keep) assign(v, old[[v]], envir=obj$env))
-  obj$env$inner.control$trace <- FALSE
-  obj$env$tracemgc <- FALSE
+  restore <- tmbquiet(obj)
+  on.exit(restore())
 
   mod <- modelindex(fit$model)
   m <- drcmodel(mod)

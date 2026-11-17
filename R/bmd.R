@@ -276,16 +276,16 @@ bmdroot <- function(g, x0){
 # their parameters theta, as in the drcBMD template
 recholesky <- function(fit, theta){
   tnp <- vapply(fit$reterms, function(tm) length(tm$pars), integer(1))
+  tix <- thetaindex(fit$reterms)
   C <- matrix(0, sum(tnp), sum(tnp))
-  toff <- 0
   coff <- 0
-  for (np in tnp){
+  for (t in seq_along(tnp)){
+    np <- tnp[t]
     L <- diag(np)
-    L[upper.tri(L)] <- theta[toff + np + seq_len(np*(np - 1)/2)]
+    L[upper.tri(L)] <- theta[tix[[t]]$corr]
     L <- t(L)
     L <- L / sqrt(rowSums(L^2))
-    C[coff + seq_len(np), coff + seq_len(np)] <- exp(theta[toff + seq_len(np)]) * L
-    toff <- toff + np + np*(np - 1)/2
+    C[coff + seq_len(np), coff + seq_len(np)] <- exp(theta[tix[[t]]$sd]) * L
     coff <- coff + np
   }
   C
