@@ -555,8 +555,6 @@ drmTMBobj <- function(dd, start, fix, rform=NULL){
                 tnp=tnp, tnl=tnl, tpar=as.integer(unlist(lapply(re$terms, function(tm) tm$pars)) - 1),
                 tzb=if (length(re$terms) > 0) tzbvec(re$terms) else integer(0),
                 simre=1L, Z=re$Z)
-  # no predictions: see predictse
-  Xp <- setNames(lapply(dd$Xs, function(X) X[0, , drop=FALSE]), paste("Xp", 1:5, sep=""))
   # priors, without those on the variances of the random effects for a fit without them
   pd <- if (is.null(dd$prior)) priordata(NULL)$data else dd$prior
   if (length(re$terms) == 0) pd <- priorsubset(pd, pd$prwhat != 1)
@@ -565,7 +563,7 @@ drmTMBobj <- function(dd, start, fix, rform=NULL){
           else list(bmdpar=1L, b4role=as.integer(bm$role), bdef=as.integer(bm$code), bbmr=bm$bmr, binc=as.integer(bm$inc))
   bdat$b4pos <- as.integer(!is.null(bm) && isTRUE(bm$b4pos))
   bdat$bdmax <- max(dd$x)
-  datalist <- c(dlist, dd$Xs, list(xp=numeric(0)), Xp, list(Zp=re$Z[0, , drop=FALSE]), bdat, pd)
+  datalist <- c(dlist, dd$Xs, bdat, pd)
   # residual correlation structure and variance function
   cd <- if (is.null(dd$cor)) cordata(NULL) else dd$cor
   vd <- if (is.null(dd$var)) vardata(NULL) else dd$var
