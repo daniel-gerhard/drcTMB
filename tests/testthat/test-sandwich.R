@@ -70,7 +70,8 @@ test_that("series of a correlation structure, nested and crossed groups, priors"
     -o$gr(f$opt$par)
   }))
   expect_equal(unname(S), unname(S2), tolerance=1e-8)
-  expect_equal(unname(colSums(S)), -as.vector(f$obj$gr(f$opt$par)), tolerance=1e-8)
+  # at the optimum both sides are rounding noise (~1e-14), so compare on the scale of the scores
+  expect_lt(max(abs(colSums(S) + as.vector(f$obj$gr(f$opt$par)))), 1e-8*max(abs(S)))
   expect_error(vcovrobust(f, cluster=seq_len(nrow(dc))), "series of the correlation structure must be nested")
   expect_equal(dim(vcovrobust(f, cluster=~ lab)), c(6L, 6L))
 
