@@ -54,8 +54,8 @@ effective doses and benchmark doses for all of them.
 pak::pak("daniel-gerhard/drcTMB")
 ```
 
-The examples below use data sets of the package
-[drcData](https://github.com/DoseResponse/drcData) and of nlme.
+The examples below use data sets of drcTMB, most of them from the
+package [drcData](https://github.com/DoseResponse/drcData), and of nlme.
 
 ## A first model
 
@@ -66,7 +66,6 @@ of drc.
 
 ``` r
 library(drcTMB)
-library(drcData)
 library(ggplot2)
 data(ryegrass)
 

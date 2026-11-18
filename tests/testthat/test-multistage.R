@@ -119,8 +119,7 @@ test_that("multistage bounds and options", {
 test_that("standard errors of coefficients on a small scale are finite", {
   # selenium, type 1: b4 of the quadratic model is about 2.5e-6, smaller than the absolute steps of
   # the finite-difference Hessian of sdreport
-  skip_if_not_installed("drcData")
-  data(selenium, package="drcData")
+  data(selenium, package="drcTMB")
   se1 <- subset(selenium, type == 1)
   f <- drmTMB(cbind(dead, total - dead) ~ conc, data=se1, family="binomial", model="multistage",
               start=c(b2=1, b5=0), fix=c(b2=TRUE, b5=TRUE))

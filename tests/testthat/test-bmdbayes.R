@@ -1,6 +1,5 @@
 # Bayesian model-averaged BMD: weights from the marginal likelihoods, mixture quantiles, checks
 
-library(drcData)
 data(ryegrass)
 
 prb <- list(bmd=pert(0.1, 1, 5), b2=normal(8, 1), b3=normal(-2, 2), sigma=half_normal(1))

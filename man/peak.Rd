@@ -14,15 +14,16 @@ peak(x, linfct = NULL, newdata = NULL, random = TRUE, vcov. = NULL)
 \item{vcov.}{the covariance of the estimated parameters, as in \code{\link{ed}}}
 }
 \value{
-an edTMB object
+an edTMB object, with entries "dose:curve" and "response:curve"; not available for fits in
+the BMD parameterisation
 }
 \description{
 The dose at which a curve of the hormesis models braincousens and cedergreen, or of the substrate
 inhibition model haldane, reaches its maximum, and the maximal response, as \code{MAX} in drc. For the
 hormesis models the peak has no closed form: it is found numerically, and its derivatives, for the
 standard errors, follow from the implicit function theorem, as for the effective doses of
-\code{\link{ed}}. Curves without a stimulation (b5 <= 0, or a curve that does not decrease at high
-doses) have no peak, and give NA with a warning. For haldane, the peak is at the dose sqrt(b4/b5), the
+\code{\link{ed}}. Curves without a stimulation (b5 <= 0) have no peak, and give NA with a warning; the
+hormesis models need a decreasing curve (b3 < 0), otherwise an error is raised. For haldane, the peak is at the dose sqrt(b4/b5), the
 optimal substrate concentration sqrt(Km Ki); without inhibition (b5 = 0) there is no peak. With a
 \code{curvelink}, the peak dose is that of the curve, as the link is monotone, and the response at the
 peak is on the scale of the response, the inverse link of the curve at the peak.
@@ -33,4 +34,15 @@ peak of each curve, named "dose" and "response", and their joint covariance matr
 \code{glht} of multcomp. \code{\link{confint.edTMB}} gives Wald and bootstrap intervals for both,
 and profile likelihood intervals for the dose; for the response, profile intervals are not
 available and Wald intervals are returned, with a message.
+}
+\examples{
+# hormesis: stimulation of the growth of lettuce at low concentrations of isobutyl alcohol
+hmod <- drmTMB(weight ~ conc, data = lettuce, model = "braincousens")
+(p <- peak(hmod))
+confint(p, method = "wald")
+# the dose at which the response returns to the level of the control
+ed(hmod, respLev = 0)
+}
+\seealso{
+\code{\link{ed}}, \code{\link{confint.edTMB}}, \code{\link{edTMB-methods}}
 }

@@ -15,7 +15,8 @@
 #' conservative: the p-value is approximately twice the correct value for a single standard
 #' deviation.
 #'
-#' For gaussian and lognormal (on the log scale) models without random effects, \code{test="F"} gives F-tests, as drc does for
+#' For gaussian and lognormal (on the log scale) models without random effects, priors, correlation
+#' structure and variance function, \code{test="F"} gives F-tests, as drc does for
 #' continuous responses: the reduction of the (weighted) residual sum of squares per additional
 #' parameter, divided by the residual mean square of the largest model, with n - p residual degrees
 #' of freedom for p coefficients b1-b5. The F-test is exact for linear models and accounts for the
@@ -38,11 +39,15 @@
 #' @param object a drmTMB object
 #' @param ... further drmTMB objects
 #' @param test "Chisq" (default) for likelihood ratio tests, "F" for F-tests of gaussian or lognormal models
-#'   without random effects, or "boot" for parametric bootstrap likelihood ratio tests
+#'   without random effects, priors, correlation structure and variance function, or "boot" for parametric bootstrap likelihood ratio tests
 #' @param nsim number of simulations for \code{test="boot"}
 #' @param seed an optional seed for the random number generator, for \code{test="boot"}
 #' @param progress logical, show a progress bar for \code{test="boot"}
 #'
+#' @references Halekoh, U. and Hojsgaard, S. (2014). A Kenward-Roger approximation and parametric
+#' bootstrap methods for tests in linear mixed models - the R package pbkrtest. Journal of Statistical
+#' Software 59(9), 1-32.
+#' @seealso \code{\link{drmTMB}} (model="constant" for a test of a dose effect), \code{\link{bootstrap}}
 #' @return a data frame of class anova with the number of parameters (npar), AIC, BIC, log-likelihood
 #'   and deviance (minus twice the log-likelihood) of each model, and the likelihood ratio statistic
 #'   (Chisq), its degrees of freedom (Df) and p-value (Pr(>Chisq)) for the comparison with the
@@ -51,6 +56,18 @@
 #'   \code{test="boot"}, additionally the bootstrap p-value (Pr(boot)), with the simulated likelihood ratio
 #'   statistics of each comparison in the attribute \code{"boot"}.
 #' @export
+#'
+#' @examples
+#' mod <- drmTMB(rootl ~ conc, data = ryegrass, model = "loglogistic",
+#'               start = c(b1 = 0, b5 = 0), fix = c(b1 = TRUE, b5 = TRUE))
+#' # a free lower asymptote b1
+#' mod4 <- drmTMB(rootl ~ conc, data = ryegrass, model = "loglogistic",
+#'                start = c(b5 = 0), fix = c(b5 = TRUE))
+#' anova(mod, mod4)
+#' anova(mod, mod4, test = "F")
+#' # test for any dose effect, against a constant mean
+#' mod0 <- drmTMB(rootl ~ conc, data = ryegrass, model = "constant")
+#' anova(mod0, mod)
 anova.drmTMB <- function(object, ..., test=c("Chisq", "F", "boot"), nsim=1000, seed=NULL, progress=interactive()){
   test <- match.arg(test)
   fits <- c(list(object), list(...))

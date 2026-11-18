@@ -1,7 +1,6 @@
 # EFSA Bayesian BMD defaults: negate and exponential priors, the quadratic exponential BMD
 # parameterisation, efsapriors, bmdefsa (against EFSA EN-9902) and fitpert
 
-library(drcData)
 data(ryegrass)
 data(TCDD)
 data(liver.tumor)

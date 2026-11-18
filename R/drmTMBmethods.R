@@ -1,21 +1,31 @@
-#' drmTMB Methods
+#' Methods for fitted drmTMB models
+#'
+#' Print, summary, coefficients, covariance matrix, log-likelihood, fitted values, residuals,
+#' predictions with confidence and prediction intervals, and simulation for fits of
+#' \code{\link{drmTMB}}. Confidence intervals of the coefficients are given by
+#' \code{\link{confint.drmTMB}}, effective doses by \code{\link{ed}}.
+#'
+#' The fitted values and predictions are the mean response, the median for the lognormal family (see
+#' \code{\link{drmTMB}}), and the probability for binomial responses. With random=FALSE, they are the
+#' curve with the random effects set to zero (the typical group), not the mean over the groups.
 #'
 #' @param x,object a drmTMB object
 #' @param newdata a data frame for prediction. If NULL, the original data is used.
-#' @param random logical, if TRUE, the random effects are included in the predictions, fitted values and residuals (conditional residuals). For simulate, if TRUE, new random effects are drawn for each simulation, otherwise the fitted random effects are kept.
+#' @param random logical; if TRUE (default), the random effects are included in the predictions, fitted values and residuals (conditional residuals). For simulate, if TRUE, new random effects are drawn for each simulation, otherwise the fitted random effects are kept.
 #'   For prediction intervals, random=TRUE gives the interval of a new observation in the group of each row of newdata, and random=FALSE the interval of a new observation in a new group, including the variance of the random effects. Rows of newdata with a level that is not in the fitted data are treated as new groups for that random effect term.
 #' @param se.fit logical, if TRUE, predict returns the standard errors of the predicted means, by the delta method; with random=TRUE they include the uncertainty of the predicted random effects.
-#' @param interval type of interval of predict: "none", "confidence" for confidence intervals of the mean, computed on the log scale for poisson and lognormal and on the logit scale for binomial and beta responses, or "prediction" for prediction intervals of a new observation with weight 1. Gaussian and lognormal models without random effects use t quantiles with n - p degrees of freedom and the unbiased residual variance, see \code{\link{drmTMB}}. For the gaussian and lognormal (on the log scale) families without boot, the prediction intervals use the normal (or t) distribution, and the variance of the random effects of new groups is added by the delta method. Otherwise they are quantiles of new observations simulated at nsim draws from the normal approximation of the fixed and random effects, with the variance parameters kept at their estimates, or at the bootstrap fits (see boot); with new random effects for new groups; for a binomial response as proportions, with the number of trials from the response in newdata (one for a binary response).
+#' @param interval type of interval of predict: "none", "confidence" for confidence intervals of the mean, computed on the log scale for the poisson, negative binomial and lognormal families and on the logit scale for the binomial, beta-binomial, beta and event families and back-transformed, or "prediction" for prediction intervals of a new observation with weight 1. Gaussian and lognormal models with small-sample inference (without random effects, see \code{\link{drmTMB}}) use t quantiles with n - p degrees of freedom and the unbiased residual variance. For the gaussian and lognormal (on the log scale) families without boot, the prediction intervals use the normal (or t) distribution, and the variance of the random effects of new groups is added by the delta method. Otherwise they are quantiles of new observations simulated at nsim draws from the normal approximation of the fixed and random effects, with the variance parameters kept at their estimates, or at the bootstrap fits (see boot); with new random effects for new groups; for a binomial response as proportions, with the number of trials from the response in newdata (one for a binary response).
 #' @param level confidence level of the intervals of predict
 #' @param digits number of significant digits in the printed output
-#' @param type type of residuals: "pearson" (default), the response residuals divided by the standard deviation of the fitted distribution and multiplied by the square root of the weights; "response", the observed minus the fitted values, as proportions for a binomial response; or "quantile", randomised quantile residuals (Dunn and Smyth, 1996), which are standard normal under the model. For the gaussian family, the quantile residuals are multiplied by the square root of the weights, as precision weights with standard deviation sigma/sqrt(w); for the other families they do not use the weights, as a weighted log-likelihood is not the density of a distribution of the observation. The quantile residuals are random for the count families; use set.seed for reproducible values. For the lognormal family, the pearson and quantile residuals are the standardised residuals of log(y), (log(y) - log(f))/sigma, multiplied by the square root of the weights. With a variance function, the gaussian and lognormal residuals are divided by sigma g instead of sigma; with a correlation structure, the quantile residuals are normalized, multiplied within each series by the inverse Cholesky factor of its correlation matrix, so that they are independent standard normal under the model (the "normalized" residuals of nlme).
+#' @param type for residuals, the type of residuals: "pearson" (default), the response residuals divided by the standard deviation of the fitted distribution and multiplied by the square root of the weights; "response", the observed minus the fitted values, as proportions for a binomial response; or "quantile", randomised quantile residuals (Dunn and Smyth, 1996), which are standard normal under the model. For the gaussian family, the quantile residuals are multiplied by the square root of the weights, as precision weights with standard deviation sigma/sqrt(w); for the other families they do not use the weights, as a weighted log-likelihood is not the density of a distribution of the observation. The quantile residuals are random for the count families; use set.seed for reproducible values. For the lognormal family, the pearson and quantile residuals are the standardised residuals of log(y), (log(y) - log(f))/sigma, multiplied by the square root of the weights. With a variance function, the gaussian and lognormal residuals are divided by sigma g instead of sigma; with a correlation structure, the quantile residuals are normalized, multiplied within each series by the inverse Cholesky factor of its correlation matrix, so that they are independent standard normal under the model (the "normalized" residuals of nlme).
+#'
+#'   For predict, the type of prediction: "response" (default), the mean response at the doses of newdata, or "parameters", the parameters b1-b5 of the curve of each row of newdata (with its covariates in fform and, with random=TRUE, the random effects of its groups); newdata then needs no dose. The standard errors of the parameters are those of the estimates, by the delta method, and their confidence intervals are computed on the scale of the link and back-transformed; with random=TRUE, they include the uncertainty of the predicted random effects of the fitted groups. Prediction intervals of the parameters add the variance of the random effects of the terms without a fitted level, the parameters of a new group, and are not available with boot.
 #' @param nsim number of response vectors to simulate; for predict, the number of parameter draws for simulated prediction intervals
 #' @param seed an optional seed for the random number generator
 #' @param boot a bootstrap sample of the model from \code{\link{bootstrap}}. predict then gives the standard deviation of the bootstrap predictions as se.fit, percentile confidence intervals, and prediction intervals simulated at the bootstrap fits, including their variance parameters. The bootstrap responses have new random effects, so for random=TRUE the random effects of the fitted groups are drawn, for each bootstrap fit, from the Laplace approximation of their conditional distribution given the original data at the parameters of that fit.
-#' @param type type of prediction: "response" (default), the mean response at the doses of newdata, or "parameters", the parameters b1-b5 of the curve of each row of newdata (with its covariates in fform and, with random=TRUE, the random effects of its groups); newdata then needs no dose. The standard errors of the parameters are those of the estimates, by the delta method, and their confidence intervals are computed on the scale of the link and back-transformed; with random=TRUE, they include the uncertainty of the predicted random effects of the fitted groups. Prediction intervals of the parameters add the variance of the random effects of the terms without a fitted level, the parameters of a new group, and are not available with boot.
 #' @param scale for type="parameters", the scale of the parameters: "original" (default) or "link", the scale of the coefficients, see the argument parlink of \code{\link{drmTMB}}.
 #' @param vcov. for summary and predict, the covariance of the estimated parameters for the standard errors and Wald intervals: a matrix as vcov() of the fit, or a function of the fit that returns one, e.g. the sandwich covariance \code{\link{vcovrobust}}. NULL (default) for vcov() of the fit. The prediction intervals of predict that are simulated use it for the draws of the fixed parameters.
-#' @param ... anything else
+#' @param ... further arguments, not used
 #'
 #' @return Estimated model coefficients, variance-covariance matrix, or predictions.
 #' predict returns a vector of predicted means, or, with se.fit=TRUE or an interval, a data frame with
@@ -39,13 +49,51 @@
 #' argument of \code{multcomp::glht} for effective doses, it gives multivariate t instead of normal
 #' quantiles.
 #' simulate returns a data frame with nsim columns of simulated responses at the estimated
-#' parameters; for a binomial response given as cbind(successes, failures), the number of successes.
+#' parameters; for a binomial response given as cbind(successes, failures), the number of successes, and
+#' for the event family the counts of the intervals.
+#'
+#' @references Dunn, P. K. and Smyth, G. K. (1996). Randomized quantile residuals. Journal of
+#' Computational and Graphical Statistics 5, 236-244.
+#'
+#' @seealso \code{\link{drmTMB}}, \code{\link{confint.drmTMB}}, \code{\link{profile.drmTMB}},
+#'   \code{\link{bootstrap}}, \code{\link{vcovrobust}}, \code{\link{ed}}, \code{\link{plot.drmTMB}}
 #' @export
 #'
 #' @name drmTMB-methods
 #' @aliases print.drmTMB summary.drmTMB print.summary.drmTMB logLik.drmTMB nobs.drmTMB df.residual.drmTMB fitted.drmTMB residuals.drmTMB predict.drmTMB coef.drmTMB vcov.drmTMB simulate.drmTMB
 #' 
 #' @rdname drmTMB-methods
+#'
+#' @examples
+#' mod <- drmTMB(rootl ~ conc, data = ryegrass, model = "loglogistic",
+#'               start = c(b1 = 0, b5 = 0), fix = c(b1 = TRUE, b5 = TRUE))
+#' mod
+#' summary(mod)
+#' coef(mod)
+#' vcov(mod)
+#' logLik(mod)
+#' AIC(mod)
+#' nobs(mod)
+#' df.residual(mod)
+#' head(fitted(mod))
+#' head(residuals(mod, type = "quantile"))
+#'
+#' # confidence and prediction intervals, and the parameters of the curve
+#' nd <- data.frame(conc = c(1, 3, 10))
+#' predict(mod, newdata = nd, interval = "confidence")
+#' predict(mod, newdata = nd, interval = "prediction")
+#' predict(mod, newdata = nd[1, , drop = FALSE], type = "parameters")
+#'
+#' # the fitted curve with a confidence band
+#' grid <- data.frame(conc = exp(seq(log(0.5), log(30), length.out = 100)))
+#' pr <- predict(mod, newdata = grid, interval = "confidence")
+#' plot(rootl ~ conc, data = subset(ryegrass, conc > 0), log = "x")
+#' lines(grid$conc, pr$fit)
+#' lines(grid$conc, pr$lwr, lty = 2)
+#' lines(grid$conc, pr$upr, lty = 2)
+#'
+#' # new responses simulated from the fitted model
+#' head(simulate(mod, nsim = 2, seed = 1))
 print.drmTMB <- function(x, digits=max(3L, getOption("digits") - 3L), ...){
   printheader(x)
 

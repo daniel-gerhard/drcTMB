@@ -6,14 +6,28 @@
 \alias{drcTMB-package}
 \title{drcTMB: Fitting Dose-Response Curves Using the Template Model Builder}
 \description{
-Fits non-linear dose-response models, optionally with random effects, by maximum likelihood using the Template Model Builder ('TMB'), with the Laplace approximation for the random effects. The log-logistic, Weibull, hormesis and threshold models of the 'drc' package are available, and the response can follow a Gaussian, Poisson, binomial, beta, beta-binomial or negative binomial distribution. Effective doses and their standard errors are derived by automatic differentiation.
+Fits non-linear dose-response models (log-logistic, Weibull, log-normal, Gompertz, hormesis, threshold, Michaelis-Menten, and the gamma, multistage, exponential and power models of the benchmark dose software of the US EPA and of 'PROAST'), optionally with covariates and random effects on the parameters, using the Template Model Builder ('TMB', Kristensen et al. (2016) \doi{10.18637/jss.v070.i05}) with the Laplace approximation for the random effects. The interface follows the 'drc' package (Ritz et al. (2015) \doi{10.1371/journal.pone.0146021}). The response can be Gaussian, lognormal, binomial, beta-binomial, beta, Poisson, negative binomial or time-to-event counts, and Gaussian and lognormal residuals can be correlated or heteroscedastic. Estimation is by maximum likelihood, or by the posterior mode with priors. Effective doses and benchmark doses come with standard errors by automatic differentiation and with profile likelihood, bootstrap or robust sandwich intervals; benchmark doses can be averaged over models with information criteria or by Bayesian model averaging as recommended by the European Food Safety Authority (EFSA Scientific Committee (2022) \doi{10.2903/j.efsa.2022.7584}).
+}
+\details{
+The main functions are:
+\itemize{
+\item \code{\link{drmTMB}}: fit a dose-response model; methods in \code{\link{drmTMB-methods}},
+diagnostics with \code{\link{plot.drmTMB}};
+\item \code{\link{ed}}, \code{\link{peak}}: effective doses and the peak of hormesis curves;
+\item \code{\link{bmd}}, \code{\link{bmdma}}: benchmark doses and their model averaging;
+\item \code{\link{bmdbayes}}, \code{\link{bmdefsa}}: Bayesian model averaging of benchmark doses;
+\item \code{\link{confint.drmTMB}}, \code{\link{profile.drmTMB}}, \code{\link{bootstrap}},
+\code{\link{vcovrobust}}: intervals and standard errors;
+\item \code{\link{anova.drmTMB}}: model comparison.
+}
+\code{vignette("drcTMB", package = "drcTMB")} introduces the package with examples.
 }
 \author{
-\strong{Maintainer}: Daniel Gerhard \email{00gerhard@gmail.com} (\href{https://orcid.org/0000-0002-9336-3454}{ORCID})
+\strong{Maintainer}: Daniel Gerhard \email{daniel.gerhard@canterbury.ac.nz} (\href{https://orcid.org/0000-0002-9336-3454}{ORCID})
 
 Authors:
 \itemize{
-  \item Daniel Gerhard \email{00gerhard@gmail.com} (\href{https://orcid.org/0000-0002-9336-3454}{ORCID})
+  \item Daniel Gerhard \email{daniel.gerhard@canterbury.ac.nz} (\href{https://orcid.org/0000-0002-9336-3454}{ORCID})
 }
 
 }

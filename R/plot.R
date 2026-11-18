@@ -2,7 +2,8 @@
 #'
 #' Residuals against the fitted values, residuals against the dose, a normal QQ plot of the
 #' residuals, and normal QQ plots of the predicted random effects, drawn as ggplot2 graphs on one
-#' page.
+#' page. Unlike plot.drc of drc, it draws residual diagnostics, not the fitted dose-response curve;
+#' for the curve, use \code{\link{predict.drmTMB}} on a grid of doses (see the vignette).
 #'
 #' The default randomised quantile residuals are standard normal under the model for all families,
 #' so the QQ plot is compared with the identity line; for the discrete families they are drawn
@@ -27,15 +28,23 @@
 #'   "response"
 #' @param random if TRUE, residuals and fitted values include the predicted random effects
 #' @param logdose logarithmic dose axis; by default for the models on the log-dose scale
-#'   (loglogistic, weibull1, weibull2, lognormal)
+#'   (loglogistic, weibull1, weibull2, lognormal, braincousens, cedergreen)
 #' @param ncol number of columns of the page
 #' @param seed seed for the randomised quantile residuals
 #' @param draw if FALSE, the graphs are returned without drawing them
 #' @param ... not used
 #'
+#' @seealso \code{\link{residuals.drmTMB}}, \code{\link{predict.drmTMB}}
 #' @return a list of ggplot objects, invisibly, named fitted, dose, qq and ranef, for changing or
 #'   drawing single graphs
 #' @export
+#'
+#' @examples
+#' mod <- drmTMB(rootl ~ conc, data = ryegrass, model = "loglogistic",
+#'               start = c(b1 = 0, b5 = 0), fix = c(b1 = TRUE, b5 = TRUE))
+#' plot(mod)
+#' # residuals against the dose only, on the log scale
+#' plot(mod, which = 2, logdose = TRUE)
 plot.drmTMB <- function(x, which=1:3, type=c("quantile", "pearson", "response"), random=TRUE, logdose=NULL, ncol=NULL, seed=NULL, draw=TRUE, ...){
   type <- match.arg(type)
   if (!all(which %in% 1:4)) stop("which must be a subset of 1:4.")

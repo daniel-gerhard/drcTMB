@@ -9,12 +9,16 @@
 #' @param ... drmTMB objects fitted in the BMD parameterisation (\code{bmdpar} of \code{\link{drmTMB}})
 #'   with the same benchmark response and definition, the same prior for the BMD
 #'   (\code{prior=list(bmd=...)}) and proper priors for all estimated parameters, to the same doses,
-#'   responses and weights; the models and families may differ. Arguments are named by the argument
-#'   names, or by the expressions.
+#'   responses and weights; the models and families may differ. A single model is allowed. Models are labelled by
+#'   their argument names (e.g. LL = fit1) or, if unnamed, by the expressions. The fits use
+#'   \code{drmTMB(..., bmdpar=list(bmr=, def=), prior=list(bmd=..., ...))}, in which b4 is replaced by the
+#'   log BMD (coefficient log_bmd), so that the BMD has a prior; \code{\link{efsapriors}} gives the
+#'   default priors of EFSA, and \code{\link{bmdefsa}} does all steps.
 #' @param prior.weights prior probabilities of the models, in the order of \code{...}; equal by default.
 #' @param method "laplace" (default) for the Laplace approximation of the marginal likelihoods and a
 #'   normal posterior distribution of the log BMD of each model, or "is" for importance sampling of both
-#'   (see \code{\link{marglik}})
+#'   (see \code{\link{marglik}}); importance sampling is recommended when posterior modes are close to
+#'   the bounds of PERT priors
 #' @param n,df number of draws of the final round and degrees of freedom of the proposal of importance
 #'   sampling (see \code{\link{marglik}})
 #' @param x,object a bmdbayes object
@@ -31,14 +35,14 @@
 #' \code{method="is"}, the importance sampling draws of each model, weighted by their importance weights
 #' and the posterior probability of the model, give both the marginal likelihoods and the mixture,
 #' without the normal approximation. The BMD is the median of the mixture, and the BMDL and BMDU the
-#' quantiles (1 - level)/2 and (1 + level)/2, the 5\% and 95\% quantiles of a 90\% credible interval.
+#' quantiles (1 - level)/2 and (1 + level)/2, the 5% and 95% quantiles of a 90% credible interval.
 #'
 #' With random effects, the BMD of the BMD parameterisation is that of the curve of the intercepts, with
 #' the random effects at zero (the conditional BMD of \code{\link{bmd}}).
 #'
 #' A model whose marginal likelihood cannot be computed (e.g. the fit did not converge, or its Hessian is
 #' not positive definite) gets the weight 0, with a warning. \code{print} notes the criteria of EFSA
-#' (2022) for a credible interval that is too wide, with the 90\% interval: BMD/BMDL above 20, BMDU/BMDL
+#' (2022) for a credible interval that is too wide, with the 90% interval: BMD/BMDL above 20, BMDU/BMDL
 #' above 50, and a BMDL below a tenth of the lowest dose above zero.
 #'
 #' @references EFSA Scientific Committee (2022). Guidance on the use of the benchmark dose approach in
@@ -50,9 +54,21 @@
 #'   the log BMD of each model (\code{posterior}: the mean and standard deviation of the normal
 #'   distribution, or the draws and their weights), the lowest dose above zero, and the arguments. coef
 #'   returns the BMD, confint the credible interval, and \code{bmdbayesmodels} the BMDs and credible
-#'   intervals of the models.
+#'   intervals of the models, a data frame with the posterior median BMD, BMDL and BMDU of each model.
+#' @seealso \code{\link{bmdefsa}}, \code{\link{efsapriors}}, \code{\link{marglik}}, \code{\link{fitpert}},
+#'   \code{\link{priors}}, \code{\link{bmdma}}
 #' @export
 #' @aliases bmdbayes print.bmdbayes coef.bmdbayes confint.bmdbayes
+#'
+#' @examples
+#' pr <- list(bmd = pert(0.1, 1, 5), b2 = normal(8, 1), b3 = normal(-2, 2), sigma = half_normal(1))
+#' fit <- function(model)
+#'   drmTMB(rootl ~ conc, data = ryegrass, model = model,
+#'          start = c(b1 = 0, b5 = 0), fix = c(b1 = TRUE, b5 = TRUE),
+#'          bmdpar = list(bmr = 0.05, def = "relative"), prior = pr)
+#' (ba <- bmdbayes(LL = fit("loglogistic"), W1 = fit("weibull1"), W2 = fit("weibull2")))
+#' coef(ba)
+#' confint(ba)
 bmdbayes <- function(..., prior.weights=NULL, method=c("laplace", "is"), n=5000, df=4){
   method <- match.arg(method)
   fits <- namefits(list(...), as.list(substitute(list(...)))[-1])

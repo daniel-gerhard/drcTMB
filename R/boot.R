@@ -1,9 +1,11 @@
 #' Parametric bootstrap of a drmTMB model
 #'
 #' Simulates responses from the fitted model, with new random effects (see
-#' \code{\link{simulate.drmTMB}}), and fits the model again to each simulated response, with the iteration limits of the fit (\code{control} in \code{\link{drmTMB}}), starting at the
-#' estimates. The bootstrap sample can be used for confidence intervals of the model parameters and of
-#' effective doses, see \code{\link{confint.drmTMB}}, without fitting the models again.
+#' \code{\link{simulate.drmTMB}}), and fits the model again to each simulated response, with the bounds, priors and optimiser settings of the
+#' fit (\code{control} in \code{\link{drmTMB}}), starting at the estimates. The bootstrap sample can be
+#' passed as the argument boot to \code{\link{confint.drmTMB}} (for the coefficients, and for the results of
+#' \code{\link{ed}}, \code{\link{bmd}} and \code{\link{peak}}) and to \code{\link{predict.drmTMB}}, so that
+#' the model is not fitted again.
 #'
 #' @param object a drmTMB object
 #' @param nsim number of simulations
@@ -13,14 +15,24 @@
 #' @param digits number of significant digits in the printed output
 #' @param parm parameters, names or positions in \code{coef}; default all
 #' @param level the confidence level
-#' @param ... ignored
+#' @param ... further arguments, not used
 #'
 #' @return bootstrap returns a bootstrap.drmTMB object, a list with the estimates of \code{coef(object)}
 #'   for each simulation (\code{estimates}, a matrix with NA rows for fits that did not converge), the
 #'   fitted model (\code{fit}), and \code{nsim} and \code{seed}. confint returns percentile intervals
-#'   of the parameters, on the scale of \code{\link{confint.drmTMB}}.
+#'   of the parameters, on the scale of \code{\link{confint.drmTMB}}. print shows the estimate, the mean of
+#'   the bootstrap estimates, the bias and the bootstrap standard error of each parameter.
+#' @seealso \code{\link{confint.drmTMB}}, \code{\link{predict.drmTMB}}, \code{\link{anova.drmTMB}}
 #' @export
 #' @aliases bootstrap print.bootstrap.drmTMB confint.bootstrap.drmTMB
+#'
+#' @examples
+#' mod <- drmTMB(rootl ~ conc, data = ryegrass, model = "loglogistic",
+#'               start = c(b1 = 0, b5 = 0), fix = c(b1 = TRUE, b5 = TRUE))
+#' b <- bootstrap(mod, nsim = 100, seed = 1)
+#' b
+#' confint(b)
+#' predict(mod, newdata = data.frame(conc = c(1, 3, 10)), interval = "confidence", boot = b)
 bootstrap <- function(object, nsim=500, seed=NULL, progress=interactive()){
   if (!inherits(object, "drmTMB")) stop("object must be a drmTMB object.")
   sims <- simulate(object, nsim=nsim, seed=seed)

@@ -1,7 +1,6 @@
 # time-to-event (germination) data: family="event", against drc's type="event", and random effects of
 # dishes by simulation
 
-library(drcData)
 data(chickweed)
 data(germination)
 
@@ -122,5 +121,5 @@ test_that("checks of event data", {
                "b1 of event data is fixed at 0")
   expect_error(fitev(bmdpar=list(bmr=0.1, def="relative")), "not available for event data")
   expect_error(bmd(fitev()), "not available for event data")
-  expect_error(drmTMB(rootl ~ conc, data=drcData::ryegrass, model="loglogistic", series=~ conc), "only used by the event family")
+  expect_error(drmTMB(rootl ~ conc, data=drcTMB::ryegrass, model="loglogistic", series=~ conc), "only used by the event family")
 })

@@ -1,6 +1,5 @@
 # BMD parameterisation (bmdpar): b4 replaced by the log BMD of the curve of the intercepts
 
-library(drcData)
 data(ryegrass)
 
 ctl <- list(smallsample=FALSE)

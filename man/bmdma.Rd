@@ -29,8 +29,8 @@ bmdma(
 }
 \arguments{
 \item{...}{drmTMB objects, fitted to the same response, doses and weights; the models and families
-may differ (e.g. gaussian and lognormal, whose AICs are comparable). Arguments are named by the
-argument names, or by the expressions. The fits are maximum likelihood fits without priors; for
+may differ (e.g. gaussian and lognormal, whose AICs are comparable). Models are labelled by their argument
+names (e.g. LL = fit1) or, if unnamed, by the expressions. The fits are maximum likelihood fits without priors; for
 fits with priors, see \code{\link{bmdbayes}}.}
 
 \item{bmr, def, newdata, scale, nodes}{the benchmark response and the definition, the covariates of the
@@ -43,7 +43,8 @@ curves of the models, or "bmd" for the weighted mean of the BMDs of the models}
 
 \item{weights}{the information criterion of the model weights, "AIC" (default) or "BIC"}
 
-\item{nsim}{number of bootstrap samples; 0 for no bootstrap}
+\item{nsim}{number of bootstrap samples; 0 for no bootstrap (then there is no BMDL for
+average="curve")}
 
 \item{seed}{an optional seed for the random number generator}
 
@@ -58,7 +59,8 @@ curves of the models, or "bmd" for the weighted mean of the BMDs of the models}
 \item{level}{the confidence level; 0.90 by default, for the BMDL and BMDU}
 
 \item{method}{"boot" for bootstrap percentile intervals, or "buckland" for Wald intervals with the
-standard error of Buckland et al. (1997), for \code{average="bmd"} only}
+standard error of Buckland et al. (1997), for \code{average="bmd"} only; by default "boot" if
+the bootstrap was run (nsim > 0), and "buckland" otherwise}
 }
 \value{
 bmdma returns a bmdma object, a list with the averaged BMDs (\code{estimates}), the table of
@@ -71,9 +73,12 @@ confint their confidence intervals.
 \description{
 Benchmark doses (see \code{\link{bmd}}) averaged over several dose-response models fitted to the
 same data, with AIC or BIC weights, and bootstrap confidence intervals: the BMDL is the lower limit of the
-two-sided 90\\% interval, \code{confint(bmdma(...))}.
+two-sided 90\% interval, \code{confint(bmdma(...))}.
 }
 \details{
+AIC weights were recommended by EFSA (2017); the current guidance of EFSA (2022) uses
+Bayesian model averaging, see \code{\link{bmdbayes}} and \code{\link{bmdefsa}}.
+
 Model k gets the weight exp(-IC_k/2), relative to the sum over the models, with the
 information criterion IC_k, AIC_k = -2 logLik_k + 2 df_k or BIC_k = -2 logLik_k + log(n) df_k, with
 the number of observations n (\code{nobs}), as in Ritz, Gerhard and Hothorn (2013). With
@@ -93,6 +98,22 @@ lognormal family get the weight 0 in samples with non-positive responses (e.g. s
 gaussian model), whose likelihood is zero under the lognormal family. The
 confidence intervals are percentile intervals of the averaged BMDs.
 }
+\examples{
+fit <- function(model, family = "gaussian")
+  drmTMB(rootl ~ conc, data = ryegrass, model = model, family = family,
+         start = c(b1 = 0, b5 = 0), fix = c(b1 = TRUE, b5 = TRUE))
+LL <- fit("loglogistic")
+W1 <- fit("weibull1")
+W2 <- fit("weibull2")
+# AIC weights and the BMD of the averaged curve, without bootstrap
+bmdma(LL = LL, W1 = W1, W2 = W2, bmr = 0.05, def = "relative", nsim = 0)
+\donttest{
+# with a bootstrap BMDL
+ma <- bmdma(LL = LL, W1 = W1, W2 = W2, bmr = 0.05, def = "relative", nsim = 100, seed = 1)
+ma
+confint(ma)
+}
+}
 \references{
 Buckland, S. T., Burnham, K. P. and Augustin, N. H. (1997). Model selection: an integral
 part of inference. Biometrics 53, 603-618.
@@ -102,4 +123,7 @@ applied to mixed models and model averaging. Statistics in Biopharmaceutical Res
 
 EFSA Scientific Committee (2017). Update: use of the benchmark dose approach in risk assessment.
 EFSA Journal 15(1), 4658.
+}
+\seealso{
+\code{\link{bmd}}, \code{\link{bmdbayes}}, \code{\link{bmdefsa}}
 }

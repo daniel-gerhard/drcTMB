@@ -121,7 +121,7 @@ test_that("absolute effective doses: doses at which the curve reaches a response
   d <- simgauss("loglogistic")
   f <- fit4(y ~ dose, data=d, model="loglogistic")
   e <- ed(f, c(2, 4, 6), type="absolute")
-  expect_equal(names(coef(e)), c("y=2:lf1", "y=4:lf2", "y=6:lf3"))
+  expect_equal(names(coef(e)), c("y=2:lf1", "y=4:lf1", "y=6:lf1"))
   for (i in 1:3){
     y <- c(2, 4, 6)[i]
     expect_equal(coef(e)[[i]], uniroot(function(x) predict(f, data.frame(dose=x)) - y, c(0.01, 100), tol=1e-10)$root, tolerance=1e-6)
@@ -135,7 +135,7 @@ test_that("absolute effective doses: doses at which the curve reaches a response
   y50 <- (b[[1]] + b[[2]])/2
   expect_equal(unname(coef(ed(f, y50, type="absolute"))), unname(coef(ed(f, 50))))
   # responses outside the curve
-  expect_warning(ea <- ed(f, c(4, 20), type="absolute"), "do not reach the response for y=20:lf2")
+  expect_warning(ea <- ed(f, c(4, 20), type="absolute"), "do not reach the response for y=20:lf1")
   expect_true(is.na(coef(ea)[2]) && !is.na(coef(ea)[1]))
   expect_error(profile(ea, parm=2), "NA")
 

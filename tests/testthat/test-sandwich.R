@@ -1,7 +1,6 @@
 # robust (sandwich) covariance: against drc with package sandwich (no random effects) and glmmTMB
 # (random effects), and the argument vcov. of summary, confint, predict, ed and bmd
 
-library(drcData)
 data(ryegrass)
 data(earthworms)
 

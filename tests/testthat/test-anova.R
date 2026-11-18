@@ -158,7 +158,7 @@ test_that("bootstrap tests of a random effect on the boundary", {
 })
 
 test_that("F-tests are refused with variance functions, correlation structures and priors", {
-  ry <- drcData::ryegrass
+  ry <- drcTMB::ryegrass
   f0 <- drmTMB(rootl ~ conc, data=ry, model="loglogistic", start=c(b5=0), fix=c(b5=TRUE))
   fv <- drmTMB(rootl ~ conc, data=ry, model="loglogistic", start=c(b5=0), fix=c(b5=TRUE), variance=var_power())
   expect_error(anova(f0, fv, test="F"), "variance function")

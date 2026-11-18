@@ -4,6 +4,12 @@
 #' estimates are the posterior mode (maximum a posteriori), and the standard errors are from the
 #' curvature of the log posterior, see \code{\link{drmTMB}}.
 #'
+#' The priors are given by name in \code{prior=list(...)} of drmTMB: b1-b5, coefficient names, "bmd" (with
+#' bmdpar), "sd" for the standard deviations of the random effects, "sigma", "phi" or "theta" for the
+#' residual parameter, and the parameters of correlation structures and variance functions; see the
+#' argument prior of \code{\link{drmTMB}}. The prior \code{lognormal()} is not related to
+#' \code{family="lognormal"} or \code{model="lognormal"}.
+#'
 #' \itemize{
 #'   \item \code{normal(mean, sd)}: normal distribution.
 #'   \item \code{student_t(df, location, scale)}: Student t distribution with df degrees of freedom,
@@ -22,7 +28,7 @@
 #'
 #' A prior whose support is wider than the range of the parameter, e.g. a normal prior for a parameter
 #' bounded below by 0, is truncated to that range and renormalised; the normalisation does not change
-#' the estimates.
+#' the estimates, but enters the marginal likelihood of \code{\link{marglik}}.
 #'
 #' @param mean,sd mean and standard deviation of the normal distribution
 #' @param df degrees of freedom of the Student t distribution
@@ -33,7 +39,8 @@
 #' @param shape the shape (weight of the mode) of the PERT distribution
 #' @param p a prior, for negate
 #'
-#' @return a drcprior object
+#' @return a drcprior object, for the argument prior of \code{\link{drmTMB}}
+#' @seealso \code{\link{drmTMB}}, \code{\link{efsapriors}}, \code{\link{fitpert}}, \code{\link{marglik}}
 #' @name priors
 #' @aliases normal student_t lognormal pert half_normal half_student_t negate
 NULL
@@ -81,6 +88,16 @@ onexp <- function(p) oninv(p, "exp")
 
 #' @rdname priors
 #' @export
+#'
+#' @examples
+#' normal(8, 1)
+#' pert(0.5, 3, 10)
+#' half_normal(1)
+#' # posterior modes with priors on the upper asymptote, the ED50 and the residual standard deviation
+#' pmod <- drmTMB(rootl ~ conc, data = ryegrass, model = "loglogistic",
+#'                start = c(b1 = 0, b5 = 0), fix = c(b1 = TRUE, b5 = TRUE),
+#'                prior = list(b2 = normal(8, 1), b4 = pert(0.5, 3, 10), sigma = half_normal(1)))
+#' summary(pmod)
 normal <- function(mean=0, sd=1){
   if (!isTRUE(sd > 0)) stop("sd of the normal prior must be positive.")
   newprior(sprintf("normal(%g, %g)", mean, sd), 1L, c(mean, sd, 0), c(-Inf, Inf), mean,

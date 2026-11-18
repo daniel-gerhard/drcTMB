@@ -32,8 +32,9 @@ for quantal responses "binomial"}
 
 \item{...}{further arguments of \code{\link{efsapriors}}: background, maxresponse, bmd, dprior, extended}
 
-\item{prior.weights, method, n, df}{see \code{\link{bmdbayes}}; prior weights in the order of the models
-(for each model the families). The default method is importance sampling ("is"): with the PERT priors,
+\item{prior.weights, method, n, df}{see \code{\link{bmdbayes}}; prior weights in the order of the fits,
+for each model the families, labelled model_N (gaussian), model_LN (lognormal) and model_Q (binomial),
+e.g. weibull2_N, weibull2_LN, weibull1_N, .... The default method is importance sampling ("is"): with the PERT priors,
 the posterior modes are often close to a bound of a prior, e.g. a background close to 0, where the
 Laplace approximation is poor.}
 
@@ -47,4 +48,22 @@ whose fit fails are left out with a warning
 Fits the models of the Bayesian benchmark dose modelling of EFSA (2022) available in drcTMB, in the BMD
 parameterisation with the priors of \code{\link{efsapriors}}, for each model and family, and averages
 them by \code{\link{bmdbayes}}.
+}
+\details{
+The data requirements are those of \code{\link{efsapriors}}.
+}
+\examples{
+\donttest{
+# quantal: liver tumours after exposure to TCDD
+set.seed(1)
+(ba <- bmdefsa(cbind(incidence, total - incidence) ~ conc, data = TCDD, family = "binomial"))
+}
+}
+\references{
+EFSA Scientific Committee (2022). Guidance on the use of the benchmark dose approach in
+risk assessment. EFSA Journal 20(10), 7584.
+}
+\seealso{
+\code{\link{efsapriors}}, \code{\link{bmdbayes}}, \code{\link{fitpert}}, \code{\link{TCDD}},
+\code{\link{liver.tumor}}
 }

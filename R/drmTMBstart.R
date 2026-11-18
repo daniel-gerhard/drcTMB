@@ -6,7 +6,11 @@
 #' Method "lm" takes the asymptotes from the mean response at the lowest and highest dose,
 #' transforms the response to the relative scale between the asymptotes, and estimates
 #' b3 and b4 by linear regression on a linearised version of the model function.
-#' The asymmetry parameter b5 starts at 0. With covariates in \code{fform}, the pooled
+#' The asymmetry parameter b5 starts at 0. Models without such a linearisation use other strategies:
+#' for asymptoticregression, exponentialdecay and gamma, b4 is profiled over a grid, with the asymptotes
+#' estimated by least squares for each value; for haldane, b4 and the inhibition b5; for nec, thresholds
+#' within each interval between the doses; for multistage, the polynomial by least squares; and for
+#' exponential and power, the power b3 over a grid. With covariates in \code{fform}, the pooled
 #' starting value of each parameter is projected onto its design matrix, giving the
 #' intercept or each group the pooled value and contrasts a value of zero.
 #'
@@ -34,14 +38,26 @@
 #' @param smooth smoothing of the threshold of the nec model, relative to the smallest interval between doses, see \code{\link{drmTMB}}; without random effects, the default is 0, an exact threshold.
 #' @param parlink links of the parameters b1-b5, see \code{\link{drmTMB}}.
 #' @param curvelink link of the curve, see \code{\link{drmTMB}}.
-#' @param method one of "lm" or "grid".
-#' @param gsl a vector of lower bounds for the grid search, same length as start, on the scale of the coefficients (log scale for b4 with the log link); NA (or NULL) for the default range.
-#' @param gsu a vector of upper bounds for the grid search, same length as start; NA (or NULL) for the default range.
-#' @param gsn number of grid points for each parameter, a single number or a vector with the same length as start (default 10). A parameter with gsn = 1 stays at its "lm" starting value.
+#' @param method "lm" (default), fast starting values from linearised models, or "grid", a grid search
+#'   of the likelihood, see Details. Random effects are not used; drmTMB starts their standard
+#'   deviations separately.
+#' @param gsl a vector of lower bounds for the grid search, one entry for each model coefficient, on the scale of the coefficients (log scale for b4 with the log link); NA (or NULL) for the default range.
+#' @param gsu a vector of upper bounds for the grid search, one entry for each model coefficient; NA (or NULL) for the default range.
+#' @param gsn number of grid points for each parameter, a single number or a vector with one entry for each model coefficient (default 10). A parameter with gsn = 1 stays at its "lm" starting value.
 #'
-#' @return a named vector of starting values
+#' @return a vector of starting values named by the coefficients, as \code{coef} of the fit without the
+#'   variance parameters, including fixed and unused parameters; it can be changed and passed to the
+#'   argument start of \code{\link{drmTMB}}.
+#' @seealso \code{\link{drmTMB}}
 #' @export
 #'
+#' @examples
+#' # starting values of the log-logistic model, as used by drmTMB
+#' (sv <- drmTMBstart(rootl ~ conc, data = ryegrass, model = "loglogistic"))
+#' # changed and passed to drmTMB
+#' sv[c("b1:(Intercept)", "b5:(Intercept)")] <- 0
+#' drmTMB(rootl ~ conc, data = ryegrass, model = "loglogistic", start = sv,
+#'        fix = c(TRUE, FALSE, FALSE, FALSE, TRUE))
 drmTMBstart <- function(form, fform=NULL, data, start=NULL, fix=NULL, weights=NULL, family="gaussian", model="logistic", alpha=NULL, smooth=NULL, parlink=NULL, curvelink="identity", method="lm", gsl=NULL, gsu=NULL, gsn=NULL){
   dd <- drmTMBdata(form, fform=fform, data=data, weights=weights, family=family, model=model, alpha=alpha, smooth=smooth, parlink=parlink, curvelink=curvelink)
   sf <- startfix(start, fix, dd)
@@ -903,6 +919,8 @@ parlinks <- function(parlink, m, model){
 parvector <- function(v, npi, default, arg){
   out <- rep(default, length(npi))
   if (is.null(v)) return(out)
+  # a vector named by coefficient, e.g. from drmTMBstart or coef, is taken in the order of the coefficients
+  if (!is.null(names(v)) && all(grepl("^b[1-5]:", names(v)))) v <- unname(v)
   if (is.null(names(v))){
     if (length(v) != length(npi)) stop(arg, " must have one entry for each of the ", length(npi), " model coefficients, or be named by parameter, e.g. c(b5=0).")
     return(v)

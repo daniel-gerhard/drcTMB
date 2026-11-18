@@ -1,3 +1,15 @@
+#' @details The main functions are:
+#' \itemize{
+#'   \item \code{\link{drmTMB}}: fit a dose-response model; methods in \code{\link{drmTMB-methods}},
+#'     diagnostics with \code{\link{plot.drmTMB}};
+#'   \item \code{\link{ed}}, \code{\link{peak}}: effective doses and the peak of hormesis curves;
+#'   \item \code{\link{bmd}}, \code{\link{bmdma}}: benchmark doses and their model averaging;
+#'   \item \code{\link{bmdbayes}}, \code{\link{bmdefsa}}: Bayesian model averaging of benchmark doses;
+#'   \item \code{\link{confint.drmTMB}}, \code{\link{profile.drmTMB}}, \code{\link{bootstrap}},
+#'     \code{\link{vcovrobust}}: intervals and standard errors;
+#'   \item \code{\link{anova.drmTMB}}: model comparison.
+#' }
+#' \code{vignette("drcTMB", package = "drcTMB")} introduces the package with examples.
 #' @keywords internal
 "_PACKAGE"
 

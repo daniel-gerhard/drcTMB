@@ -29,6 +29,12 @@ vcovrobust and bread return a covariance matrix of the estimated parameters, nam
 column for each parameter.
 }
 \description{
+Robust (sandwich) standard errors for drmTMB fits, robust to a misspecified variance and, with
+clusters, to correlation within the clusters. vcovrobust is passed as the argument vcov. of
+\code{\link{summary.drmTMB}}, \code{\link{confint.drmTMB}} (Wald intervals),
+\code{\link{predict.drmTMB}}, \code{\link{ed}}, \code{\link{peak}} and \code{\link{bmd}}.
+}
+\details{
 vcovrobust computes the sandwich covariance V M V of all estimated parameters (the coefficients
 and the variance parameters, as \code{vcov}), with the inverse Hessian V of the fit and the outer
 products M of the scores of independent clusters, the gradients of their contributions to the
@@ -37,8 +43,7 @@ and, with clusters, to correlation within the clusters. The result can be given 
 vcov. of \code{\link{summary.drmTMB}}, \code{\link{confint.drmTMB}} (Wald intervals),
 \code{\link{predict.drmTMB}}, \code{\link{ed}}, \code{\link{peak}} and \code{\link{bmd}}, e.g.
 \code{ed(fit, 50, vcov.=vcovrobust)} or \code{ed(fit, 50, vcov.=function(f) vcovrobust(f, cluster=~plate))}.
-}
-\details{
+
 Without random effects, the scores of the observations are the gradients of their contributions to
 the log-likelihood, by automatic differentiation. With random effects, the clusters must contain
 whole groups: the score of a cluster is the gradient of the Laplace approximation of its marginal
@@ -60,10 +65,18 @@ observations of a fit without random effects or correlation structures. With ran
 a row for each cluster.
 }
 \examples{
-\dontrun{
 fit <- drmTMB(rootl ~ conc, data=ryegrass, model="loglogistic")
 vcovrobust(fit)
 summary(fit, vcov.=vcovrobust)
 ed(fit, c(10, 50), vcov.=vcovrobust)
 }
+\references{
+Zeileis, A. (2006). Object-oriented computation of sandwich estimators. Journal of
+Statistical Software 16(9), 1-16.
+
+Zeileis, A., Koell, S. and Graham, N. (2020). Various versatile variances: an object-oriented
+implementation of clustered covariances in R. Journal of Statistical Software 95(1), 1-36.
+}
+\seealso{
+\code{\link[sandwich]{vcovCL}}
 }

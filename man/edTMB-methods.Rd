@@ -5,7 +5,7 @@
 \alias{print.edTMB}
 \alias{coef.edTMB}
 \alias{vcov.edTMB}
-\title{edTMB Methods}
+\title{Methods for effective doses, peaks and benchmark doses}
 \usage{
 \method{print}{edTMB}(x, ...)
 
@@ -16,11 +16,22 @@
 \arguments{
 \item{x, object}{an edTMB object}
 
-\item{...}{anything else}
+\item{...}{further arguments, not used}
 }
 \value{
-Estimated effective dose coefficients
+print returns x invisibly; coef a named vector of the estimates; vcov their covariance matrix
+(delta method).
 }
 \description{
-edTMB Methods
+Print, coef and vcov methods for objects of class edTMB, returned by \code{\link{ed}},
+\code{\link{peak}} and \code{\link{bmd}}; confidence intervals are given by
+\code{\link{confint.edTMB}}.
+}
+\examples{
+mod <- drmTMB(rootl ~ conc, data = ryegrass, model = "loglogistic",
+              start = c(b1 = 0, b5 = 0), fix = c(b1 = TRUE, b5 = TRUE))
+e <- ed(mod, respLev = c(10, 50))
+e
+coef(e)
+vcov(e)
 }

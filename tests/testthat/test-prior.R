@@ -1,6 +1,5 @@
 # priors: posterior modes, with the log Jacobian of the transformations and truncated priors
 
-library(drcData)
 data(ryegrass)
 
 fitry <- function(...) drmTMB(rootl ~ conc, data=ryegrass, model="loglogistic", start=c(b1=0, b5=0),
@@ -130,7 +129,7 @@ test_that("invalid priors", {
 })
 
 test_that("a prior of a coefficient by name takes precedence over b1-b5 in any order", {
-  ry <- drcData::ryegrass
+  ry <- drcTMB::ryegrass
   f1 <- drmTMB(rootl ~ conc, data=ry, model="loglogistic", start=c(b5=0), fix=c(b5=TRUE), prior=list("b4:(Intercept)"=normal(1, 0.1), b4=normal(5, 1)))
   f2 <- drmTMB(rootl ~ conc, data=ry, model="loglogistic", start=c(b5=0), fix=c(b5=TRUE), prior=list(b4=normal(5, 1), "b4:(Intercept)"=normal(1, 0.1)))
   expect_equal(f1$prior$parameter, "b4:(Intercept)")

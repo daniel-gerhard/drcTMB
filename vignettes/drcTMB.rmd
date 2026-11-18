@@ -33,11 +33,10 @@ drcTMB fits nonlinear dose-response models by maximum likelihood with the Templa
 
 Effective doses and benchmark doses, with their standard errors and confidence intervals, are available for all of these models.
 
-The examples use data sets of the packages drcData and nlme, and the plots use ggplot2.
+The examples use data sets of drcTMB, most of them from the package drcData, and of nlme; the plots use ggplot2.
 
 ```{r, message = FALSE}
 library(drcTMB)
-library(drcData)
 library(ggplot2)
 ```
 

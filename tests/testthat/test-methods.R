@@ -355,7 +355,7 @@ test_that("small-sample inference of gaussian models without random effects", {
 })
 
 test_that("drmTMBstart takes named start and fix values as drmTMB", {
-  ry <- drcData::ryegrass
+  ry <- drcTMB::ryegrass
   s <- drmTMBstart(rootl ~ conc, data=ry, model="loglogistic", start=c(b5=0), fix=c(b5=TRUE))
   expect_equal(s[["b5:(Intercept)"]], 0)
   f <- drmTMB(rootl ~ conc, data=ry, model="loglogistic", start=c(b5=0), fix=c(b5=TRUE))
@@ -364,7 +364,7 @@ test_that("drmTMBstart takes named start and fix values as drmTMB", {
 })
 
 test_that("confint checks parm; simulate does not depend on the state of the TMB object", {
-  ry <- drcData::ryegrass
+  ry <- drcTMB::ryegrass
   f <- drmTMB(rootl ~ conc, data=ry, model="loglogistic", start=c(b5=0), fix=c(b5=TRUE))
   expect_error(confint(f, parm=10, method="wald"), "unknown parameters")
   expect_error(confint(ed(f, 50), parm=3, method="wald"), "unknown effective doses")
@@ -375,4 +375,13 @@ test_that("confint checks parm; simulate does not depend on the state of the TMB
   s1 <- simulate(fr, seed=2, random=FALSE)
   invisible(fr$obj$fn(fr$opt$par + 0.5))
   expect_equal(simulate(fr, seed=2, random=FALSE), s1)
+})
+
+test_that("starting values of drmTMBstart can be passed to drmTMB", {
+  sv <- drmTMBstart(rootl ~ conc, data=ryegrass, model="loglogistic")
+  sv[c("b1:(Intercept)", "b5:(Intercept)")] <- 0
+  f <- drmTMB(rootl ~ conc, data=ryegrass, model="loglogistic", start=sv, fix=c(TRUE, FALSE, FALSE, FALSE, TRUE))
+  f0 <- drmTMB(rootl ~ conc, data=ryegrass, model="loglogistic", start=c(b1=0, b5=0), fix=c(b1=TRUE, b5=TRUE))
+  expect_equal(coef(f), coef(f0), tolerance=1e-6)
+  expect_error(drmTMB(rootl ~ conc, data=ryegrass, model="loglogistic", start=sv[1:3]), "one entry for each")
 })

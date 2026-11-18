@@ -1,5 +1,10 @@
 #' Robust (sandwich) covariance of a drmTMB fit
 #'
+#' Robust (sandwich) standard errors for drmTMB fits, robust to a misspecified variance and, with
+#' clusters, to correlation within the clusters. vcovrobust is passed as the argument vcov. of
+#' \code{\link{summary.drmTMB}}, \code{\link{confint.drmTMB}} (Wald intervals),
+#' \code{\link{predict.drmTMB}}, \code{\link{ed}}, \code{\link{peak}} and \code{\link{bmd}}.
+#'
 #' vcovrobust computes the sandwich covariance V M V of all estimated parameters (the coefficients
 #' and the variance parameters, as \code{vcov}), with the inverse Hessian V of the fit and the outer
 #' products M of the scores of independent clusters, the gradients of their contributions to the
@@ -40,13 +45,17 @@
 #'   \code{vcov}; estfun returns a matrix of scores with a row for each cluster (or observation) and a
 #'   column for each parameter.
 #'
+#' @references Zeileis, A. (2006). Object-oriented computation of sandwich estimators. Journal of
+#' Statistical Software 16(9), 1-16.
+#'
+#' Zeileis, A., Koell, S. and Graham, N. (2020). Various versatile variances: an object-oriented
+#' implementation of clustered covariances in R. Journal of Statistical Software 95(1), 1-36.
+#' @seealso \code{\link[sandwich]{vcovCL}}
 #' @examples
-#' \dontrun{
 #' fit <- drmTMB(rootl ~ conc, data=ryegrass, model="loglogistic")
 #' vcovrobust(fit)
 #' summary(fit, vcov.=vcovrobust)
 #' ed(fit, c(10, 50), vcov.=vcovrobust)
-#' }
 #' @export
 vcovrobust <- function(object, cluster=NULL, type=c("HC0", "HC1")){
   type <- match.arg(type)

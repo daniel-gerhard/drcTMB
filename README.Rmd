@@ -65,8 +65,8 @@ benchmark doses for all of them.
 pak::pak("daniel-gerhard/drcTMB")
 ```
 
-The examples below use data sets of the package
-[drcData](https://github.com/DoseResponse/drcData) and of nlme.
+The examples below use data sets of drcTMB, most of them from the package
+[drcData](https://github.com/DoseResponse/drcData), and of nlme.
 
 ## A first model
 
@@ -76,7 +76,6 @@ the asymmetry parameter b5 is the three-parameter model `LL.3()` of drc.
 
 ```{r ryegrass}
 library(drcTMB)
-library(drcData)
 library(ggplot2)
 data(ryegrass)
 

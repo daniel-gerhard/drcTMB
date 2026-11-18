@@ -1,6 +1,5 @@
 # link of the whole curve (curvelink): the mean, median or probability is the inverse link of the curve
 
-library(drcData)
 data(ryegrass)
 data(daphnids)
 ry <- ryegrass

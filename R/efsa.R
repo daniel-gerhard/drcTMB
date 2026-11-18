@@ -46,15 +46,20 @@
 #' median, exp(b1) or exp(b2). Informative priors are given as \code{c(min, mode, max)} (mode NA for the
 #' middle of the range) or as a prior, e.g. from \code{\link{fitpert}}.
 #'
+#' The data need a control group at dose zero and at least two other doses, replicates at the doses
+#' (for the prior of the residual standard deviation), a positive response for the continuous families,
+#' and, for quantal responses, cbind(affected, unaffected) increasing with the dose.
+#'
 #' @param form formula of the response and the dose, as in \code{\link{drmTMB}}
 #' @param data a data.frame
 #' @param model one of "weibull2", "weibull1", "loglogistic", "lognormal", "gamma", "multistage", and for
 #'   the binomial family "probit" and "logit"
 #' @param family "gaussian", "lognormal" or "binomial"
 #' @param bmr,def the benchmark response and its definition (see \code{\link{bmd}}); by default
-#'   "relative" for gaussian and lognormal, "excess" for binomial
+#'   bmr=0.05 with def="relative" for gaussian and lognormal, and bmr=0.1 with def="excess" for binomial,
+#'   the defaults of EFSA (2022)
 #' @param background,maxresponse,bmd informative priors: \code{c(min, mode, max)} or a prior (see
-#'   \code{\link{priors}}); NULL for the defaults
+#'   \code{\link{priors}}); NULL for the defaults; maxresponse only for continuous responses
 #' @param dprior "default" or "alternative" prior of the steepness
 #' @param extended logical, the upper bound of the default BMD prior is three times the highest dose (TRUE)
 #'   or the highest dose
@@ -70,7 +75,21 @@
 #'
 #' @return an efsapriors object, a list with the EFSA model (name), the arguments model, family,
 #'   curvelink, start, fix, prior and bmdpar of \code{drmTMB}, the direction of the curve (increasing) and whether it levels off (flat)
+#' @seealso \code{\link{bmdefsa}}, \code{\link{bmdbayes}}, \code{\link{fitpert}}, \code{\link{priors}}
 #' @export
+#'
+#' @examples
+#' # default priors of EFSA (2022) for the log-logistic model of the ryegrass data
+#' efsapriors(rootl ~ conc, data = ryegrass, model = "loglogistic", family = "gaussian")
+#' # an informative prior of the BMD, by its minimum, mode and maximum
+#' efsapriors(rootl ~ conc, data = ryegrass, model = "loglogistic", family = "gaussian",
+#'            bmd = c(0.1, 1, 5))
+#' # the model with these priors, in the BMD parameterisation
+#' e <- efsapriors(rootl ~ conc, data = ryegrass, model = "loglogistic", family = "gaussian")
+#' fit <- drmTMB(rootl ~ conc, data = ryegrass, model = e$model, family = e$family,
+#'               curvelink = e$curvelink, start = e$start, fix = e$fix, prior = e$prior,
+#'               bmdpar = e$bmdpar)
+#' summary(fit)
 efsapriors <- function(form, data, model, family=c("gaussian", "lognormal", "binomial"), bmr=NULL, def=NULL,
                        background=NULL, maxresponse=NULL, bmd=NULL, dprior=c("default", "alternative"), extended=TRUE){
   family <- match.arg(family)
@@ -226,15 +245,29 @@ fpflat <- function(x, m, inc){
 #' @param family the families: for continuous responses "gaussian" and "lognormal" (both by default),
 #'   for quantal responses "binomial"
 #' @param ... further arguments of \code{\link{efsapriors}}: background, maxresponse, bmd, dprior, extended
-#' @param prior.weights,method,n,df see \code{\link{bmdbayes}}; prior weights in the order of the models
-#'   (for each model the families). The default method is importance sampling ("is"): with the PERT priors,
+#' @param prior.weights,method,n,df see \code{\link{bmdbayes}}; prior weights in the order of the fits,
+#'   for each model the families, labelled model_N (gaussian), model_LN (lognormal) and model_Q (binomial),
+#'   e.g. weibull2_N, weibull2_LN, weibull1_N, .... The default method is importance sampling ("is"): with the PERT priors,
 #'   the posterior modes are often close to a bound of a prior, e.g. a background close to 0, where the
 #'   Laplace approximation is poor.
 #' @param control a list of control parameters of \code{\link{drmTMB}}
 #'
+#' @details The data requirements are those of \code{\link{efsapriors}}.
+#'
 #' @return a bmdbayes object, with the fits (\code{fits}) and the priors (\code{efsa}) of the models; models
 #'   whose fit fails are left out with a warning
+#' @references EFSA Scientific Committee (2022). Guidance on the use of the benchmark dose approach in
+#'   risk assessment. EFSA Journal 20(10), 7584.
+#' @seealso \code{\link{efsapriors}}, \code{\link{bmdbayes}}, \code{\link{fitpert}}, \code{\link{TCDD}},
+#'   \code{\link{liver.tumor}}
 #' @export
+#'
+#' @examples
+#' \donttest{
+#' # quantal: liver tumours after exposure to TCDD
+#' set.seed(1)
+#' (ba <- bmdefsa(cbind(incidence, total - incidence) ~ conc, data = TCDD, family = "binomial"))
+#' }
 bmdefsa <- function(form, data, bmr=NULL, def=NULL, models=NULL,
                     family=c("gaussian", "lognormal"), ..., prior.weights=NULL, method=c("is", "laplace"), n=5000, df=4, control=list()){
   method <- match.arg(method)
@@ -271,10 +304,12 @@ bmdefsa <- function(form, data, bmr=NULL, def=NULL, models=NULL,
 #' Fits a PERT distribution to the posterior distribution of a parameter, e.g. the model-averaged BMD of
 #' \code{\link{bmdbayes}}, as an informative prior for the analysis of a new study (Kremer et al. 2026,
 #' EFSA EN-9902): the posterior is summarised by 1000 quantiles; the minimum and maximum of the PERT are
-#' their smallest and largest value, the mode is the mode of their kernel density, and the shape is
+#' their smallest and largest value (the 0.05% and 99.95% quantiles), so that the prior excludes values
+#' outside them; the mode is the mode of their kernel density, and the shape is
 #' estimated by maximum likelihood (between 0 and 20). Several posteriors, e.g. of several historical
 #' studies, are mixed with equal weights, the recommended way to combine studies. With discounting, the
-#' shape is reduced so that the variance of the PERT doubles.
+#' shape is reduced so that the variance of the PERT doubles (approximately, as the shape is at least
+#' 1e-4).
 #'
 #' @param ... bmdbayes objects (the posterior of the BMD), or numeric vectors of posterior draws
 #' @param weights for a single numeric vector of draws, their weights (e.g. of importance sampling)
@@ -282,7 +317,27 @@ bmdefsa <- function(form, data, bmr=NULL, def=NULL, models=NULL,
 #'
 #' @return a prior (see \code{\link{priors}}), e.g. for \code{prior=list(bmd=...)} of \code{drmTMB} or the
 #'   bmd argument of \code{\link{efsapriors}}
+#' @references Kremer, C., Saenen, N. D., Bijnens, K., Faes, C., De Boever, P., Smeets, K. and Aerts, M.
+#'   (2026). Compilation of NTP and published dose-response data: study of informative priors in the EFSA
+#'   platform for Bayesian benchmark dose analysis. EFSA Supporting Publications, EN-9902.
+#' @seealso \code{\link{bmdefsa}}, \code{\link{bmdbayes}}, \code{\link{efsapriors}}, \code{\link{priors}}
 #' @export
+#'
+#' @examples
+#' # a PERT prior from posterior draws of a BMD
+#' set.seed(1)
+#' draws <- exp(rnorm(2000, log(2), 0.3))
+#' fitpert(draws)
+#'
+#' # from the model-averaged posterior of the BMD of bmdbayes (or bmdefsa), e.g. of a historical
+#' # study, as an informative prior of the BMD for a current study
+#' pr <- list(bmd = pert(0.1, 1, 5), b2 = normal(8, 1), b3 = normal(-2, 2), sigma = half_normal(1))
+#' fit <- function(model)
+#'   drmTMB(rootl ~ conc, data = ryegrass, model = model,
+#'          start = c(b1 = 0, b5 = 0), fix = c(b1 = TRUE, b5 = TRUE),
+#'          bmdpar = list(bmr = 0.05, def = "relative"), prior = pr)
+#' ba <- bmdbayes(LL = fit("loglogistic"), W2 = fit("weibull2"))
+#' fitpert(ba)
 fitpert <- function(..., weights=NULL, discount=FALSE){
   post <- list(...)
   if (length(post) == 0) stop("give at least one posterior.")
