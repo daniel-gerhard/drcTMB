@@ -59,3 +59,18 @@ standard error of the log marginal likelihood; a small effective sample size (e.
 the estimate is unreliable. With random effects, each draw needs an inner optimisation, so that
 importance sampling is slower.
 }
+\examples{
+# proper priors for all estimated parameters, in the BMD parameterisation
+pr <- list(bmd = pert(0.1, 1, 5), b2 = normal(8, 1), b3 = normal(-2, 2), sigma = half_normal(1))
+fit <- function(model)
+  drmTMB(rootl ~ conc, data = ryegrass, model = model,
+         start = c(b1 = 0, b5 = 0), fix = c(b1 = TRUE, b5 = TRUE),
+         bmdpar = list(bmr = 0.05, def = "relative"), prior = pr)
+LL <- fit("loglogistic")
+W2 <- fit("weibull2")
+marglik(LL)
+marglik(W2)
+# importance sampling as a check of the Laplace approximation
+set.seed(1)
+marglik(LL, method = "is", n = 2000)
+}

@@ -73,3 +73,15 @@ twice to each simulated response, starting at its estimates and at the starting 
 \code{\link{drmTMB}}, and the better fit is used; simulations without a finite log-likelihood of
 both models are left out.
 }
+\examples{
+mod <- drmTMB(rootl ~ conc, data = ryegrass, model = "loglogistic",
+              start = c(b1 = 0, b5 = 0), fix = c(b1 = TRUE, b5 = TRUE))
+# a free lower asymptote b1
+mod4 <- drmTMB(rootl ~ conc, data = ryegrass, model = "loglogistic",
+               start = c(b5 = 0), fix = c(b5 = TRUE))
+anova(mod, mod4)
+anova(mod, mod4, test = "F")
+# test for any dose effect, against a constant mean
+mod0 <- drmTMB(rootl ~ conc, data = ryegrass, model = "constant")
+anova(mod0, mod)
+}

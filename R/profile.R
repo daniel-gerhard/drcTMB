@@ -42,6 +42,13 @@
 #'
 #' @name profile.drmTMB
 #' @aliases profile.drmTMB confint.profile.drmTMB plot.profile.drmTMB
+#'
+#' @examples
+#' mod <- drmTMB(rootl ~ conc, data = ryegrass, model = "loglogistic",
+#'               start = c(b1 = 0, b5 = 0), fix = c(b1 = TRUE, b5 = TRUE))
+#' pr <- profile(mod, parm = "b4:(Intercept)")
+#' confint(pr)
+#' plot(pr)
 profile.drmTMB <- function(fitted, parm=NULL, level=0.99, trace=FALSE, progress=interactive(), ...){
   est <- coef(fitted)
   pn <- names(est)
@@ -218,6 +225,13 @@ profcutoffs <- function(object, level){
 #' @return a profile.edTMB object, which has the confint and plot methods of
 #'   \code{\link{profile.drmTMB}}
 #' @export
+#'
+#' @examples
+#' mod <- drmTMB(rootl ~ conc, data = ryegrass, model = "loglogistic",
+#'               start = c(b1 = 0, b5 = 0), fix = c(b1 = TRUE, b5 = TRUE))
+#' pe <- profile(ed(mod, respLev = c(10, 50)))
+#' confint(pe)
+#' plot(pe)
 profile.edTMB <- function(fitted, parm=NULL, level=0.99, maxit=100, progress=interactive(), ...){
   fit <- fitted$fit
   if (is.null(fit)) stop("compute the effective doses again with ed() to profile them.")
@@ -517,6 +531,13 @@ edb4 <- function(mod, q, ed, b3, b5, c5=0, alpha=NULL, smooth=0){
 #' @export
 #' @name confint.drmTMB
 #' @aliases confint.drmTMB confint.edTMB
+#'
+#' @examples
+#' mod <- drmTMB(rootl ~ conc, data = ryegrass, model = "loglogistic",
+#'               start = c(b1 = 0, b5 = 0), fix = c(b1 = TRUE, b5 = TRUE))
+#' confint(mod)
+#' confint(mod, method = "wald")
+#' confint(ed(mod, respLev = 50), level = 0.9)
 confint.drmTMB <- function(object, parm=NULL, level=0.95, method=c("profile", "wald", "boot"), nsim=500, seed=NULL, boot=NULL, vcov.=NULL, ...){
   # a covariance vcov. is only used by Wald intervals, the default with it
   if (!is.null(vcov.)){

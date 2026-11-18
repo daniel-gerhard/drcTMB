@@ -81,3 +81,10 @@ Bootstrap intervals need many fits of the model; with random effects this can ta
 Computing profiles can take a while for models with random effects; see \code{\link{profile.drmTMB}}
 and \code{\link{profile.edTMB}}, whose results can be reused with \code{confint}.
 }
+\examples{
+mod <- drmTMB(rootl ~ conc, data = ryegrass, model = "loglogistic",
+              start = c(b1 = 0, b5 = 0), fix = c(b1 = TRUE, b5 = TRUE))
+confint(mod)
+confint(mod, method = "wald")
+confint(ed(mod, respLev = 50), level = 0.9)
+}

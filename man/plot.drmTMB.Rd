@@ -64,3 +64,10 @@ parameter and grouping factor. They are shrunk towards zero, so their spread is 
 estimated standard deviation, and with few groups they say little about the normality of the
 random effects.
 }
+\examples{
+mod <- drmTMB(rootl ~ conc, data = ryegrass, model = "loglogistic",
+              start = c(b1 = 0, b5 = 0), fix = c(b1 = TRUE, b5 = TRUE))
+plot(mod)
+# residuals against the dose only, on the log scale
+plot(mod, which = 2, logdose = TRUE)
+}

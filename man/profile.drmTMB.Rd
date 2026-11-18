@@ -68,3 +68,10 @@ freedom. For gaussian and lognormal models without random effects and small-samp
 sum(w) log(1 + F/(n - p)) with the quantile F of the F distribution with 1 and n - p degrees of
 freedom, which gives the intervals of a t-test of each coefficient, as profile intervals of nls.
 }
+\examples{
+mod <- drmTMB(rootl ~ conc, data = ryegrass, model = "loglogistic",
+              start = c(b1 = 0, b5 = 0), fix = c(b1 = TRUE, b5 = TRUE))
+pr <- profile(mod, parm = "b4:(Intercept)")
+confint(pr)
+plot(pr)
+}

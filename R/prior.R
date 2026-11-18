@@ -81,6 +81,16 @@ onexp <- function(p) oninv(p, "exp")
 
 #' @rdname priors
 #' @export
+#'
+#' @examples
+#' normal(8, 1)
+#' pert(0.5, 3, 10)
+#' half_normal(1)
+#' # posterior modes with priors on the upper asymptote, the ED50 and the residual standard deviation
+#' pmod <- drmTMB(rootl ~ conc, data = ryegrass, model = "loglogistic",
+#'                start = c(b1 = 0, b5 = 0), fix = c(b1 = TRUE, b5 = TRUE),
+#'                prior = list(b2 = normal(8, 1), b4 = pert(0.5, 3, 10), sigma = half_normal(1)))
+#' summary(pmod)
 normal <- function(mean=0, sd=1){
   if (!isTRUE(sd > 0)) stop("sd of the normal prior must be positive.")
   newprior(sprintf("normal(%g, %g)", mean, sd), 1L, c(mean, sd, 0), c(-Inf, Inf), mean,

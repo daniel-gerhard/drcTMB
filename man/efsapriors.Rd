@@ -98,6 +98,13 @@ For the lognormal family, the priors of the background and the maximum response 
 median, exp(b1) or exp(b2). Informative priors are given as \code{c(min, mode, max)} (mode NA for the
 middle of the range) or as a prior, e.g. from \code{\link{fitpert}}.
 }
+\examples{
+# default priors of EFSA (2022) for the log-logistic model of the ryegrass data
+efsapriors(rootl ~ conc, data = ryegrass, model = "loglogistic", family = "gaussian")
+# an informative prior of the BMD, by its minimum, mode and maximum
+efsapriors(rootl ~ conc, data = ryegrass, model = "loglogistic", family = "gaussian",
+           bmd = c(0.1, 1, 5))
+}
 \references{
 EFSA Scientific Committee (2022). Guidance on the use of the benchmark dose approach in
 risk assessment. EFSA Journal 20(10), 7584.

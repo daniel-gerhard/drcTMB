@@ -46,6 +46,21 @@
 #'   standard error se, the number of draws whose objective could not be evaluated (failed, given weight
 #'   0), and the Laplace approximation laplace.
 #' @export
+#'
+#' @examples
+#' # proper priors for all estimated parameters, in the BMD parameterisation
+#' pr <- list(bmd = pert(0.1, 1, 5), b2 = normal(8, 1), b3 = normal(-2, 2), sigma = half_normal(1))
+#' fit <- function(model)
+#'   drmTMB(rootl ~ conc, data = ryegrass, model = model,
+#'          start = c(b1 = 0, b5 = 0), fix = c(b1 = TRUE, b5 = TRUE),
+#'          bmdpar = list(bmr = 0.05, def = "relative"), prior = pr)
+#' LL <- fit("loglogistic")
+#' W2 <- fit("weibull2")
+#' marglik(LL)
+#' marglik(W2)
+#' # importance sampling as a check of the Laplace approximation
+#' set.seed(1)
+#' marglik(LL, method = "is", n = 2000)
 marglik <- function(object, method=c("laplace", "is"), n=5000, df=4){
   if (!inherits(object, "drmTMB")) stop("object must be a drmTMB fit.")
   method <- match.arg(method)

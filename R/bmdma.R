@@ -61,6 +61,22 @@
 #'   confint their confidence intervals.
 #' @export
 #' @aliases bmdma print.bmdma coef.bmdma confint.bmdma
+#'
+#' @examples
+#' fit <- function(model, family = "gaussian")
+#'   drmTMB(rootl ~ conc, data = ryegrass, model = model, family = family,
+#'          start = c(b1 = 0, b5 = 0), fix = c(b1 = TRUE, b5 = TRUE))
+#' LL <- fit("loglogistic")
+#' W1 <- fit("weibull1")
+#' W2 <- fit("weibull2")
+#' # AIC weights and the BMD of the averaged curve, without bootstrap
+#' bmdma(LL = LL, W1 = W1, W2 = W2, bmr = 0.05, def = "relative", nsim = 0)
+#' \donttest{
+#' # with a bootstrap BMDL
+#' ma <- bmdma(LL = LL, W1 = W1, W2 = W2, bmr = 0.05, def = "relative", nsim = 100, seed = 1)
+#' ma
+#' confint(ma)
+#' }
 bmdma <- function(..., bmr=0.1, def=c("excess", "additional", "relative", "sd"), newdata=NULL,
                   scale=c("marginal", "conditional"), average=c("curve", "bmd"), weights=c("AIC", "BIC"), nodes=NULL,
                   nsim=500, seed=NULL, progress=interactive()){

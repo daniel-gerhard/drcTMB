@@ -51,6 +51,18 @@
 #'   \code{test="boot"}, additionally the bootstrap p-value (Pr(boot)), with the simulated likelihood ratio
 #'   statistics of each comparison in the attribute \code{"boot"}.
 #' @export
+#'
+#' @examples
+#' mod <- drmTMB(rootl ~ conc, data = ryegrass, model = "loglogistic",
+#'               start = c(b1 = 0, b5 = 0), fix = c(b1 = TRUE, b5 = TRUE))
+#' # a free lower asymptote b1
+#' mod4 <- drmTMB(rootl ~ conc, data = ryegrass, model = "loglogistic",
+#'                start = c(b5 = 0), fix = c(b5 = TRUE))
+#' anova(mod, mod4)
+#' anova(mod, mod4, test = "F")
+#' # test for any dose effect, against a constant mean
+#' mod0 <- drmTMB(rootl ~ conc, data = ryegrass, model = "constant")
+#' anova(mod0, mod)
 anova.drmTMB <- function(object, ..., test=c("Chisq", "F", "boot"), nsim=1000, seed=NULL, progress=interactive()){
   test <- match.arg(test)
   fits <- c(list(object), list(...))

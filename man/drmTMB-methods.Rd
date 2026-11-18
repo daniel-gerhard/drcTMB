@@ -117,3 +117,26 @@ parameters; for a binomial response given as cbind(successes, failures), the num
 \description{
 drmTMB Methods
 }
+\examples{
+mod <- drmTMB(rootl ~ conc, data = ryegrass, model = "loglogistic",
+              start = c(b1 = 0, b5 = 0), fix = c(b1 = TRUE, b5 = TRUE))
+mod
+summary(mod)
+coef(mod)
+vcov(mod)
+logLik(mod)
+AIC(mod)
+nobs(mod)
+df.residual(mod)
+head(fitted(mod))
+head(residuals(mod, type = "quantile"))
+
+# confidence and prediction intervals, and the parameters of the curve
+nd <- data.frame(conc = c(1, 3, 10))
+predict(mod, newdata = nd, interval = "confidence")
+predict(mod, newdata = nd, interval = "prediction")
+predict(mod, newdata = nd[1, , drop = FALSE], type = "parameters")
+
+# new responses simulated from the fitted model
+head(simulate(mod, nsim = 2, seed = 1))
+}

@@ -34,3 +34,11 @@ peak of each curve, named "dose" and "response", and their joint covariance matr
 and profile likelihood intervals for the dose; for the response, profile intervals are not
 available and Wald intervals are returned, with a message.
 }
+\examples{
+# hormesis: stimulation of the growth of lettuce at low concentrations of isobutyl alcohol
+hmod <- drmTMB(weight ~ conc, data = lettuce, model = "braincousens")
+(p <- peak(hmod))
+confint(p, method = "wald")
+# the dose at which the response returns to the level of the control
+ed(hmod, respLev = 0)
+}

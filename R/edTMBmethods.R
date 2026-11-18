@@ -10,6 +10,14 @@
 #' @aliases print.edTMB coef.edTMB vcov.edTMB
 
 #' @rdname edTMB-methods
+#'
+#' @examples
+#' mod <- drmTMB(rootl ~ conc, data = ryegrass, model = "loglogistic",
+#'               start = c(b1 = 0, b5 = 0), fix = c(b1 = TRUE, b5 = TRUE))
+#' e <- ed(mod, respLev = c(10, 50))
+#' e
+#' coef(e)
+#' vcov(e)
 print.edTMB <- function(x, ...){
     ests <- x$estimates
     vc <- x$variance

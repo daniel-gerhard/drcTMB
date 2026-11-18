@@ -43,3 +43,11 @@ Simulates responses from the fitted model, with new random effects (see
 estimates. The bootstrap sample can be used for confidence intervals of the model parameters and of
 effective doses, see \code{\link{confint.drmTMB}}, without fitting the models again.
 }
+\examples{
+mod <- drmTMB(rootl ~ conc, data = ryegrass, model = "loglogistic",
+              start = c(b1 = 0, b5 = 0), fix = c(b1 = TRUE, b5 = TRUE))
+b <- bootstrap(mod, nsim = 100, seed = 1)
+b
+confint(b)
+predict(mod, newdata = data.frame(conc = c(1, 3, 10)), interval = "confidence", boot = b)
+}

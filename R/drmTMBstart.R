@@ -42,6 +42,9 @@
 #' @return a named vector of starting values
 #' @export
 #'
+#' @examples
+#' # starting values of the log-logistic model, as used by drmTMB
+#' drmTMBstart(rootl ~ conc, data = ryegrass, model = "loglogistic")
 drmTMBstart <- function(form, fform=NULL, data, start=NULL, fix=NULL, weights=NULL, family="gaussian", model="logistic", alpha=NULL, smooth=NULL, parlink=NULL, curvelink="identity", method="lm", gsl=NULL, gsu=NULL, gsn=NULL){
   dd <- drmTMBdata(form, fform=fform, data=data, weights=weights, family=family, model=model, alpha=alpha, smooth=smooth, parlink=parlink, curvelink=curvelink)
   sf <- startfix(start, fix, dd)

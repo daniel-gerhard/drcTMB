@@ -47,3 +47,10 @@ not included. For the models on the log-dose scale and the models without b3, th
 are profiled on the log scale. Gaussian models without random effects use the F-based cutoff of
 \code{\link{profile.drmTMB}} by default.
 }
+\examples{
+mod <- drmTMB(rootl ~ conc, data = ryegrass, model = "loglogistic",
+              start = c(b1 = 0, b5 = 0), fix = c(b1 = TRUE, b5 = TRUE))
+pe <- profile(ed(mod, respLev = c(10, 50)))
+confint(pe)
+plot(pe)
+}

@@ -84,6 +84,16 @@ not positive definite) gets the weight 0, with a warning. \code{print} notes the
 (2022) for a credible interval that is too wide, with the 90\\% interval: BMD/BMDL above 20, BMDU/BMDL
 above 50, and a BMDL below a tenth of the lowest dose above zero.
 }
+\examples{
+pr <- list(bmd = pert(0.1, 1, 5), b2 = normal(8, 1), b3 = normal(-2, 2), sigma = half_normal(1))
+fit <- function(model)
+  drmTMB(rootl ~ conc, data = ryegrass, model = model,
+         start = c(b1 = 0, b5 = 0), fix = c(b1 = TRUE, b5 = TRUE),
+         bmdpar = list(bmr = 0.05, def = "relative"), prior = pr)
+(ba <- bmdbayes(LL = fit("loglogistic"), W1 = fit("weibull1"), W2 = fit("weibull2")))
+coef(ba)
+confint(ba)
+}
 \references{
 EFSA Scientific Committee (2022). Guidance on the use of the benchmark dose approach in
 risk assessment. EFSA Journal 20(10), 7584.

@@ -48,3 +48,10 @@ Fits the models of the Bayesian benchmark dose modelling of EFSA (2022) availabl
 parameterisation with the priors of \code{\link{efsapriors}}, for each model and family, and averages
 them by \code{\link{bmdbayes}}.
 }
+\examples{
+\donttest{
+# quantal: liver tumours after exposure to TCDD
+set.seed(1)
+(ba <- bmdefsa(cbind(incidence, total - incidence) ~ conc, data = TCDD, family = "binomial"))
+}
+}

@@ -229,6 +229,25 @@
 #'
 #' @return A drmTMB object
 #' @export
+#'
+#' @examples
+#' # three-parameter log-logistic model (LL.3 of drc): lower asymptote b1 = 0, no asymmetry (b5 = 0)
+#' mod <- drmTMB(rootl ~ conc, data = ryegrass, model = "loglogistic",
+#'               start = c(b1 = 0, b5 = 0), fix = c(b1 = TRUE, b5 = TRUE))
+#' summary(mod)
+#'
+#' # binomial response, separate steepness b3 and ED50 b4 for each time
+#' dmod <- drmTMB(cbind(no, total - no) ~ dose, data = daphnids, model = "loglogistic",
+#'                family = "binomial", fform = b3 + b4 ~ 0 + time,
+#'                start = c(b1 = 0, b2 = 1, b4 = 1000, b5 = 0),
+#'                fix = c(b1 = TRUE, b2 = TRUE, b5 = TRUE))
+#' dmod
+#'
+#' # correlated random effects of the experiments on both asymptotes, and a power variance function
+#' vmod <- drmTMB(effect ~ conc, data = vinclozolin, model = "loglogistic",
+#'                rform = b1 + b2 ~ 1 | exper, variance = var_power(),
+#'                start = c(b5 = 0), fix = c(b5 = TRUE), lower = c(0, 0, -Inf, 0, -Inf))
+#' summary(vmod)
 
 drmTMB <- function(form, fform=NULL, rform=NULL, data, start=NULL, fix=NULL, weights=NULL, lower=-Inf, upper=Inf, family="gaussian", model="logistic", alpha=NULL, smooth=NULL, parlink=NULL, curvelink="identity", prior=NULL, bmdpar=NULL, correlation=NULL, variance=NULL, series=NULL, gsl=NULL, gsu=NULL, gsn=NULL, control=list()){
   start0 <- start

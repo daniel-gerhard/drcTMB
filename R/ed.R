@@ -35,6 +35,21 @@
 #' @return a edTMB object
 #' @export
 #'
+#' @examples
+#' mod <- drmTMB(rootl ~ conc, data = ryegrass, model = "loglogistic",
+#'               start = c(b1 = 0, b5 = 0), fix = c(b1 = TRUE, b5 = TRUE))
+#' # ED10, ED50 and ED90, with profile likelihood intervals
+#' (e <- ed(mod, respLev = c(10, 50, 90)))
+#' confint(e)
+#' # doses at which the root length is 2 and 4 cm
+#' ed(mod, respLev = c(2, 4), type = "absolute")
+#'
+#' # effective doses of several curves, given by the covariates in newdata
+#' dmod <- drmTMB(cbind(no, total - no) ~ dose, data = daphnids, model = "loglogistic",
+#'                family = "binomial", fform = b3 + b4 ~ 0 + time,
+#'                start = c(b1 = 0, b2 = 1, b4 = 1000, b5 = 0),
+#'                fix = c(b1 = TRUE, b2 = TRUE, b5 = TRUE))
+#' ed(dmod, respLev = 50, newdata = data.frame(time = c("24h", "48h")))
 ed <- function(x, respLev=50, linfct=NULL, newdata=NULL, random=TRUE, residual=FALSE, type=c("relative", "absolute"), vcov.=NULL){
   type <- match.arg(type)
   nobmdpar(x, "ed")
@@ -68,6 +83,14 @@ ed <- function(x, respLev=50, linfct=NULL, newdata=NULL, random=TRUE, residual=F
 #'
 #' @return an edTMB object
 #' @export
+#'
+#' @examples
+#' # hormesis: stimulation of the growth of lettuce at low concentrations of isobutyl alcohol
+#' hmod <- drmTMB(weight ~ conc, data = lettuce, model = "braincousens")
+#' (p <- peak(hmod))
+#' confint(p, method = "wald")
+#' # the dose at which the response returns to the level of the control
+#' ed(hmod, respLev = 0)
 peak <- function(x, linfct=NULL, newdata=NULL, random=TRUE, vcov.=NULL){
   nobmdpar(x, "peak")
   x <- vcovfit(x, vcov.)

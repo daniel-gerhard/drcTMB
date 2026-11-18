@@ -83,3 +83,7 @@ hormesis effect that equals the difference of the asymptotes at dose b4). Defaul
 with a single coefficient in \code{fform}; the asymptotes b1 and b2 are only included
 in the grid with user-specified bounds.
 }
+\examples{
+# starting values of the log-logistic model, as used by drmTMB
+drmTMBstart(rootl ~ conc, data = ryegrass, model = "loglogistic")
+}

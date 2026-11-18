@@ -53,6 +53,16 @@
 #'   intervals of the models.
 #' @export
 #' @aliases bmdbayes print.bmdbayes coef.bmdbayes confint.bmdbayes
+#'
+#' @examples
+#' pr <- list(bmd = pert(0.1, 1, 5), b2 = normal(8, 1), b3 = normal(-2, 2), sigma = half_normal(1))
+#' fit <- function(model)
+#'   drmTMB(rootl ~ conc, data = ryegrass, model = model,
+#'          start = c(b1 = 0, b5 = 0), fix = c(b1 = TRUE, b5 = TRUE),
+#'          bmdpar = list(bmr = 0.05, def = "relative"), prior = pr)
+#' (ba <- bmdbayes(LL = fit("loglogistic"), W1 = fit("weibull1"), W2 = fit("weibull2")))
+#' coef(ba)
+#' confint(ba)
 bmdbayes <- function(..., prior.weights=NULL, method=c("laplace", "is"), n=5000, df=4){
   method <- match.arg(method)
   fits <- namefits(list(...), as.list(substitute(list(...)))[-1])

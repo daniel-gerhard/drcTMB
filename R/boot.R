@@ -21,6 +21,14 @@
 #'   of the parameters, on the scale of \code{\link{confint.drmTMB}}.
 #' @export
 #' @aliases bootstrap print.bootstrap.drmTMB confint.bootstrap.drmTMB
+#'
+#' @examples
+#' mod <- drmTMB(rootl ~ conc, data = ryegrass, model = "loglogistic",
+#'               start = c(b1 = 0, b5 = 0), fix = c(b1 = TRUE, b5 = TRUE))
+#' b <- bootstrap(mod, nsim = 100, seed = 1)
+#' b
+#' confint(b)
+#' predict(mod, newdata = data.frame(conc = c(1, 3, 10)), interval = "confidence", boot = b)
 bootstrap <- function(object, nsim=500, seed=NULL, progress=interactive()){
   if (!inherits(object, "drmTMB")) stop("object must be a drmTMB object.")
   sims <- simulate(object, nsim=nsim, seed=seed)

@@ -62,3 +62,19 @@ theorem. The models need a decreasing curve, with b3 < 0. With \code{respLev=0},
 dose is the dose above the peak at which the response returns to the response at dose zero, the
 limit of the stimulation (the zero equivalent point); see \code{\link{peak}} for the peak itself.
 }
+\examples{
+mod <- drmTMB(rootl ~ conc, data = ryegrass, model = "loglogistic",
+              start = c(b1 = 0, b5 = 0), fix = c(b1 = TRUE, b5 = TRUE))
+# ED10, ED50 and ED90, with profile likelihood intervals
+(e <- ed(mod, respLev = c(10, 50, 90)))
+confint(e)
+# doses at which the root length is 2 and 4 cm
+ed(mod, respLev = c(2, 4), type = "absolute")
+
+# effective doses of several curves, given by the covariates in newdata
+dmod <- drmTMB(cbind(no, total - no) ~ dose, data = daphnids, model = "loglogistic",
+               family = "binomial", fform = b3 + b4 ~ 0 + time,
+               start = c(b1 = 0, b2 = 1, b4 = 1000, b5 = 0),
+               fix = c(b1 = TRUE, b2 = TRUE, b5 = TRUE))
+ed(dmod, respLev = 50, newdata = data.frame(time = c("24h", "48h")))
+}

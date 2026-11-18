@@ -36,6 +36,13 @@
 #' @return a list of ggplot objects, invisibly, named fitted, dose, qq and ranef, for changing or
 #'   drawing single graphs
 #' @export
+#'
+#' @examples
+#' mod <- drmTMB(rootl ~ conc, data = ryegrass, model = "loglogistic",
+#'               start = c(b1 = 0, b5 = 0), fix = c(b1 = TRUE, b5 = TRUE))
+#' plot(mod)
+#' # residuals against the dose only, on the log scale
+#' plot(mod, which = 2, logdose = TRUE)
 plot.drmTMB <- function(x, which=1:3, type=c("quantile", "pearson", "response"), random=TRUE, logdose=NULL, ncol=NULL, seed=NULL, draw=TRUE, ...){
   type <- match.arg(type)
   if (!all(which %in% 1:4)) stop("which must be a subset of 1:4.")

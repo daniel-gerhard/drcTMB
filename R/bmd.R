@@ -60,6 +60,22 @@
 #'
 #' @return an edTMB object, as from \code{\link{ed}}, with the BMDs and their covariance matrix
 #' @export
+#'
+#' @examples
+#' # 10% extra risk of immobility of daphnids after 48 hours
+#' d48 <- subset(daphnids, time == "48h")
+#' dmod <- drmTMB(cbind(no, total - no) ~ dose, data = d48, model = "loglogistic",
+#'                family = "binomial", start = c(b1 = 0, b2 = 1, b4 = 1000, b5 = 0),
+#'                fix = c(b1 = TRUE, b2 = TRUE, b5 = TRUE))
+#' (b <- bmd(dmod, bmr = 0.1, def = "excess"))
+#' # the BMDL: lower limit of the two-sided 90% interval
+#' confint(b, level = 0.9)
+#'
+#' # 5% decrease of the root length of ryegrass, and a decrease by one standard deviation
+#' mod <- drmTMB(rootl ~ conc, data = ryegrass, model = "loglogistic",
+#'               start = c(b1 = 0, b5 = 0), fix = c(b1 = TRUE, b5 = TRUE))
+#' bmd(mod, bmr = 0.05, def = "relative")
+#' bmd(mod, bmr = 1, def = "sd")
 bmd <- function(x, bmr=0.1, def=c("excess", "additional", "relative", "sd"), linfct=NULL, newdata=NULL,
                 scale=c("marginal", "conditional"), nodes=NULL, vcov.=NULL){
   def <- match.arg(def)

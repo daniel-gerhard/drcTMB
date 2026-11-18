@@ -71,6 +71,13 @@
 #' @return an efsapriors object, a list with the EFSA model (name), the arguments model, family,
 #'   curvelink, start, fix, prior and bmdpar of \code{drmTMB}, the direction of the curve (increasing) and whether it levels off (flat)
 #' @export
+#'
+#' @examples
+#' # default priors of EFSA (2022) for the log-logistic model of the ryegrass data
+#' efsapriors(rootl ~ conc, data = ryegrass, model = "loglogistic", family = "gaussian")
+#' # an informative prior of the BMD, by its minimum, mode and maximum
+#' efsapriors(rootl ~ conc, data = ryegrass, model = "loglogistic", family = "gaussian",
+#'            bmd = c(0.1, 1, 5))
 efsapriors <- function(form, data, model, family=c("gaussian", "lognormal", "binomial"), bmr=NULL, def=NULL,
                        background=NULL, maxresponse=NULL, bmd=NULL, dprior=c("default", "alternative"), extended=TRUE){
   family <- match.arg(family)
@@ -235,6 +242,13 @@ fpflat <- function(x, m, inc){
 #' @return a bmdbayes object, with the fits (\code{fits}) and the priors (\code{efsa}) of the models; models
 #'   whose fit fails are left out with a warning
 #' @export
+#'
+#' @examples
+#' \donttest{
+#' # quantal: liver tumours after exposure to TCDD
+#' set.seed(1)
+#' (ba <- bmdefsa(cbind(incidence, total - incidence) ~ conc, data = TCDD, family = "binomial"))
+#' }
 bmdefsa <- function(form, data, bmr=NULL, def=NULL, models=NULL,
                     family=c("gaussian", "lognormal"), ..., prior.weights=NULL, method=c("is", "laplace"), n=5000, df=4, control=list()){
   method <- match.arg(method)
@@ -283,6 +297,22 @@ bmdefsa <- function(form, data, bmr=NULL, def=NULL, models=NULL,
 #' @return a prior (see \code{\link{priors}}), e.g. for \code{prior=list(bmd=...)} of \code{drmTMB} or the
 #'   bmd argument of \code{\link{efsapriors}}
 #' @export
+#'
+#' @examples
+#' # a PERT prior from posterior draws of a BMD
+#' set.seed(1)
+#' draws <- exp(rnorm(2000, log(2), 0.3))
+#' fitpert(draws)
+#'
+#' # from the model-averaged posterior of the BMD of bmdbayes (or bmdefsa), e.g. of a historical
+#' # study, as an informative prior of the BMD for a current study
+#' pr <- list(bmd = pert(0.1, 1, 5), b2 = normal(8, 1), b3 = normal(-2, 2), sigma = half_normal(1))
+#' fit <- function(model)
+#'   drmTMB(rootl ~ conc, data = ryegrass, model = model,
+#'          start = c(b1 = 0, b5 = 0), fix = c(b1 = TRUE, b5 = TRUE),
+#'          bmdpar = list(bmr = 0.05, def = "relative"), prior = pr)
+#' ba <- bmdbayes(LL = fit("loglogistic"), W2 = fit("weibull2"))
+#' fitpert(ba)
 fitpert <- function(..., weights=NULL, discount=FALSE){
   post <- list(...)
   if (length(post) == 0) stop("give at least one posterior.")

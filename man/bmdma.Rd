@@ -93,6 +93,22 @@ lognormal family get the weight 0 in samples with non-positive responses (e.g. s
 gaussian model), whose likelihood is zero under the lognormal family. The
 confidence intervals are percentile intervals of the averaged BMDs.
 }
+\examples{
+fit <- function(model, family = "gaussian")
+  drmTMB(rootl ~ conc, data = ryegrass, model = model, family = family,
+         start = c(b1 = 0, b5 = 0), fix = c(b1 = TRUE, b5 = TRUE))
+LL <- fit("loglogistic")
+W1 <- fit("weibull1")
+W2 <- fit("weibull2")
+# AIC weights and the BMD of the averaged curve, without bootstrap
+bmdma(LL = LL, W1 = W1, W2 = W2, bmr = 0.05, def = "relative", nsim = 0)
+\donttest{
+# with a bootstrap BMDL
+ma <- bmdma(LL = LL, W1 = W1, W2 = W2, bmr = 0.05, def = "relative", nsim = 100, seed = 1)
+ma
+confint(ma)
+}
+}
 \references{
 Buckland, S. T., Burnham, K. P. and Augustin, N. H. (1997). Model selection: an integral
 part of inference. Biometrics 53, 603-618.
