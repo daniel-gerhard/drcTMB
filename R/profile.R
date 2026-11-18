@@ -520,9 +520,9 @@ edb4 <- function(mod, q, ed, b3, b5, c5=0, alpha=NULL, smooth=0){
 #'
 #' @param object a drmTMB or edTMB object
 #' @param parm parameters or effective doses, names or positions in \code{coef(object)}; default all
-#' @param level the confidence level, 0.95 by default; for benchmark doses of \code{\link{bmd}}, use
-#'   \code{level=0.90} for the BMDL and BMDU of EFSA and the US EPA (the lower and upper limits of the
-#'   two-sided 90% interval; \code{\link{bmdma}} and \code{\link{bmdbayes}} use 0.90 by default)
+#' @param level the confidence level: 0.95 by default, and 0.90 for the benchmark doses of
+#'   \code{\link{bmd}}, whose lower and upper limits of the two-sided 90% interval are the BMDL and
+#'   BMDU of EFSA and the US EPA (as for \code{\link{bmdma}} and \code{\link{bmdbayes}})
 #' @param method "profile" for profile likelihood intervals, "wald" for Wald intervals, or "boot" for
 #'   percentile intervals of a parametric bootstrap: responses are simulated from the fitted model
 #'   (with new random effects, see \code{\link{simulate.drmTMB}}) and the model is fitted again to each,
@@ -571,7 +571,8 @@ confint.drmTMB <- function(object, parm=NULL, level=0.95, method=c("profile", "w
 
 #' @rdname confint.drmTMB
 #' @export
-confint.edTMB <- function(object, parm=NULL, level=0.95, method=c("profile", "wald", "boot"), nsim=500, seed=NULL, boot=NULL, ...){
+confint.edTMB <- function(object, parm=NULL, level=if (identical(object$type, "bmd")) 0.90 else 0.95,
+                          method=c("profile", "wald", "boot"), nsim=500, seed=NULL, boot=NULL, ...){
   # effective doses with a covariance vcov.: Wald intervals by default, as profile and bootstrap
   # intervals do not use it
   if (missing(method) && is.null(boot) && isTRUE(object$fit$vcovuser)) method <- "wald"

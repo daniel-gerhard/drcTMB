@@ -45,14 +45,14 @@ the default decreases with the number of random coefficients, from 30 for one to
 \value{
 an edTMB object, as from \code{\link{ed}}, with the BMDs and their covariance matrix, entries
 named "bmr:curve"; print shows the estimates and their standard errors (delta method), and
-\code{confint(..., level=0.90)} the BMDL and BMDU.
+\code{confint} the BMDL and BMDU (level 0.90 by default).
 }
 \description{
 The benchmark dose (BMD) is the dose at which the response has changed from the response at dose
 zero by a specified amount, the benchmark response (BMR). Its lower confidence limit, the BMDL, is
 the reference point of regulatory risk assessment; with the convention of EFSA and the US EPA, the
-lower limit of a two-sided 90\% interval, \code{confint(bmd(fit), level=0.90)} (the default level of confint
-is 0.95). Not available for fits in the BMD parameterisation (bmdpar of \code{\link{drmTMB}}).
+lower limit of a two-sided 90\% interval, \code{confint(bmd(fit))} (confint uses the level 0.90 for
+BMDs). Not available for fits in the BMD parameterisation (bmdpar of \code{\link{drmTMB}}).
 }
 \details{
 With the response mu0 at dose zero, the BMD is the dose at which the curve reaches the
@@ -106,7 +106,7 @@ dmod <- drmTMB(cbind(no, total - no) ~ dose, data = d48, model = "loglogistic",
                fix = c(b1 = TRUE, b2 = TRUE, b5 = TRUE))
 (b <- bmd(dmod, bmr = 0.1, def = "excess"))
 # the BMDL: lower limit of the two-sided 90\% interval
-confint(b, level = 0.9)
+confint(b)
 
 # 5\% decrease of the root length of ryegrass, and a decrease by one standard deviation
 mod <- drmTMB(rootl ~ conc, data = ryegrass, model = "loglogistic",

@@ -139,3 +139,11 @@ test_that("bmd checks its arguments", {
   fq <- drmTMB(cbind(y, n - y) ~ dose, data=simquantal(), family="binomial", model="loglogistic", start=c(b5=0), fix=c(b5=TRUE))
   expect_error(bmd(fq, 1, def="additional"), "below 1")
 })
+
+test_that("confint of BMDs uses the level 0.90 by default", {
+  f <- drmTMB(rootl ~ conc, data=ryegrass, model="loglogistic", start=c(b1=0, b5=0), fix=c(b1=TRUE, b5=TRUE))
+  b <- bmd(f, 0.05, def="relative")
+  expect_equal(confint(b, progress=FALSE), confint(b, level=0.9, progress=FALSE))
+  expect_equal(colnames(confint(b, method="wald")), c("5 %", "95 %"))
+  expect_equal(colnames(confint(ed(f, 50), method="wald")), c("2.5 %", "97.5 %"))
+})
