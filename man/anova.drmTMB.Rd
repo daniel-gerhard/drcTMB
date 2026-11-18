@@ -19,7 +19,7 @@
 \item{...}{further drmTMB objects}
 
 \item{test}{"Chisq" (default) for likelihood ratio tests, "F" for F-tests of gaussian or lognormal models
-without random effects, or "boot" for parametric bootstrap likelihood ratio tests}
+without random effects, priors, correlation structure and variance function, or "boot" for parametric bootstrap likelihood ratio tests}
 
 \item{nsim}{number of simulations for \code{test="boot"}}
 
@@ -53,7 +53,8 @@ infinite size of the negative binomial for the poisson model, the chi-square dis
 conservative: the p-value is approximately twice the correct value for a single standard
 deviation.
 
-For gaussian and lognormal (on the log scale) models without random effects, \code{test="F"} gives F-tests, as drc does for
+For gaussian and lognormal (on the log scale) models without random effects, priors, correlation
+structure and variance function, \code{test="F"} gives F-tests, as drc does for
 continuous responses: the reduction of the (weighted) residual sum of squares per additional
 parameter, divided by the residual mean square of the largest model, with n - p residual degrees
 of freedom for p coefficients b1-b5. The F-test is exact for linear models and accounts for the
@@ -84,4 +85,12 @@ anova(mod, mod4, test = "F")
 # test for any dose effect, against a constant mean
 mod0 <- drmTMB(rootl ~ conc, data = ryegrass, model = "constant")
 anova(mod0, mod)
+}
+\references{
+Halekoh, U. and Hojsgaard, S. (2014). A Kenward-Roger approximation and parametric
+bootstrap methods for tests in linear mixed models - the R package pbkrtest. Journal of Statistical
+Software 59(9), 1-32.
+}
+\seealso{
+\code{\link{drmTMB}} (model="constant" for a test of a dose effect), \code{\link{bootstrap}}
 }

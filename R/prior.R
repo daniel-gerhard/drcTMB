@@ -4,6 +4,12 @@
 #' estimates are the posterior mode (maximum a posteriori), and the standard errors are from the
 #' curvature of the log posterior, see \code{\link{drmTMB}}.
 #'
+#' The priors are given by name in \code{prior=list(...)} of drmTMB: b1-b5, coefficient names, "bmd" (with
+#' bmdpar), "sd" for the standard deviations of the random effects, "sigma", "phi" or "theta" for the
+#' residual parameter, and the parameters of correlation structures and variance functions; see the
+#' argument prior of \code{\link{drmTMB}}. The prior \code{lognormal()} is not related to
+#' \code{family="lognormal"} or \code{model="lognormal"}.
+#'
 #' \itemize{
 #'   \item \code{normal(mean, sd)}: normal distribution.
 #'   \item \code{student_t(df, location, scale)}: Student t distribution with df degrees of freedom,
@@ -22,7 +28,7 @@
 #'
 #' A prior whose support is wider than the range of the parameter, e.g. a normal prior for a parameter
 #' bounded below by 0, is truncated to that range and renormalised; the normalisation does not change
-#' the estimates.
+#' the estimates, but enters the marginal likelihood of \code{\link{marglik}}.
 #'
 #' @param mean,sd mean and standard deviation of the normal distribution
 #' @param df degrees of freedom of the Student t distribution
@@ -33,7 +39,8 @@
 #' @param shape the shape (weight of the mode) of the PERT distribution
 #' @param p a prior, for negate
 #'
-#' @return a drcprior object
+#' @return a drcprior object, for the argument prior of \code{\link{drmTMB}}
+#' @seealso \code{\link{drmTMB}}, \code{\link{efsapriors}}, \code{\link{fitpert}}, \code{\link{marglik}}
 #' @name priors
 #' @aliases normal student_t lognormal pert half_normal half_student_t negate
 NULL

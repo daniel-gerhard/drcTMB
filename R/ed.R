@@ -1,11 +1,15 @@
 #' Effective dose estimation
 #'
+#' Estimates effective doses (ED p, e.g. ED50 or EC50) of fitted dose-response curves, for one or
+#' several curves, with standard errors by the delta method; confidence intervals follow with
+#' \code{confint}. Not available for fits in the BMD parameterisation (bmdpar of \code{\link{drmTMB}}).
+#'
 #' @param x a drmTMB object
 #' @param respLev effective dose level in percent, default is 50. The effective dose ED p is the dose at which the response has changed by p percent of the difference between the asymptote at low doses (the control) and the asymptote at high doses; for the hormesis models, the dose above the peak of the stimulation, see Details. For \code{type="absolute"}, values of the response.
-#' @param linfct a matrix of linear functions to identify the parameters of the dose-response curve, with 5 rows (b1-b5) and one column for each model coefficient, or a list of such matrices; default is the identity matrix, for models without covariates in fform. Each matrix is paired with an entry of respLev.
+#' @param linfct a matrix of linear functions to identify the parameters of the dose-response curve, with 5 rows (b1-b5) and one column for each model coefficient, or a list of such matrices; default is the identity matrix, which only works without covariates in fform; otherwise give newdata. Each matrix is paired with an entry of respLev.
 #' @param newdata a data frame with the values of the covariates in fform, one row for each dose-response curve, as an alternative to linfct; the dose is not needed. With grouping variables of the random effects, the curves of fitted groups, see Details. The effective doses are computed at each level of respLev for each row, named by the covariate and group values (or by the row names of newdata, if set).
-#' @param random logical, if TRUE, the effective doses of rows of newdata with fitted groups are conditional on their random effects, and for the other random effect terms, the variance-covariance matrix of the random effects is included in the standard error estimation. If FALSE, the effective doses are for the population curves.
-#' @param residual logical, if TRUE, the residual variance is included in the standard error estimation (gaussian family only)
+#' @param random logical. TRUE (default): rows of newdata with a fitted group give the effective dose of the curve of that group; for the other random effect terms, the standard errors include the variance of the random effects, i.e. they describe the effective dose of a new, randomly drawn group. FALSE: the effective doses of the population curve (random effects at zero), with the uncertainty of the fixed effects only; profile and bootstrap intervals need FALSE (or fitted groups). Without random effects, TRUE and FALSE are the same.
+#' @param residual logical, if TRUE, the residual variance is included in the standard error, for the dose at which a single new observation reaches the response level; gaussian family only, and not with a curvelink or a variance function
 #' @param type "relative" (default) for effective doses relative to the asymptotes, or "absolute" for the doses at which the curves reach the responses in respLev, on the scale of the response (proportions for binomial, beta-binomial and beta). Absolute effective doses depend on the asymptotes, and on their random effects; responses outside the range of a curve give NA, with a warning. The exponential and power models, without an upper asymptote, have absolute effective doses only.
 #'
 #' @param vcov. the covariance of the estimated parameters for the standard errors: a matrix as vcov() of the fit, or a function of the fit that returns one, e.g. the sandwich covariance \code{\link{vcovrobust}}; NULL (default) for vcov() of the fit. \code{\link{confint.edTMB}} then gives Wald intervals by default.
@@ -32,7 +36,18 @@
 #' dose is the dose above the peak at which the response returns to the response at dose zero, the
 #' limit of the stimulation (the zero equivalent point); see \code{\link{peak}} for the peak itself.
 #'
-#' @return a edTMB object
+#' The effective dose ED p is relative to the range between the asymptotes, whereas the relative BMD of
+#' \code{\link{bmd}} (def="relative") is relative to the response at dose zero; they coincide only for a
+#' lower asymptote of 0. For the event family, the relative effective dose is the time by which p percent
+#' of the units with an event have had it (b2 is the proportion with an event); the time by which a
+#' proportion q of all units has had an event is given by \code{type="absolute"} with respLev = q.
+#'
+#' @return An object of class edTMB, a list with the estimates (estimates), their covariance matrix
+#'   (variance), the fit and the linear functions of the curves. The entries are named
+#'   "level:curve", e.g. "50:lf1" or "50:time=24h", and "y=value:curve" for absolute effective doses.
+#'   Use \code{coef}, \code{vcov} and \code{confint}, see \code{\link{edTMB-methods}}.
+#' @seealso \code{\link{confint.edTMB}}, \code{\link{profile.edTMB}}, \code{\link{bootstrap}},
+#'   \code{\link{edTMB-methods}}, \code{\link{peak}}, \code{\link{bmd}}
 #' @export
 #'
 #' @examples
@@ -65,8 +80,8 @@ ed <- function(x, respLev=50, linfct=NULL, newdata=NULL, random=TRUE, residual=F
 #' inhibition model haldane, reaches its maximum, and the maximal response, as \code{MAX} in drc. For the
 #' hormesis models the peak has no closed form: it is found numerically, and its derivatives, for the
 #' standard errors, follow from the implicit function theorem, as for the effective doses of
-#' \code{\link{ed}}. Curves without a stimulation (b5 <= 0, or a curve that does not decrease at high
-#' doses) have no peak, and give NA with a warning. For haldane, the peak is at the dose sqrt(b4/b5), the
+#' \code{\link{ed}}. Curves without a stimulation (b5 <= 0) have no peak, and give NA with a warning; the
+#' hormesis models need a decreasing curve (b3 < 0), otherwise an error is raised. For haldane, the peak is at the dose sqrt(b4/b5), the
 #' optimal substrate concentration sqrt(Km Ki); without inhibition (b5 = 0) there is no peak. With a
 #' \code{curvelink}, the peak dose is that of the curve, as the link is monotone, and the response at the
 #' peak is on the scale of the response, the inverse link of the curve at the peak.
@@ -81,7 +96,9 @@ ed <- function(x, respLev=50, linfct=NULL, newdata=NULL, random=TRUE, residual=F
 #' @param linfct,newdata,random the curves, as in \code{\link{ed}}
 #' @param vcov. the covariance of the estimated parameters, as in \code{\link{ed}}
 #'
-#' @return an edTMB object
+#' @return an edTMB object, with entries "dose:curve" and "response:curve"; not available for fits in
+#'   the BMD parameterisation
+#' @seealso \code{\link{ed}}, \code{\link{confint.edTMB}}, \code{\link{edTMB-methods}}
 #' @export
 #'
 #' @examples
@@ -122,12 +139,13 @@ edcurves <- function(x, lev, linfct, newdata, levname){
   }
   if (is.null(linfct)) linfct <- diag(5)
   if (!is.list(linfct)) linfct <- list(linfct)
+  # name the curves before recycling, so that the levels of one curve share its name
+  if (is.null(names(linfct))) names(linfct) <- paste("lf", seq_along(linfct), sep="")
   if (length(lev) != length(linfct)){
     if (length(lev) == 1) lev <- rep(lev, length(linfct))
     if (length(linfct) == 1) linfct <- rep(linfct, length(lev))
     if (length(lev) != length(linfct)) stop(levname, " and linfct must have the same length or one of them must be of length 1.")
   }
-  if (is.null(names(linfct))) names(linfct) <- paste("lf", seq_along(linfct), sep="")
   ncf <- length(x$start)
   for (L in linfct){
     if (!is.matrix(L) || nrow(L) != 5 || ncol(L) != ncf){

@@ -24,7 +24,8 @@ liver.tumor
 \description{
 Liver tumour incidence in female Harlan Sprague-Dawley rats exposed to
 2,3,7,8-tetrachlorodibenzo-p-dioxin (TCDD); the current study of the EFSA example on informative
-priors, see \code{\link{TCDD}} for the historical study.
+priors, see \code{\link{TCDD}} for the historical study, and \code{\link{bmdefsa}} and
+\code{\link{fitpert}} for the analysis with an informative prior from the historical study.
 }
 \examples{
 # no tumours in the controls: background risk b1 fixed at 0

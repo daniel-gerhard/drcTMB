@@ -2,7 +2,7 @@
 % Please edit documentation in R/drmTMB.R
 \name{drmTMB}
 \alias{drmTMB}
-\title{Fit a drmTMB model}
+\title{Fit dose-response models with TMB}
 \usage{
 drmTMB(
   form,
@@ -32,8 +32,10 @@ drmTMB(
 )
 }
 \arguments{
-\item{form}{formula with name of response and dose scale; for the event family count ~ start + end,
-the number of events in each time interval (see Details)}
+\item{form}{a formula response ~ dose. For the binomial and beta-binomial families, the response is
+cbind(successes, failures), or a 0/1 response for binary data (binomial only); proportions with
+weights, as in drc, are not used. For the event family, count ~ start + end, the number of events
+in each time interval (see the section Time-to-event data).}
 
 \item{fform}{fixed effects for the model parameters: a formula of the form b2 + b4 ~ Stress, or a list of such formulas, e.g. list(b2 ~ Stress, b4 ~ Stress + Time). Parameters not listed have a single intercept (~ 1). A list of five right-hand side formulas, one for each of b1-b5 (X1 = ~ 1, ..., X5 = ~ 1), is also accepted.}
 
@@ -41,31 +43,89 @@ the number of events in each time interval (see Details)}
 
 \item{data}{a data.frame object. Observations with missing values in the variables of the model or in the weights are left out.}
 
-\item{start}{a vector with starting values for each model coefficient. NA entries are replaced by the starting values of \code{\link{drmTMBstart}}. Alternatively, a vector named by parameter, e.g. c(b1=0, b5=0), gives the same starting value to all coefficients of each named parameter.}
+\item{start}{starting values: a vector with one value for each model coefficient, in the order of
+\code{\link{drmTMBstart}}, where NA entries are replaced by the starting values of drmTMBstart; or a
+vector named by parameter, e.g. c(b1=0, b5=0), which gives the same starting value to all
+coefficients of each named parameter.}
 
-\item{fix}{a logical vector with one entry for each model coefficient. If TRUE, a model coefficient is fixed to its value in start. Alternatively, a vector named by parameter, e.g. c(b1=TRUE, b5=TRUE), fixes all coefficients of the named parameters; their values must then be given in start, e.g. start=c(b1=0, b5=0). Parameters not used by the model (b5 except for logistic, loglogistic, braincousens, cedergreen, multistage, nec and haldane, b3 for michaelismenten, asymptoticregression, exponentialdecay and haldane, b2 and b5 for exponential and power, b2-b5 for constant) are always fixed, at 0 unless given in start.}
+\item{fix}{a logical vector with one entry for each model coefficient; TRUE fixes a coefficient at its
+value in start. Alternatively, a vector named by parameter, e.g. c(b1=TRUE, b5=TRUE), fixes all
+coefficients of the named parameters, whose values must then be given in start, e.g.
+start=c(b1=0, b5=0). Parameters that the model does not use are always fixed, at 0 unless given in
+start (see Details).}
 
-\item{weights}{a vector of weights, one for each row of data.}
+\item{weights}{a vector of prior weights, one for each row of data. For the gaussian and lognormal
+families, they are precision weights: the residual standard deviation of an observation is
+sigma/sqrt(w), as in lm and drc. For the other families, the log-likelihood contributions are
+multiplied by the weights. Weights cannot be combined with a correlation structure.}
 
-\item{lower}{lower bounds for the model coefficients b1-b5, a single value or a vector with the same length as start. Bounds of fixed coefficients are ignored; variance parameters are unbounded. For the multistage model, the default is 0 for the coefficients b3-b5 without covariates in fform, for the nec model 0 for the rate b3 and, with the identity link for b4, the threshold b4 without covariates, and for the exponential and power models 0 for the power b3 without covariates, see Details.}
+\item{lower}{lower bounds for the model coefficients b1-b5: a single value or a vector with one entry
+for each model coefficient, in the order of \code{\link{drmTMBstart}}. Bounds of fixed coefficients
+are ignored; variance parameters are unbounded. By default, some parameters without covariates in
+fform are bounded below by 0: b3-b5 of multistage, the rate b3 and (with the identity link) the
+threshold b4 of nec, the inhibition b5 of haldane, and the power b3 of exponential and power; see
+Details.}
 
-\item{upper}{upper bounds for the model coefficients b1-b5, a single value or a vector with the same length as start.}
+\item{upper}{upper bounds for the model coefficients b1-b5, as lower.}
 
-\item{family}{Specify the distributional assumptions. One of "gaussian", "lognormal", "binomial", "betabinomial", "beta", "poisson", "nbinom2", "nbinom1", and "event" for time-to-event data, e.g. germination times (see Details). For the lognormal family, log(y) is normal with mean log f(x) and standard deviation sigma: the curve f is the median of a positive response, with a constant coefficient of variation, as in PROAST and BMDS; the mean is f(x) exp(sigma^2/2). The negative binomial families are for overdispersed counts, with variance mu (1 + mu/theta) for nbinom2 and mu (1 + phi) for nbinom1, and the beta-binomial family for overdispersed binomial counts, with variance n mu (1 - mu) (1 + (n - 1)/(phi + 1)) for n trials, as in glmmTMB.}
+\item{family}{the distribution of the response: "gaussian" (default), "lognormal", "binomial",
+"betabinomial", "beta", "poisson", "nbinom2", "nbinom1", or "event" for time-to-event data, e.g.
+germination times (see the section Time-to-event data). For the lognormal family, log(y) is normal
+with mean log f(x) and standard deviation sigma: the curve f is the median of a positive response,
+with a constant coefficient of variation, as in PROAST and BMDS; the mean is f(x) exp(sigma^2/2).
+The negative binomial families are for overdispersed counts, with variance mu (1 + mu/theta) for
+nbinom2 and mu (1 + phi) for nbinom1, and the beta-binomial family for overdispersed binomial
+counts, with variance n mu (1 - mu) (1 + (n - 1)/(phi + 1)) for n trials, as in glmmTMB.}
 
-\item{model}{Specify the nonlinear model. One of "logistic", "loglogistic", "weibull1", "weibull2", "lognormal", "michaelismenten", "asymptoticregression", "exponentialdecay", "gompertz", "gamma", "multistage", "nec", "braincousens", "cedergreen", "haldane", "exponential", "power", "constant". The nec model has a threshold, the exponential and power models have no upper asymptote, the braincousens and cedergreen models describe hormesis, the haldane model substrate inhibition, and the constant model has no dose effect, see Details.}
+\item{model}{the model function: "logistic" (default), "loglogistic", "weibull1", "weibull2",
+"lognormal", "gompertz", "michaelismenten", "asymptoticregression", "exponentialdecay", "gamma",
+"multistage", "nec" (threshold), "braincousens" and "cedergreen" (hormesis), "haldane" (substrate
+inhibition), "exponential" and "power" (no upper asymptote), or "constant" (no dose effect); see
+Details.}
 
 \item{alpha}{the exponent of the hormesis term of the cedergreen model, a positive number, e.g. 1, 0.5 or 0.25 as the models CRS.4a, CRS.4b and CRS.4c of drc (CRS.5a-c with b1 estimated); only for the cedergreen model. See Details.}
 
 \item{smooth}{smoothing of the threshold of the nec model: the width of the smoothed threshold relative to the smallest interval between doses, a number of at least 0; 0 is an exact threshold. The default is 0.1 with random effects on b4, and 0 otherwise. Only for the nec model, see Details.}
 
-\item{parlink}{links of the parameters b1-b5: NULL for the defaults of the model, a single link for the asymptotes b1 and b2, or links named by parameter, e.g. c(b1="logit", b2="logit", b4="log"), where the parameters not named keep their defaults. b1 and b2 have the link "identity" (default), "log" or "logit"; b4 has "identity" (default) or "log" for the models with a positive b4 (not logistic, gompertz, multistage, exponential and power); b5 has the log link for the asymmetry of logistic and loglogistic and the shape of nec; the other parameters have the identity link. The coefficients, and start, fix, lower, upper and linfct of \code{\link{ed}}, are on the scale of the links, see Details.}
+\item{parlink}{links of the parameters b1-b5: NULL for the defaults of the model, a single link for
+the asymptotes b1 and b2, or links named by parameter, e.g. c(b1="logit", b2="logit", b4="log"),
+where the parameters not named keep their defaults. The available links are:
+\itemize{
+\item b1, b2: "identity" (default), "log" or "logit" (for the event family, b2 has the logit link
+by default);
+\item b4: "identity" (default) or "log", for the models with a positive b4 (not logistic, gompertz,
+multistage, exponential, power and constant);
+\item b3 and b5: identity; the asymmetry b5 of logistic and loglogistic and the shape b5 of nec
+always have the log link.
+}
+The coefficients, and start, fix, lower, upper and linfct of \code{\link{ed}}, are on the scale of
+the links, see the section Parameter links and curve links.}
 
-\item{curvelink}{link of the whole curve: "identity" (default), the curve is the mean (the median for the lognormal family, the probability for binomial, beta-binomial and beta); "log" (gaussian, lognormal, poisson, nbinom2, nbinom1) or "logit" and "probit" (binomial, betabinomial, beta), the mean (median, probability) is the inverse link of the curve. Unlike parlink, which applies to the linear predictors of the parameters, curvelink applies to the response; b1 and b2 are then on the scale of the curve link and keep the identity parlink. See Details.}
+\item{curvelink}{link of the whole curve: "identity" (default), the curve is the mean (the median for the lognormal family, the probability for binomial, beta-binomial and beta); "log" (gaussian, lognormal, poisson, nbinom2, nbinom1) or "logit" and "probit" (binomial, betabinomial, beta), the mean (median, probability) is the inverse link of the curve. Unlike parlink, which applies to the linear predictors of the parameters, curvelink applies to the response; b1 and b2 are then on the scale of the curve link and keep the identity parlink. See the section Parameter links and curve links.}
 
-\item{prior}{NULL (default) for maximum likelihood without priors, or a named list of prior distributions (see \code{\link{priors}}), e.g. list(b2=normal(8, 2), b4=pert(0.5, 3, 10), sd=half_normal(1)): by parameter b1-b5, for parameters with a single coefficient, on the scale of the parameter (after the inverse link); by coefficient name, e.g. "b4:herbicideB", on the scale of the coefficient (the link); "sd" for all standard deviations of the random effects, or "sd:b1|group" for one of them; and "sigma" (gaussian, lognormal), "phi" (beta, nbinom1, betabinomial) or "theta" (nbinom2) for the residual parameter, on their natural scale; and the parameters of a residual correlation structure and variance function on their natural scale, "cor:rho" (AR1, compound symmetry), "cor:phi" (CAR1), "cor:range", "cor:nugget", "var:delta" (power, exponential) and "var:ratio:\if{html}{\out{<stratum>}}" (separate standard deviations, the ratio to the first stratum), see \code{\link{correlation}}. See Details.}
+\item{prior}{NULL (default) for maximum likelihood, or a named list of prior distributions (see
+\code{\link{priors}}), e.g. list(b2=normal(8, 2), b4=pert(0.5, 3, 10), sd=half_normal(1)). The
+names are:
+\itemize{
+\item b1-b5, for parameters with a single coefficient, on the scale of the parameter (after the
+inverse link);
+\item coefficient names, e.g. "b4:herbicideB", on the scale of the coefficient (the link);
+\item "sd" for all standard deviations of the random effects, or e.g. "sd:b1|group" for one of
+them;
+\item "sigma" (gaussian, lognormal), "phi" (beta, nbinom1, betabinomial) or "theta" (nbinom2) for
+the residual parameter;
+\item "bmd" for the benchmark dose, with bmdpar;
+\item the parameters of a correlation structure and variance function: "cor:rho" (AR1, compound
+symmetry), "cor:phi" (CAR1), "cor:range", "cor:nugget", "var:delta" (power, exponential) and
+"var:ratio:STRATUM" (e.g. "var:ratio:B", the ratio of the standard deviation of stratum B to
+the first stratum), see \code{\link{correlation}}.
+}
+See the section Priors.}
 
-\item{bmdpar}{NULL (default) for the standard parameterisation, or a list with a benchmark response bmr and its definition def as in \code{\link{bmd}}, e.g. list(bmr=0.1, def="relative"), for the BMD parameterisation: b4 is replaced by the log benchmark dose, coefficient log_bmd, and computed from it. See Details.}
+\item{bmdpar}{NULL (default) for the standard parameterisation, or a list with a benchmark response
+bmr and its definition def as in \code{\link{bmd}}, e.g. list(bmr=0.1, def="relative"), for the BMD
+parameterisation: b4 is replaced by the log benchmark dose, coefficient log_bmd, and computed from
+it. See the section BMD parameterisation.}
 
 \item{correlation}{NULL (default) for independent residuals, or a residual correlation structure within
 series, e.g. \code{cor_car1(~ time | subject)}, for the gaussian and lognormal families; see
@@ -75,33 +135,62 @@ series, e.g. \code{cor_car1(~ time | subject)}, for the gaussian and lognormal f
 \code{var_power()} (a power of the fitted mean) or \code{var_ident(~ 1 | group)}, for the gaussian and
 lognormal families; see \code{\link{correlation}}.}
 
-\item{series}{for the event family: a one-sided formula of the series of the rows, e.g. ~ dish, the
-intervals of one Petri dish; by default the rows with the same covariates of the curve (fform) and
-the same levels of the random effect terms. The series are needed by simulate, bootstrap, residuals
-and the dispersion of summary, which need complete series: intervals from 0 to Inf without gaps.}
+\item{series}{for the event family: a one-sided formula of the series of the rows, e.g. ~ dish for the
+intervals of each Petri dish. By default, rows with the same covariates (fform) and the same levels
+of the random effects form one series. The series are needed by simulate, bootstrap, residuals and
+the dispersion of summary, which need complete series: intervals from 0 to Inf without gaps.}
 
-\item{gsl}{a vector of lower bounds for a grid search, same length as start; NA for the default range. If gsl, gsu and gsn are all NULL, no grid search is performed. See \code{\link{drmTMBstart}}.}
+\item{gsl, gsu}{lower and upper bounds of a grid search for starting values: vectors with one entry for
+each model coefficient, on the scale of the coefficients, NA for the default range. If gsl, gsu and
+gsn are all NULL (default), no grid search is performed. See \code{\link{drmTMBstart}}.}
 
-\item{gsu}{a vector of upper bounds for a grid search, same length as start; NA for the default range.}
+\item{gsn}{number of grid points for each coefficient, a single number or a vector with one entry for
+each model coefficient; 10 if gsl or gsu is given. \code{gsn=10} alone runs a grid search over the
+default ranges.}
 
-\item{gsn}{number of grid points for each parameter, a single number or a vector with the same length as start. \code{gsn=10} alone runs a grid search over the default ranges.}
-
-\item{control}{a list of control parameters. See \code{\link{drmTMBcontrol}} for details.}
+\item{control}{a list of control parameters, the result of \code{\link{drmTMBcontrol}} or a list of its
+arguments, e.g. list(restart=TRUE).}
 }
 \value{
-A drmTMB object
+An object of class drmTMB, a list with, among others, the call, the data, the model and
+family, the TMB object (obj), the optimiser result (opt), start, fix, lower and upper. Use the methods
+(\code{coef}, \code{vcov}, \code{summary}, \code{predict}, ..., see \code{\link{drmTMB-methods}}),
+\code{\link{confint.drmTMB}}, \code{\link{ed}}, \code{\link{bmd}}, \code{\link{anova.drmTMB}},
+\code{\link{bootstrap}} and \code{\link{plot.drmTMB}} rather than the components.
 }
 \description{
-Fit a drmTMB model
+Fits a nonlinear dose-response curve f(x) with the parameters b1-b5 by maximum likelihood with the
+Template Model Builder (TMB), optionally with covariates on the parameters (\code{fform}), random
+effects (\code{rform}), a non-normal response distribution (\code{family}), correlated or
+heteroscedastic residuals (\code{correlation}, \code{variance}) and priors (\code{prior}). The
+interface resembles \code{drm} of the drc package; \code{vignette("drcTMB", package = "drcTMB")}
+introduces the package with examples.
 }
 \details{
 All models, except exponential and power, are of the form f(x) = b1 + (b2 - b1) F(x), with a
 function F increasing from 0 to 1. For the models with steepness b3 (logistic, loglogistic, weibull1, weibull2,
 lognormal, gompertz), F depends on b3 (x - b4) or b3 (log(x) - log(b4)); b1 is the lower and b2
 the upper asymptote, and b3 is positive for an increasing and negative for a decreasing curve.
-For michaelismenten, asymptoticregression and exponentialdecay (b3 and b5 are not used),
-b1 is the response at dose zero and b2 the asymptote at high doses. The asymmetry parameter b5
-of the logistic and loglogistic models is on the log scale. See the vignette for the model functions.
+The asymmetry parameter b5 of the logistic and loglogistic models is on the log scale; b5 = 0 is the
+symmetric four-parameter model. Compared with the models of drc (e.g. LL.4 with parameters b, c, d,
+e, and LL.5 with f), b1 = c, b2 = d, b3 = -b (a positive b3 is an increasing curve, unlike drc),
+b4 = e and b5 = log(f). The formulas of all models are given in the appendix of the vignette.
+
+For michaelismenten, asymptoticregression and exponentialdecay, b1 is the response at dose zero and b2
+the asymptote at high doses. asymptoticregression and exponentialdecay are the same function,
+f(x) = b1 + (b2 - b1) (1 - exp(-x/b4)), increasing for b2 > b1 and decreasing otherwise (AR.3 and
+EXD.3 of drc).
+
+The parameters that a model does not use are fixed: b5 except for logistic, loglogistic,
+braincousens, cedergreen, multistage, nec and haldane; b3 for michaelismenten, asymptoticregression,
+exponentialdecay and haldane; b2 and b5 for exponential and power; b2-b5 for constant.
+
+The constant model, f(x) = b1, has the same mean at all doses. Compared with a dose-response model by
+\code{\link{anova.drmTMB}}, it tests for a dose effect, as \code{noEffect} in drc. Under the constant
+model, the parameters of the curve other than an asymptote are not identifiable, so the chi-square
+distribution of the likelihood ratio statistic is only an approximation.
+}
+\section{Models of BMDS and PROAST}{
 
 The gamma model, F(x) = pgamma(x/b4, shape=b3), is the gamma model of the benchmark dose software
 of the US EPA (BMDS) and \code{gammadr} of drc (b3 = e, b4 = 1/b). As for michaelismenten, b1 is the
@@ -120,6 +209,26 @@ below by 0 by default (if \code{lower} is not given, and for parameters without 
 fform), so that the curve increases; estimates at the bound are common, and are listed by
 \code{summary}, as their standard errors and Wald intervals do not account for the bound. Profile
 intervals of the effective doses respect the bounds. The log link for b4 is not available.
+
+The exponential and power models of PROAST and BMDS have no upper asymptote:
+f(x) = b1 exp(b4 x^b3) and f(x) = b1 + b4 x^b3, with b1 the response at dose zero, b3 > 0 the power
+and b4 the coefficient, whose sign gives the direction of the curve; b2 and b5 are not used. b4 = 0
+is the constant model, and b3 = 1 gives the exponential model 2 of PROAST and BMDS (exp2, e.g.
+\code{start=c(b3=1), fix=c(b3=TRUE)}), so that \code{\link{anova.drmTMB}} tests the power; the
+exponential model with b3 estimated is exp3 (PROAST: a exp(b x^d); BMDS: a exp(sign * (b x)^d) with
+b4 = sign * b^b3). The power b3 is bounded below by 0 by default (if \code{lower} is not given, without
+covariates in fform); BMDS restricts the power of its power model to b3 >= 1 by default, which can be
+set by \code{lower}. Without an upper asymptote, relative effective doses are not defined:
+\code{\link{ed}} gives absolute effective doses (\code{type="absolute"}), and \code{\link{bmd}} benchmark
+doses. For the exponential model, the log link for b1, \code{parlink=c(b1="log")}, makes the model
+linear on the log scale, with log(b1) the intercept.
+
+The linear-quadratic model of radiobiology, S = exp(-alpha x - beta x^2), is the multistage model of
+degree 2 with b1 = 1 and b2 = 0: alpha = b3 and beta = b4, e.g.
+\code{start=c(b1=1, b2=0, b5=0), fix=c(b1=TRUE, b2=TRUE, b5=TRUE)}.
+}
+
+\section{Threshold model nec}{
 
 The threshold model nec has no effect up to a threshold b4, the no-effect concentration (NEC), and
 F(x) = 1 - exp(-(b3 (x - b4))^exp(b5)) above it: b1 is the response up to the threshold and b2 the
@@ -147,6 +256,9 @@ the term above. In simulations with random thresholds, fits with an exact thresh
 and smoothed fits converged with little bias. \code{smooth=0} gives an exact threshold also with
 random effects, and \code{smooth} > 0 a smoothed threshold without them; the width is not
 estimated. \code{summary} reports the width.
+}
+
+\section{Hormesis and substrate inhibition}{
 
 The hormesis models braincousens (Brain and Cousens, 1989) and cedergreen (Cedergreen, Ritz and
 Streibig, 2005) describe a stimulation at low doses before a decreasing curve:
@@ -168,29 +280,9 @@ michaelismenten model, so that \code{\link{anova.drmTMB}} tests for inhibition (
 the boundary under the null hypothesis, the chi-square test is conservative). The curve rises to its
 peak at the dose sqrt(b4/b5) and then decreases, so that effective doses are not defined;
 \code{\link{peak}} gives the dose and the response at the peak.
+}
 
-The exponential and power models of PROAST and BMDS have no upper asymptote:
-f(x) = b1 exp(b4 x^b3) and f(x) = b1 + b4 x^b3, with b1 the response at dose zero, b3 > 0 the power
-and b4 the coefficient, whose sign gives the direction of the curve; b2 and b5 are not used. b4 = 0
-is the constant model, and b3 = 1 gives the exponential model 2 of PROAST and BMDS (exp2, e.g.
-\code{start=c(b3=1), fix=c(b3=TRUE)}), so that \code{\link{anova.drmTMB}} tests the power; the
-exponential model with b3 estimated is exp3 (PROAST: a exp(b x^d); BMDS: a exp(sign (b x)^d) with
-b4 = sign b^b3). The power b3 is bounded below by 0 by default (if \code{lower} is not given, without
-covariates in fform); BMDS restricts the power of its power model to b3 >= 1 by default, which can be
-set by \code{lower}. Without an upper asymptote, relative effective doses are not defined:
-\code{\link{ed}} gives absolute effective doses (\code{type="absolute"}), and \code{\link{bmd}} benchmark
-doses. For the exponential model, the log link for b1, \code{parlink=c(b1="log")}, makes the model
-linear on the log scale, with log(b1) the intercept.
-
-The linear-quadratic model of radiobiology, S = exp(-alpha x - beta x^2), is the multistage model of
-degree 2 with b1 = 1 and b2 = 0: alpha = b3 and beta = b4, e.g.
-\code{start=c(b1=1, b2=0, b5=0), fix=c(b1=TRUE, b2=TRUE, b5=TRUE)}.
-
-The constant model, f(x) = b1, has the same mean at all doses; b2-b5 are not used. Compared with
-a dose-response model by \code{\link{anova.drmTMB}}, it tests for a dose effect, as
-\code{noEffect} in drc. Under the constant model, the parameters of the curve other than an
-asymptote are not identifiable, so the chi-square distribution of the likelihood ratio statistic
-is only an approximation.
+\section{Parameter links and curve links}{
 
 With the log link for b4, \code{parlink=c(b4="log")}, the linear predictor of b4, including its random effects, is log(b4):
 the coefficients of b4 in \code{coef}, \code{start}, \code{fix}, \code{lower}, \code{upper} and
@@ -214,8 +306,12 @@ and the benchmark doses of \code{\link{bmd}} and \code{bmdpar} are defined on th
 e.g. the relative change of the median. \code{\link{peak}} gives the peak dose of the curve and the
 response at the peak on the scale of the response. \code{ed(residual=TRUE)} is not available with a
 curve link.
+}
 
-Gaussian models without random effects are estimated by maximum likelihood, but by default
+\section{Small-sample inference}{
+
+Gaussian and lognormal models without random effects, priors, bmdpar, correlation structure and
+variance function are estimated by maximum likelihood, but by default
 (\code{smallsample=TRUE} in \code{\link{drmTMBcontrol}}) their inference follows lm, nls and drc:
 the residual standard deviation is the square root of the unbiased residual variance, the weighted
 residual sum of squares divided by n - p residual degrees of freedom, for n observations with
@@ -224,7 +320,11 @@ positive weights and p free coefficients b1-b5; the covariance of the coefficien
 and prediction intervals use t quantiles with n - p degrees of freedom, and the profile intervals of
 the coefficients and effective doses an F-based cutoff. The log-likelihood, the estimate log_sigma in
 \code{coef}, AIC, \code{anova}, \code{simulate} and \code{\link{bootstrap}} remain maximum likelihood.
-The other families and models with random effects use maximum likelihood and normal quantiles.
+For the lognormal family, this applies to log(y). All other models use maximum likelihood and normal
+quantiles.
+}
+
+\section{Priors}{
 
 With \code{prior}, the estimates are the posterior mode: the objective is the negative log
 posterior, the negative log-likelihood (with the random effects integrated out by the Laplace
@@ -241,6 +341,9 @@ The standard errors and Wald intervals are from the curvature of the log posteri
 intervals profile the log posterior. \code{logLik} returns the log-likelihood at the posterior mode,
 without the priors, so that AIC and \code{\link{anova.drmTMB}} are approximate for fits with priors.
 Small-sample inference is not used with priors. Refits of \code{\link{bootstrap}} keep the priors.
+}
+
+\section{BMD parameterisation}{
 
 With \code{bmdpar}, the model is fitted in the BMD parameterisation, as in the Bayesian benchmark dose
 modelling of EFSA (2022): the coefficient of b4 is replaced by log_bmd, the log benchmark dose of the
@@ -260,6 +363,9 @@ follows from the BMD, so that both coefficients of the polynomial stay positive 
 limit c -> 0, not a bound. \code{coef}, \code{vcov}, \code{summary}, \code{logLik}, \code{confint},
 \code{simulate} and \code{\link{bootstrap}} are available for these fits; \code{ed}, \code{bmd},
 \code{peak} and \code{predict} need the standard parameterisation.
+}
+
+\section{Correlated residuals and variance functions}{
 
 With \code{correlation} or \code{variance} (gaussian and lognormal families), the residuals of each
 series are multivariate normal with a correlation structure, and their standard deviations sigma g
@@ -272,6 +378,9 @@ structure. Pearson residuals are divided by sigma g; quantile residuals are in a
 decorrelated within series. Prediction intervals use the standard deviation sigma g at newdata, which
 then needs the covariate of the variance function; \code{ed(residual=TRUE)} and the BMD definition
 "sd" are not available with a variance function.
+}
+
+\section{Time-to-event data}{
 
 The event family is for time-to-event data, as \code{type="event"} of drc: each row is a time interval
 [start, end) of a series (e.g. a Petri dish) with the number of events in it, e.g. germinated seeds,
@@ -289,6 +398,7 @@ proportion at the times in the first variable of the formula (start). \code{simu
 the counts with these totals times the probabilities of the intervals, and \code{summary} gives their
 Pearson dispersion. Prediction intervals and benchmark doses are not available.
 }
+
 \examples{
 # three-parameter log-logistic model (LL.3 of drc): lower asymptote b1 = 0, no asymmetry (b5 = 0)
 mod <- drmTMB(rootl ~ conc, data = ryegrass, model = "loglogistic",
@@ -305,6 +415,30 @@ dmod
 # correlated random effects of the experiments on both asymptotes, and a power variance function
 vmod <- drmTMB(effect ~ conc, data = vinclozolin, model = "loglogistic",
                rform = b1 + b2 ~ 1 | exper, variance = var_power(),
-               start = c(b5 = 0), fix = c(b5 = TRUE), lower = c(0, 0, -Inf, 0, -Inf))
+               start = c(b5 = 0), fix = c(b5 = TRUE),
+               lower = c(0, 0, -Inf, 0, -Inf))  # non-negative asymptotes b1, b2 and ED50 b4
 summary(vmod)
+}
+\references{
+Brain, P. and Cousens, R. (1989). An equation to describe dose responses where there is stimulation
+of growth at low doses. Weed Research 29, 93-96.
+
+Cedergreen, N., Ritz, C. and Streibig, J. C. (2005). Improved empirical models describing hormesis.
+Environmental Toxicology and Chemistry 24, 3166-3172.
+
+EFSA Scientific Committee (2022). Guidance on the use of the benchmark dose approach in risk
+assessment. EFSA Journal 20(10), 7584.
+
+Kristensen, K., Nielsen, A., Berg, C. W., Skaug, H. and Bell, B. M. (2016). TMB: automatic
+differentiation and Laplace approximation. Journal of Statistical Software 70(5), 1-21.
+
+Pinheiro, J. C. and Bates, D. M. (2000). Mixed-Effects Models in S and S-PLUS. Springer, New York.
+
+Ritz, C., Baty, F., Streibig, J. C. and Gerhard, D. (2015). Dose-response analysis using R. PLoS ONE
+10(12), e0146021.
+}
+\seealso{
+\code{\link{drmTMBstart}} for starting values, \code{\link{drmTMBcontrol}} for the optimiser,
+\code{\link{priors}}, \code{\link{correlation}}, \code{\link{drmTMB-methods}}, \code{\link{ed}},
+\code{\link{bmd}}, \code{\link{plot.drmTMB}}
 }

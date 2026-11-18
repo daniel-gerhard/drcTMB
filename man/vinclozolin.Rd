@@ -27,7 +27,8 @@ the experiment was repeated six times on different days.
 \examples{
 vmod <- drmTMB(effect ~ conc, data = vinclozolin, model = "loglogistic",
                rform = b1 + b2 ~ 1 | exper, start = c(b5 = 0), fix = c(b5 = TRUE),
-               lower = c(0, 0, -Inf, 0, -Inf))
-ed(vmod, 50)
+               lower = c(0, 0, -Inf, 0, -Inf))  # lower bounds of b1-b5
+# ED50 of the population curve, with profile likelihood interval
+confint(ed(vmod, 50, random = FALSE))
 }
 \keyword{datasets}

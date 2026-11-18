@@ -3,8 +3,8 @@
 
 #' Germination of common chickweed
 #'
-#' Germination of chickweed (\emph{Stellaria media}) seeds from chlorsulfuron resistant and sensitive
-#' biotypes, recorded in time intervals: an example of time-to-event data (\code{family = "event"} of
+#' Germination of 200 chickweed (\emph{Stellaria media}) seeds in one germination test, from a study of
+#' chlorsulfuron resistant and sensitive biotypes, recorded in time intervals: an example of time-to-event data (\code{family = "event"} of
 #' \code{\link{drmTMB}}).
 #'
 #' 200 seeds were placed in Petri dishes in a dark growth cabinet at 5 degrees Celsius, and the
@@ -25,7 +25,10 @@
 #' @examples
 #' gmod <- drmTMB(count ~ start + end, data = chickweed, model = "loglogistic", family = "event",
 #'                start = c(b5 = 0), fix = c(b5 = TRUE))
+#' # times by which 10%, 50% and 90% of the germinating seeds have germinated
 #' ed(gmod, c(10, 50, 90))
+#' # time by which 10% of all seeds have germinated
+#' ed(gmod, 0.1, type = "absolute")
 "chickweed"
 
 #' Immobility of daphnids
@@ -121,7 +124,8 @@
 #'
 #' Liver tumour incidence in female Harlan Sprague-Dawley rats exposed to
 #' 2,3,7,8-tetrachlorodibenzo-p-dioxin (TCDD); the current study of the EFSA example on informative
-#' priors, see \code{\link{TCDD}} for the historical study.
+#' priors, see \code{\link{TCDD}} for the historical study, and \code{\link{bmdefsa}} and
+#' \code{\link{fitpert}} for the analysis with an informative prior from the historical study.
 #'
 #' @format A data frame with 6 rows and 3 variables:
 #' \describe{
@@ -208,7 +212,8 @@
 #'
 #' Liver tumour incidence in Sprague-Dawley rats exposed to 2,3,7,8-tetrachlorodibenzo-p-dioxin
 #' (TCDD); the historical study of the EFSA example on informative priors, see
-#' \code{\link{liver.tumor}} for the current study.
+#' \code{\link{liver.tumor}} for the current study, and \code{\link{bmdefsa}} and \code{\link{fitpert}}
+#' for the analysis.
 #'
 #' @format A data frame with 4 rows and 3 variables:
 #' \describe{
@@ -243,6 +248,7 @@
 #' @examples
 #' vmod <- drmTMB(effect ~ conc, data = vinclozolin, model = "loglogistic",
 #'                rform = b1 + b2 ~ 1 | exper, start = c(b5 = 0), fix = c(b5 = TRUE),
-#'                lower = c(0, 0, -Inf, 0, -Inf))
-#' ed(vmod, 50)
+#'                lower = c(0, 0, -Inf, 0, -Inf))  # lower bounds of b1-b5
+#' # ED50 of the population curve, with profile likelihood interval
+#' confint(ed(vmod, 50, random = FALSE))
 "vinclozolin"

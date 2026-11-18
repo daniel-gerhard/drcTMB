@@ -1,9 +1,14 @@
-#' edTMB Methods
+#' Methods for effective doses, peaks and benchmark doses
+#'
+#' Print, coef and vcov methods for objects of class edTMB, returned by \code{\link{ed}},
+#' \code{\link{peak}} and \code{\link{bmd}}; confidence intervals are given by
+#' \code{\link{confint.edTMB}}.
 #'
 #' @param x,object an edTMB object
-#' @param ... anything else
+#' @param ... further arguments, not used
 #'
-#' @return Estimated effective dose coefficients
+#' @return print returns x invisibly; coef a named vector of the estimates; vcov their covariance matrix
+#'   (delta method).
 #' @export
 #'
 #' @name edTMB-methods

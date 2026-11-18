@@ -48,16 +48,20 @@ drmTMBstart(
 
 \item{curvelink}{link of the curve, see \code{\link{drmTMB}}.}
 
-\item{method}{one of "lm" or "grid".}
+\item{method}{"lm" (default), fast starting values from linearised models, or "grid", a grid search
+of the likelihood, see Details. Random effects are not used; drmTMB starts their standard
+deviations separately.}
 
-\item{gsl}{a vector of lower bounds for the grid search, same length as start, on the scale of the coefficients (log scale for b4 with the log link); NA (or NULL) for the default range.}
+\item{gsl}{a vector of lower bounds for the grid search, one entry for each model coefficient, on the scale of the coefficients (log scale for b4 with the log link); NA (or NULL) for the default range.}
 
-\item{gsu}{a vector of upper bounds for the grid search, same length as start; NA (or NULL) for the default range.}
+\item{gsu}{a vector of upper bounds for the grid search, one entry for each model coefficient; NA (or NULL) for the default range.}
 
-\item{gsn}{number of grid points for each parameter, a single number or a vector with the same length as start (default 10). A parameter with gsn = 1 stays at its "lm" starting value.}
+\item{gsn}{number of grid points for each parameter, a single number or a vector with one entry for each model coefficient (default 10). A parameter with gsn = 1 stays at its "lm" starting value.}
 }
 \value{
-a named vector of starting values
+a vector of starting values named by the coefficients, as \code{coef} of the fit without the
+variance parameters, including fixed and unused parameters; it can be changed and passed to the
+argument start of \code{\link{drmTMB}}.
 }
 \description{
 Computes starting values for the fixed-effect parameters of a dose-response model,
@@ -67,7 +71,11 @@ which can be inspected, modified, and passed to the \code{start} argument of \co
 Method "lm" takes the asymptotes from the mean response at the lowest and highest dose,
 transforms the response to the relative scale between the asymptotes, and estimates
 b3 and b4 by linear regression on a linearised version of the model function.
-The asymmetry parameter b5 starts at 0. With covariates in \code{fform}, the pooled
+The asymmetry parameter b5 starts at 0. Models without such a linearisation use other strategies:
+for asymptoticregression, exponentialdecay and gamma, b4 is profiled over a grid, with the asymptotes
+estimated by least squares for each value; for haldane, b4 and the inhibition b5; for nec, thresholds
+within each interval between the doses; for multistage, the polynomial by least squares; and for
+exponential and power, the power b3 over a grid. With covariates in \code{fform}, the pooled
 starting value of each parameter is projected onto its design matrix, giving the
 intercept or each group the pooled value and contrasts a value of zero.
 
@@ -85,5 +93,12 @@ in the grid with user-specified bounds.
 }
 \examples{
 # starting values of the log-logistic model, as used by drmTMB
-drmTMBstart(rootl ~ conc, data = ryegrass, model = "loglogistic")
+(sv <- drmTMBstart(rootl ~ conc, data = ryegrass, model = "loglogistic"))
+# changed and passed to drmTMB
+sv[c("b1:(Intercept)", "b5:(Intercept)")] <- 0
+drmTMB(rootl ~ conc, data = ryegrass, model = "loglogistic", start = sv,
+       fix = c(TRUE, FALSE, FALSE, FALSE, TRUE))
+}
+\seealso{
+\code{\link{drmTMB}}
 }

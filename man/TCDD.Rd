@@ -24,7 +24,8 @@ TCDD
 \description{
 Liver tumour incidence in Sprague-Dawley rats exposed to 2,3,7,8-tetrachlorodibenzo-p-dioxin
 (TCDD); the historical study of the EFSA example on informative priors, see
-\code{\link{liver.tumor}} for the current study.
+\code{\link{liver.tumor}} for the current study, and \code{\link{bmdefsa}} and \code{\link{fitpert}}
+for the analysis.
 }
 \examples{
 tmod <- drmTMB(cbind(incidence, total - incidence) ~ conc, data = TCDD, model = "loglogistic",

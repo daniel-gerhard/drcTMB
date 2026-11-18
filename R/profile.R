@@ -198,9 +198,12 @@ profcutoffs <- function(object, level){
   cut
 }
 
-#' Likelihood profiles of effective doses
+#' Likelihood profiles of effective doses, peak doses and benchmark doses
 #'
-#' Profiles the (marginal) log-likelihood for effective doses estimated by \code{\link{ed}}. At each
+#' Profile likelihood of the estimates of \code{\link{ed}}, \code{\link{peak}} and \code{\link{bmd}}, used by
+#' \code{confint(method="profile")}; the result can be reused with \code{confint} and plotted.
+#'
+#' Profiles the (marginal) log-likelihood for the effective doses. At each
 #' value of an effective dose, the model is reparameterised: the effective dose is a function of b3,
 #' b4 and b5 that can be solved for b4, so one coefficient of b4 is computed from the effective dose
 #' and the other coefficients, which are re-optimised.
@@ -212,8 +215,8 @@ profcutoffs <- function(object, level){
 #' The profiles are for the effective doses of the population curves, without the random effects;
 #' the variation between groups (\code{random=TRUE} in \code{\link{ed}}) and the residual variation are
 #' not included. For the models on the log-dose scale and the models without b3, the effective doses
-#' are profiled on the log scale. Gaussian models without random effects use the F-based cutoff of
-#' \code{\link{profile.drmTMB}} by default.
+#' are profiled on the log scale. Gaussian and lognormal models with small-sample inference (without random
+#' effects, see \code{\link{drmTMBcontrol}}) use the F-based cutoff of \code{\link{profile.drmTMB}}.
 #'
 #' @param fitted an edTMB object
 #' @param parm effective doses to profile, names or positions in \code{coef(fitted)}; default all
@@ -497,24 +500,29 @@ edb4 <- function(mod, q, ed, b3, b5, c5=0, alpha=NULL, smooth=0){
 #' correlation of a term with two random effects is reported as a correlation; the parameters of
 #' larger correlation matrices on the unconstrained scale of \code{coef}.
 #'
-#' For benchmark doses of \code{\link{bmd}}, profile intervals are available for BMDs that are not averaged
-#' over random effects; marginal BMDs that are averaged over random effects have Wald and bootstrap
-#' intervals. The BMDL is the lower limit at \code{level=0.90}.
-#'
-#' Profile and bootstrap intervals for effective doses are for the population curves, and bootstrap
-#' intervals also for the curves of fitted groups (\code{newdata} in \code{\link{ed}}), with the random
-#' effects of the groups drawn from their conditional distribution at each bootstrap fit; for these,
-#' profile intervals are not available and Wald intervals are returned with a message. Effective
-#' doses computed with \code{random=TRUE} for random effect terms without a fitted group, or with
-#' \code{residual=TRUE}, include further variation in their standard errors; for these, Wald intervals
-#' are returned with a message.
+#' For effective doses, peaks and benchmark doses, the available methods are:
+#' \itemize{
+#'   \item profile: effective doses of the population curves (\code{random=FALSE} in \code{\link{ed}}, or
+#'     models without random effects), peak doses, and BMDs that are not averaged over random effects (see
+#'     \code{\link{bmd}} for the exceptions);
+#'   \item bootstrap: as profile, and also the curves of fitted groups (\code{newdata} in \code{\link{ed}}),
+#'     with the random effects of the groups drawn from their conditional distribution at each bootstrap
+#'     fit;
+#'   \item Wald only: effective doses with \code{random=TRUE} for random effect terms without a fitted
+#'     group, or with \code{residual=TRUE}, and the response at a peak.
+#' }
+#' Where a method is not available, Wald intervals are returned with a message. Wald intervals of
+#' effective doses and BMDs are symmetric on the dose scale and can have negative lower limits; with
+#' small-sample inference (see \code{\link{drmTMB}}) they use t quantiles with n - p degrees of freedom.
 #' Bootstrap intervals need many fits of the model; with random effects this can take several minutes.
 #' Computing profiles can take a while for models with random effects; see \code{\link{profile.drmTMB}}
 #' and \code{\link{profile.edTMB}}, whose results can be reused with \code{confint}.
 #'
 #' @param object a drmTMB or edTMB object
 #' @param parm parameters or effective doses, names or positions in \code{coef(object)}; default all
-#' @param level the confidence level
+#' @param level the confidence level, 0.95 by default; for benchmark doses of \code{\link{bmd}}, use
+#'   \code{level=0.90} for the BMDL and BMDU of EFSA and the US EPA (the lower and upper limits of the
+#'   two-sided 90% interval; \code{\link{bmdma}} and \code{\link{bmdbayes}} use 0.90 by default)
 #' @param method "profile" for profile likelihood intervals, "wald" for Wald intervals, or "boot" for
 #'   percentile intervals of a parametric bootstrap: responses are simulated from the fitted model
 #'   (with new random effects, see \code{\link{simulate.drmTMB}}) and the model is fitted again to each,
@@ -528,6 +536,8 @@ edb4 <- function(mod, q, ed, b3, b5, c5=0, alpha=NULL, smooth=0){
 #'   \code{\link{bootstrap}}, e.g. \code{progress=FALSE}
 #'
 #' @return a matrix with the lower and upper confidence limits
+#' @seealso \code{\link{profile.drmTMB}}, \code{\link{profile.edTMB}}, \code{\link{bootstrap}},
+#'   \code{\link{vcovrobust}}, \code{\link{ed}}, \code{\link{bmd}}
 #' @export
 #' @name confint.drmTMB
 #' @aliases confint.drmTMB confint.edTMB

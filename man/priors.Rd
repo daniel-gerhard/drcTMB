@@ -42,7 +42,7 @@ normal and half Student t distributions}
 \item{shape}{the shape (weight of the mode) of the PERT distribution}
 }
 \value{
-a drcprior object
+a drcprior object, for the argument prior of \code{\link{drmTMB}}
 }
 \description{
 Prior distributions for the \code{prior} argument of \code{\link{drmTMB}}. With priors, the
@@ -50,6 +50,12 @@ estimates are the posterior mode (maximum a posteriori), and the standard errors
 curvature of the log posterior, see \code{\link{drmTMB}}.
 }
 \details{
+The priors are given by name in \code{prior=list(...)} of drmTMB: b1-b5, coefficient names, "bmd" (with
+bmdpar), "sd" for the standard deviations of the random effects, "sigma", "phi" or "theta" for the
+residual parameter, and the parameters of correlation structures and variance functions; see the
+argument prior of \code{\link{drmTMB}}. The prior \code{lognormal()} is not related to
+\code{family="lognormal"} or \code{model="lognormal"}.
+
 \itemize{
 \item \code{normal(mean, sd)}: normal distribution.
 \item \code{student_t(df, location, scale)}: Student t distribution with df degrees of freedom,
@@ -68,7 +74,7 @@ value is lognormal.
 
 A prior whose support is wider than the range of the parameter, e.g. a normal prior for a parameter
 bounded below by 0, is truncated to that range and renormalised; the normalisation does not change
-the estimates.
+the estimates, but enters the marginal likelihood of \code{\link{marglik}}.
 }
 \examples{
 normal(8, 1)
@@ -79,4 +85,7 @@ pmod <- drmTMB(rootl ~ conc, data = ryegrass, model = "loglogistic",
                start = c(b1 = 0, b5 = 0), fix = c(b1 = TRUE, b5 = TRUE),
                prior = list(b2 = normal(8, 1), b4 = pert(0.5, 3, 10), sigma = half_normal(1)))
 summary(pmod)
+}
+\seealso{
+\code{\link{drmTMB}}, \code{\link{efsapriors}}, \code{\link{fitpert}}, \code{\link{marglik}}
 }

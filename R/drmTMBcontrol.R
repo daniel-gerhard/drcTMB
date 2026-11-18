@@ -1,13 +1,17 @@
-#' Set control parameters for drcTMB
+#' Control parameters of drmTMB
+#'
+#' Settings of the optimisation of \code{\link{drmTMB}}, passed as its argument control, e.g.
+#' \code{drmTMB(..., control = drmTMBcontrol(restart = TRUE))} or \code{control = list(restart = TRUE)}.
 #'
 #' The optimiser minimises the negative log-likelihood (with random effects, its Laplace approximation)
 #' over the fixed parameters, with the gradient from TMB, and for nlminb without random effects also
-#' the Hessian. The same settings are used for the bootstrap fits of \code{\link{bootstrap}},
-#' \code{\link{anova.drmTMB}} and \code{\link{bmdma}}.
+#' the Hessian. The same settings are used for the refits of \code{\link{bootstrap}},
+#' \code{\link{anova.drmTMB}} (test="boot"), \code{\link{bmdma}} and \code{\link{vcovrobust}}.
 #'
 #' optim does not use the Hessian, and its methods other than "L-BFGS-B" do not allow bounds; models with
-#' bounds (e.g. the default lower bound 0 of b4 for some models, see \code{\link{drmTMB}}, or user
-#' bounds lower and upper) need method "L-BFGS-B". Parameter values at which the negative log-likelihood
+#' bounds (the default lower bounds 0 of the multistage, nec, haldane, exponential and power models, see
+#' \code{\link{drmTMB}}, user bounds lower and upper, or priors with a bounded support) need method
+#' "L-BFGS-B"; the other methods give an error. Parameter values at which the negative log-likelihood
 #' is not finite (e.g. a negative b4 of the BMD parameterisation) are given a large finite value for optim.
 #'
 #' With restart=TRUE, the model is fitted again starting at the estimates, which restarts the
@@ -29,7 +33,8 @@
 #'   list(maxit=2000, tol10=1e-6)
 #' @param restart if TRUE, the fit is restarted once at the estimates and the better fit is kept, see
 #'   Details
-#' @param smallsample if TRUE (default), gaussian and lognormal models without random effects use the unbiased
+#' @param smallsample if TRUE (default), gaussian and lognormal models without random effects, priors,
+#'   bmdpar, correlation structure and variance function use the unbiased
 #'   residual variance with n - p residual degrees of freedom and t quantiles, as lm, nls and drc; if
 #'   FALSE, the maximum likelihood estimate and normal quantiles. See \code{\link{drmTMB}}.
 #'
@@ -38,6 +43,9 @@
 #'
 #' @examples
 #' drmTMBcontrol(optimiser="optim", optcontrol=list(factr=1e5), restart=TRUE)
+#' fit <- drmTMB(rootl ~ conc, data = ryegrass, model = "loglogistic",
+#'               control = drmTMBcontrol(optimiser = "optim", restart = TRUE))
+#' summary(fit)
 
 drmTMBcontrol <- function(optimiser=c("nlminb", "optim"), method=c("L-BFGS-B", "BFGS", "CG", "Nelder-Mead"),
                           iter.max=1000, eval.max=2000, optcontrol=list(), inner=list(), restart=FALSE, smallsample=TRUE){

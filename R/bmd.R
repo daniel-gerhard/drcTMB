@@ -3,13 +3,16 @@
 #' The benchmark dose (BMD) is the dose at which the response has changed from the response at dose
 #' zero by a specified amount, the benchmark response (BMR). Its lower confidence limit, the BMDL, is
 #' the reference point of regulatory risk assessment; with the convention of EFSA and the US EPA, the
-#' lower limit of a two-sided 90\% interval, \code{confint(bmd(fit), level=0.90)}.
+#' lower limit of a two-sided 90% interval, \code{confint(bmd(fit), level=0.90)} (the default level of confint
+#' is 0.95). Not available for fits in the BMD parameterisation (bmdpar of \code{\link{drmTMB}}).
 #'
 #' @param x a drmTMB object
 #' @param bmr the benchmark response, see \code{def}; a vector gives a BMD for each value
 #' @param def the definition of the benchmark response, see Details: "excess" (extra) risk or
 #'   "additional" (added) risk for quantal responses, "relative" deviation, or "sd", the change in
-#'   standard deviations of the response (gaussian and lognormal families, models without random effects)
+#'   standard deviations of the response (gaussian and lognormal families, models without random effects
+#'   and variance function). The default "excess" is for quantal responses only; for continuous
+#'   responses choose "relative" (the EFSA default, e.g. bmr=0.05) or "sd" (the US EPA default, bmr=1).
 #' @param linfct a matrix of linear functions to identify the parameters of the dose-response curve,
 #'   or a list of such matrices, as in \code{\link{ed}}; each matrix is paired with an entry of bmr
 #' @param newdata a data frame with the covariates of the curves, as an alternative to linfct, as in
@@ -37,7 +40,14 @@
 #' beta-binomial and beta families). For excess risk, the BMD of a curve from zero to one is the
 #' effective dose \code{ed(x, 100*bmr)}. The response at dose zero, and sigma, are estimated, and their
 #' uncertainty is included in the standard errors and confidence intervals. Curves that do not reach
-#' the response give NA, with a warning.
+#' the response give NA, with a warning. The direction of the change is that of the fitted curve. With
+#' small-sample inference (see \code{\link{drmTMB}}), sigma for def="sd" is the unbiased residual
+#' standard deviation.
+#'
+#' The relative BMD is relative to the response at dose zero, whereas the effective dose ED p of
+#' \code{\link{ed}} is relative to the range between the asymptotes; they coincide only for a lower
+#' asymptote of 0. BMDs are not available for the hormesis models and for event data (see
+#' \code{\link{ed}}).
 #'
 #' For the lognormal family, mu0 is the median at dose zero; as the mean is the median times a constant,
 #' the relative BMD is the same for the median and the mean.
@@ -58,7 +68,16 @@
 #' smoothed threshold of nec, whose response at dose zero depends on b4; otherwise Wald intervals are
 #' returned, with a message, and bootstrap intervals are available.
 #'
-#' @return an edTMB object, as from \code{\link{ed}}, with the BMDs and their covariance matrix
+#' @return an edTMB object, as from \code{\link{ed}}, with the BMDs and their covariance matrix, entries
+#'   named "bmr:curve"; print shows the estimates and their standard errors (delta method), and
+#'   \code{confint(..., level=0.90)} the BMDL and BMDU.
+#' @references EFSA Scientific Committee (2022). Guidance on the use of the benchmark dose approach in
+#' risk assessment. EFSA Journal 20(10), 7584.
+#'
+#' US EPA (2012). Benchmark Dose Technical Guidance. EPA/100/R-12/001, Risk Assessment Forum,
+#' Washington, DC.
+#' @seealso \code{\link{confint.edTMB}}, \code{\link{bmdma}}, \code{\link{bmdbayes}},
+#'   \code{\link{bmdefsa}}, \code{\link{ed}}, \code{\link{bootstrap}}
 #' @export
 #'
 #' @examples

@@ -32,10 +32,11 @@ the binomial family "probit" and "logit"}
 \item{family}{"gaussian", "lognormal" or "binomial"}
 
 \item{bmr, def}{the benchmark response and its definition (see \code{\link{bmd}}); by default
-"relative" for gaussian and lognormal, "excess" for binomial}
+bmr=0.05 with def="relative" for gaussian and lognormal, and bmr=0.1 with def="excess" for binomial,
+the defaults of EFSA (2022)}
 
 \item{background, maxresponse, bmd}{informative priors: \code{c(min, mode, max)} or a prior (see
-\code{\link{priors}}); NULL for the defaults}
+\code{\link{priors}}); NULL for the defaults; maxresponse only for continuous responses}
 
 \item{dprior}{"default" or "alternative" prior of the steepness}
 
@@ -97,6 +98,10 @@ deviations within the doses (of log(y) for lognormal), i.e. log(1/sigma^2) norma
 For the lognormal family, the priors of the background and the maximum response are priors of the
 median, exp(b1) or exp(b2). Informative priors are given as \code{c(min, mode, max)} (mode NA for the
 middle of the range) or as a prior, e.g. from \code{\link{fitpert}}.
+
+The data need a control group at dose zero and at least two other doses, replicates at the doses
+(for the prior of the residual standard deviation), a positive response for the continuous families,
+and, for quantal responses, cbind(affected, unaffected) increasing with the dose.
 }
 \examples{
 # default priors of EFSA (2022) for the log-logistic model of the ryegrass data
@@ -104,6 +109,12 @@ efsapriors(rootl ~ conc, data = ryegrass, model = "loglogistic", family = "gauss
 # an informative prior of the BMD, by its minimum, mode and maximum
 efsapriors(rootl ~ conc, data = ryegrass, model = "loglogistic", family = "gaussian",
            bmd = c(0.1, 1, 5))
+# the model with these priors, in the BMD parameterisation
+e <- efsapriors(rootl ~ conc, data = ryegrass, model = "loglogistic", family = "gaussian")
+fit <- drmTMB(rootl ~ conc, data = ryegrass, model = e$model, family = e$family,
+              curvelink = e$curvelink, start = e$start, fix = e$fix, prior = e$prior,
+              bmdpar = e$bmdpar)
+summary(fit)
 }
 \references{
 EFSA Scientific Committee (2022). Guidance on the use of the benchmark dose approach in
@@ -112,4 +123,7 @@ risk assessment. EFSA Journal 20(10), 7584.
 Kremer, C., Saenen, N. D., Bijnens, K., Faes, C., De Boever, P., Smeets, K. and Aerts, M. (2026).
 Compilation of NTP and published dose-response data: study of informative priors in the EFSA platform
 for Bayesian benchmark dose analysis. EFSA Supporting Publications, EN-9902.
+}
+\seealso{
+\code{\link{bmdefsa}}, \code{\link{bmdbayes}}, \code{\link{fitpert}}, \code{\link{priors}}
 }

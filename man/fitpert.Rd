@@ -21,10 +21,12 @@ bmd argument of \code{\link{efsapriors}}
 Fits a PERT distribution to the posterior distribution of a parameter, e.g. the model-averaged BMD of
 \code{\link{bmdbayes}}, as an informative prior for the analysis of a new study (Kremer et al. 2026,
 EFSA EN-9902): the posterior is summarised by 1000 quantiles; the minimum and maximum of the PERT are
-their smallest and largest value, the mode is the mode of their kernel density, and the shape is
+their smallest and largest value (the 0.05\% and 99.95\% quantiles), so that the prior excludes values
+outside them; the mode is the mode of their kernel density, and the shape is
 estimated by maximum likelihood (between 0 and 20). Several posteriors, e.g. of several historical
 studies, are mixed with equal weights, the recommended way to combine studies. With discounting, the
-shape is reduced so that the variance of the PERT doubles.
+shape is reduced so that the variance of the PERT doubles (approximately, as the shape is at least
+1e-4).
 }
 \examples{
 # a PERT prior from posterior draws of a BMD
@@ -41,4 +43,12 @@ fit <- function(model)
          bmdpar = list(bmr = 0.05, def = "relative"), prior = pr)
 ba <- bmdbayes(LL = fit("loglogistic"), W2 = fit("weibull2"))
 fitpert(ba)
+}
+\references{
+Kremer, C., Saenen, N. D., Bijnens, K., Faes, C., De Boever, P., Smeets, K. and Aerts, M.
+(2026). Compilation of NTP and published dose-response data: study of informative priors in the EFSA
+platform for Bayesian benchmark dose analysis. EFSA Supporting Publications, EN-9902.
+}
+\seealso{
+\code{\link{bmdefsa}}, \code{\link{bmdbayes}}, \code{\link{efsapriors}}, \code{\link{priors}}
 }

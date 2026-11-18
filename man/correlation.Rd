@@ -32,9 +32,13 @@ var_exp(form = ~fitted)
 var_ident(form)
 }
 \arguments{
-\item{form}{formula, see Details}
+\item{form}{a one-sided formula. For the correlation structures, ~ position | series; cor_ar1 and
+cor_cs default to ~ 1, the order of the rows, with all observations one series unless a series is
+given, e.g. ~ 1 | subject. For var_power and var_exp, ~ fitted (default, the fitted mean) or a
+covariate, e.g. ~ dose; for var_ident, ~ 1 | stratum (required).}
 
-\item{nugget}{logical, include a nugget effect}
+\item{nugget}{logical; if TRUE, a nugget parameter in (0, 1) reduces the correlation at positive
+distances, see Details}
 }
 \value{
 a correlation structure (class drccor) or a variance function (class drcvar)
@@ -83,16 +87,29 @@ differ slightly.
 The parameters are estimated on an unconstrained scale (\code{coef} of the fit): for the correlation,
 cor_par:rho (atanh(rho) for AR1, the logit of (rho + 1/(m - 1))/(1 + 1/(m - 1)) for compound symmetry),
 cor_par:phi (logit(phi)), cor_par:range (log(range)) and cor_par:nugget (logit(nugget)); for the
-variance functions var_par:delta (delta itself) and var_par:\if{html}{\out{<stratum>}} (lambda, the log ratio of the
+variance functions var_par:delta (delta itself) and \code{var_par:STRATUM} (lambda, the log ratio of the
 standard deviation of the stratum to that of the first). \code{summary} prints them on their natural
 scale, and \code{confint} gives their intervals on that scale, named cor:rho, cor:phi, cor:range,
-cor:nugget, var:delta and var:ratio:\if{html}{\out{<stratum>}}. Priors (argument \code{prior} of \code{\link{drmTMB}})
+cor:nugget, var:delta and \code{var:ratio:STRATUM}, with the name of the stratum, e.g. var:ratio:B. Priors (argument \code{prior} of \code{\link{drmTMB}})
 are given by these names, on the natural scale, e.g. \code{prior=list("cor:phi"=pert(0, 0.5, 1))}; the
 marginal likelihood (\code{\link{marglik}}) needs priors for all of them.
 }
 \examples{
-\dontrun{
-drmTMB(y ~ dose, data=d, model="loglogistic", correlation=cor_car1(~ time | subject))
-drmTMB(y ~ dose, data=d, model="loglogistic", variance=var_power())
+# standard deviation a power of the fitted mean, with random effects of the experiments
+vmod <- drmTMB(effect ~ conc, data = vinclozolin, model = "loglogistic",
+               rform = b1 + b2 ~ 1 | exper, start = c(b5 = 0), fix = c(b5 = TRUE),
+               lower = c(0, 0, -Inf, 0, -Inf), variance = var_power())
+summary(vmod)
+# AR(1) correlation of neighbouring concentrations within each experiment
+vmodc <- update(vmod, correlation = cor_ar1(~ 1 | exper))
+anova(vmod, vmodc)
+# a separate standard deviation for each experiment
+update(vmod, variance = var_ident(~ 1 | exper))
 }
+\references{
+Pinheiro, J. C. and Bates, D. M. (2000). Mixed-Effects Models in S and S-PLUS.
+Springer, New York.
+}
+\seealso{
+\code{\link{drmTMB}}, \code{\link[nlme]{corClasses}}, \code{\link[nlme]{varClasses}}
 }

@@ -20,8 +20,8 @@ package drcData.
 chickweed
 }
 \description{
-Germination of chickweed (\emph{Stellaria media}) seeds from chlorsulfuron resistant and sensitive
-biotypes, recorded in time intervals: an example of time-to-event data (\code{family = "event"} of
+Germination of 200 chickweed (\emph{Stellaria media}) seeds in one germination test, from a study of
+chlorsulfuron resistant and sensitive biotypes, recorded in time intervals: an example of time-to-event data (\code{family = "event"} of
 \code{\link{drmTMB}}).
 }
 \details{
@@ -33,7 +33,10 @@ holds the seeds that had not germinated by the end of the experiment.
 \examples{
 gmod <- drmTMB(count ~ start + end, data = chickweed, model = "loglogistic", family = "event",
                start = c(b5 = 0), fix = c(b5 = TRUE))
+# times by which 10\%, 50\% and 90\% of the germinating seeds have germinated
 ed(gmod, c(10, 50, 90))
+# time by which 10\% of all seeds have germinated
+ed(gmod, 0.1, type = "absolute")
 }
 \references{
 Ritz, C., Pipper, C. B. and Streibig, J. C. (2013) Analysis of germination data from

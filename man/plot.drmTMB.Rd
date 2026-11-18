@@ -29,7 +29,7 @@ random effects only)}
 \item{random}{if TRUE, residuals and fitted values include the predicted random effects}
 
 \item{logdose}{logarithmic dose axis; by default for the models on the log-dose scale
-(loglogistic, weibull1, weibull2, lognormal)}
+(loglogistic, weibull1, weibull2, lognormal, braincousens, cedergreen)}
 
 \item{ncol}{number of columns of the page}
 
@@ -46,7 +46,8 @@ drawing single graphs
 \description{
 Residuals against the fitted values, residuals against the dose, a normal QQ plot of the
 residuals, and normal QQ plots of the predicted random effects, drawn as ggplot2 graphs on one
-page.
+page. Unlike plot.drc of drc, it draws residual diagnostics, not the fitted dose-response curve;
+for the curve, use \code{\link{predict.drmTMB}} on a grid of doses (see the vignette).
 }
 \details{
 The default randomised quantile residuals are standard normal under the model for all families,
@@ -70,4 +71,7 @@ mod <- drmTMB(rootl ~ conc, data = ryegrass, model = "loglogistic",
 plot(mod)
 # residuals against the dose only, on the log scale
 plot(mod, which = 2, logdose = TRUE)
+}
+\seealso{
+\code{\link{residuals.drmTMB}}, \code{\link{predict.drmTMB}}
 }

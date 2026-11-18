@@ -41,15 +41,13 @@ log p(y) = -objective + k/2 log(2 pi) - 1/2 log det H, with k parameters and the
 objective, as in the Bayesian benchmark dose modelling of EFSA (2022). The random effects are
 integrated out first, so that this is a nested Laplace approximation. It is poor if the posterior
 mode is close to a bound, e.g. of a pert prior or a multistage coefficient at 0, which gives a
-warning. For dose-response models with small data, the Laplace approximation of the log marginal
-likelihood is typically too low by 0.1 to 0.5, and by up to 0.8 with posterior modes close to the
-bounds of pert priors (the models of \code{\link{bmdefsa}} on the ryegrass and TCDD data), which
-changes the posterior model probabilities by up to about 6 percentage points; importance sampling is
-more accurate.
+warning. For small dose-response data sets, the Laplace approximation can be noticeably biased, in particular
+with posterior modes close to the bounds of pert priors, which changes the posterior model
+probabilities by a few percentage points; check it with \code{method="is"}.
 
 \code{method="is"} estimates the marginal likelihood by adaptive importance sampling. The proposal is
 a multivariate t distribution with \code{df} degrees of freedom, first centred at the posterior mode
-with the covariance of the fit as its scale matrix; three rounds of n/2 draws move it to the weighted
+with the covariance of the fit as its scale matrix; three rounds of n/2 draws (at least 10 per parameter) move it to the weighted
 mean and covariance of the draws, which follows skewed or curved posteriors (e.g. a strong
 correlation of the log BMD with the slope), and a final round of n draws gives the estimate. The
 proposal of each round is a mixture, with probability 0.2 of the initial proposal, so that the
@@ -73,4 +71,7 @@ marglik(W2)
 # importance sampling as a check of the Laplace approximation
 set.seed(1)
 marglik(LL, method = "is", n = 2000)
+}
+\seealso{
+\code{\link{bmdbayes}}, \code{\link{priors}}, \code{\link{bmdefsa}}
 }

@@ -33,7 +33,9 @@
 
 \item{parm}{parameters or effective doses, names or positions in \code{coef(object)}; default all}
 
-\item{level}{the confidence level}
+\item{level}{the confidence level, 0.95 by default; for benchmark doses of \code{\link{bmd}}, use
+\code{level=0.90} for the BMDL and BMDU of EFSA and the US EPA (the lower and upper limits of the
+two-sided 90\% interval; \code{\link{bmdma}} and \code{\link{bmdbayes}} use 0.90 by default)}
 
 \item{method}{"profile" for profile likelihood intervals, "wald" for Wald intervals, or "boot" for
 percentile intervals of a parametric bootstrap: responses are simulated from the fitted model
@@ -66,17 +68,20 @@ reported on their natural scale; Wald intervals for them are computed on the log
 correlation of a term with two random effects is reported as a correlation; the parameters of
 larger correlation matrices on the unconstrained scale of \code{coef}.
 
-For benchmark doses of \code{\link{bmd}}, profile intervals are available for BMDs that are not averaged
-over random effects; marginal BMDs that are averaged over random effects have Wald and bootstrap
-intervals. The BMDL is the lower limit at \code{level=0.90}.
-
-Profile and bootstrap intervals for effective doses are for the population curves, and bootstrap
-intervals also for the curves of fitted groups (\code{newdata} in \code{\link{ed}}), with the random
-effects of the groups drawn from their conditional distribution at each bootstrap fit; for these,
-profile intervals are not available and Wald intervals are returned with a message. Effective
-doses computed with \code{random=TRUE} for random effect terms without a fitted group, or with
-\code{residual=TRUE}, include further variation in their standard errors; for these, Wald intervals
-are returned with a message.
+For effective doses, peaks and benchmark doses, the available methods are:
+\itemize{
+\item profile: effective doses of the population curves (\code{random=FALSE} in \code{\link{ed}}, or
+models without random effects), peak doses, and BMDs that are not averaged over random effects (see
+\code{\link{bmd}} for the exceptions);
+\item bootstrap: as profile, and also the curves of fitted groups (\code{newdata} in \code{\link{ed}}),
+with the random effects of the groups drawn from their conditional distribution at each bootstrap
+fit;
+\item Wald only: effective doses with \code{random=TRUE} for random effect terms without a fitted
+group, or with \code{residual=TRUE}, and the response at a peak.
+}
+Where a method is not available, Wald intervals are returned with a message. Wald intervals of
+effective doses and BMDs are symmetric on the dose scale and can have negative lower limits; with
+small-sample inference (see \code{\link{drmTMB}}) they use t quantiles with n - p degrees of freedom.
 Bootstrap intervals need many fits of the model; with random effects this can take several minutes.
 Computing profiles can take a while for models with random effects; see \code{\link{profile.drmTMB}}
 and \code{\link{profile.edTMB}}, whose results can be reused with \code{confint}.
@@ -87,4 +92,8 @@ mod <- drmTMB(rootl ~ conc, data = ryegrass, model = "loglogistic",
 confint(mod)
 confint(mod, method = "wald")
 confint(ed(mod, respLev = 50), level = 0.9)
+}
+\seealso{
+\code{\link{profile.drmTMB}}, \code{\link{profile.edTMB}}, \code{\link{bootstrap}},
+\code{\link{vcovrobust}}, \code{\link{ed}}, \code{\link{bmd}}
 }
