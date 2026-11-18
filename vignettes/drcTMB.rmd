@@ -394,6 +394,61 @@ ed(vmodp, 50)
 
 The quantile residuals of `plot()` and `residuals(type = "quantile")` are divided by the standard deviation of the variance function and, with a correlation structure, decorrelated within series, so that they are independent standard normal under the model.
 
+### Growth curves: soybean plants
+
+The same models describe growth curves, with time in place of the dose. The Soybean data of nlme, a main example of Pinheiro and Bates (2000), contain the average leaf weight of six plants on 48 plots, measured repeatedly over a growing season, for two varieties (F, a commercial variety, and P, an experimental one) in three years. A logistic curve in time (`model = "logistic"`, without the logarithm of the dose) with the lower asymptote fixed at zero has the final weight b2, the growth rate b3 and the time b4 at which half of the final weight is reached. The final weight and b4 depend on the variety and the year, and a random effect of the plots on b2 accounts for the repeated measurements of a plot. The standard deviation of the weights increases strongly with their mean, which a power variance function captures, while an additional continuous-time AR(1) correlation of the measurements of a plot does not improve the fit.
+
+```{r, message=FALSE, warning=FALSE}
+data(Soybean, package = "nlme")
+soy <- as.data.frame(Soybean)
+soy$Plot <- factor(soy$Plot, ordered = FALSE)
+smod <- drmTMB(weight ~ Time, data = soy, model = "logistic",
+               fform = b2 + b4 ~ Variety + Year, rform = b2 ~ 1 | Plot,
+               start = c(b1 = 0, b5 = 0), fix = c(b1 = TRUE, b5 = TRUE))
+smodp <- drmTMB(weight ~ Time, data = soy, model = "logistic",
+                fform = b2 + b4 ~ Variety + Year, rform = b2 ~ 1 | Plot,
+                start = c(b1 = 0, b5 = 0), fix = c(b1 = TRUE, b5 = TRUE),
+                variance = var_power())
+smodpc <- drmTMB(weight ~ Time, data = soy, model = "logistic",
+                 fform = b2 + b4 ~ Variety + Year, rform = b2 ~ 1 | Plot,
+                 start = c(b1 = 0, b5 = 0), fix = c(b1 = TRUE, b5 = TRUE),
+                 variance = var_power(), correlation = cor_car1(~ Time | Plot))
+anova(smod, smodp, smodpc)
+```
+
+A separate growth rate in each year and an interaction of variety and year on the final weight improve the model further.
+
+```{r, message=FALSE, warning=FALSE}
+smod2 <- drmTMB(weight ~ Time, data = soy, model = "logistic",
+                fform = list(b2 ~ Variety * Year, b3 ~ Year, b4 ~ Variety + Year),
+                rform = b2 ~ 1 | Plot, start = c(b1 = 0, b5 = 0), fix = c(b1 = TRUE, b5 = TRUE),
+                variance = var_power())
+anova(smodp, smod2)
+summary(smod2)
+```
+
+The population curves of the varieties in each year, with the random effects at zero, and the observed weights:
+
+```{r, message=FALSE, warning=FALSE, fig.width=7, fig.height=3.5}
+ndsoy <- expand.grid(Time = seq(10, 85, length.out = 100), Variety = levels(soy$Variety),
+                     Year = levels(soy$Year))
+ndsoy$fit <- predict(smod2, newdata = ndsoy, random = FALSE)
+ggplot(soy, aes(x = Time, y = weight, colour = Variety)) +
+  geom_point(alpha = 0.5) +
+  geom_line(data = ndsoy, aes(y = fit), linewidth = 1) +
+  facet_wrap(~ Year) +
+  labs(x = "Days after planting", y = "Leaf weight per plant (g)") +
+  theme_bw()
+```
+
+`ed()` gives the times at which a percentage of the final weight is reached, here 50% and 90%, for each variety and year.
+
+```{r, message=FALSE, warning=FALSE}
+ed(smod2, respLev = c(50, 90), newdata = expand.grid(Variety = levels(soy$Variety),
+                                                     Year = levels(soy$Year)))
+```
+
+
 ## Priors
 
 The argument `prior` adds prior distributions, so that the estimates are posterior modes. Priors are given by parameter (b1-b5, with a single coefficient, on the scale of the parameter after the link), by coefficient name (on the scale of the link), for the standard deviations of the random effects (`sd`, or e.g. `"sd:b2|exper"`), and for the residual standard deviation (`sigma`). Available distributions are `normal()`, `student_t()`, `lognormal()`, `pert()` (as used by EFSA for benchmark dose modelling), `half_normal()` and `half_student_t()`; see `?priors`. Weakly informative priors on standard deviations keep them away from zero in experiments with few groups. Without `prior`, the fit is by maximum likelihood.
