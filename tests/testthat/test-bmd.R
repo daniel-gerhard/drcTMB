@@ -52,7 +52,7 @@ test_that("BMDs and BMDLs agree with the bmd package", {
     expect_equal(confint(b, level=0.9, progress=FALSE)[1, 1], unname(rp$Results[2]), tolerance=1e-4)
   }
   # continuous relative deviation; bmd profiles with the chi-square cutoff, not the small-sample one
-  data(ryegrass, package="drcData", envir=environment())
+  data(ryegrass, package="drcTMB", envir=environment())
   fd <- drc::drm(rootl ~ conc, data=ryegrass, fct=LL.4())
   ft <- drmTMB(rootl ~ conc, data=ryegrass, model="loglogistic", start=c(b5=0), fix=c(b5=TRUE))
   rd <- bmd::bmd(fd, 0.1, def="relative", backgType="modelBased", display=FALSE)

@@ -1,7 +1,6 @@
 # marginal likelihood: Laplace approximation and importance sampling, checked against exact integrals
 # (one and two dimensions) and adaptive Gauss-Hermite quadrature (nonlinear models, random effects)
 
-library(drcData)
 data(ryegrass)
 
 # adaptive Gauss-Hermite quadrature of exp(-objective) over the optimised parameters, with m nodes per

@@ -1,7 +1,6 @@
 # optimiser choice (nlminb, optim), control parameters of the optimiser and of the inner optimisation,
 # and the restart at the estimates
 
-library(drcData)
 data(ryegrass)
 
 fitry <- function(control=list(), ...) drmTMB(rootl ~ conc, data=ryegrass, model="loglogistic", control=control, ...)

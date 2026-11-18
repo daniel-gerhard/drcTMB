@@ -2,7 +2,6 @@
 # b1 = d, b2 = c, b3 = b, b4 = e.
 
 skip_if_not_installed("drc")
-skip_if_not_installed("drcData")
 
 # drc coefficients named b, c, d, e
 drccoef <- function(fit){
@@ -28,7 +27,7 @@ simnec <- function(b5=0, seed=1){
   d
 }
 
-data(ryegrass, package="drcData")
+data(ryegrass, package="drcTMB")
 
 test_that("gaussian nec model agrees with drc NEC.4", {
   f1 <- drmTMB(rootl ~ conc, data=ryegrass, model="nec", start=c(b5=0), fix=c(b5=TRUE))

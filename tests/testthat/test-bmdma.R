@@ -112,7 +112,7 @@ test_that("bmdma checks its input", {
 })
 
 test_that("bmdma refuses fits with priors", {
-  ry <- drcData::ryegrass
+  ry <- drcTMB::ryegrass
   pr <- list(b1=normal(0, 1), b2=normal(8, 2), b3=normal(-2, 2), sigma=half_normal(1))
   a <- drmTMB(rootl ~ conc, data=ry, model="loglogistic", start=c(b5=0), fix=c(b5=TRUE), prior=pr)
   b <- drmTMB(rootl ~ conc, data=ry, model="weibull1", prior=pr)

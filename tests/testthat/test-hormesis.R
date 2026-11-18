@@ -4,9 +4,8 @@
 # not reach the maximum likelihood for CRS.4b, CRS.4c and CRS.5a on lettuce; those are not compared.
 
 skip_if_not_installed("drc")
-skip_if_not_installed("drcData")
 skip_if_not_installed("numDeriv")
-data(lettuce, package="drcData")
+data(lettuce, package="drcTMB")
 
 drccases <- list(
   BC.5   = list(fct=function() drc::BC.5(),   model="braincousens", alpha=NULL, b1fix=FALSE),

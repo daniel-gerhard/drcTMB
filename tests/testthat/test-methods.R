@@ -355,7 +355,7 @@ test_that("small-sample inference of gaussian models without random effects", {
 })
 
 test_that("drmTMBstart takes named start and fix values as drmTMB", {
-  ry <- drcData::ryegrass
+  ry <- drcTMB::ryegrass
   s <- drmTMBstart(rootl ~ conc, data=ry, model="loglogistic", start=c(b5=0), fix=c(b5=TRUE))
   expect_equal(s[["b5:(Intercept)"]], 0)
   f <- drmTMB(rootl ~ conc, data=ry, model="loglogistic", start=c(b5=0), fix=c(b5=TRUE))
@@ -364,7 +364,7 @@ test_that("drmTMBstart takes named start and fix values as drmTMB", {
 })
 
 test_that("confint checks parm; simulate does not depend on the state of the TMB object", {
-  ry <- drcData::ryegrass
+  ry <- drcTMB::ryegrass
   f <- drmTMB(rootl ~ conc, data=ry, model="loglogistic", start=c(b5=0), fix=c(b5=TRUE))
   expect_error(confint(f, parm=10, method="wald"), "unknown parameters")
   expect_error(confint(ed(f, 50), parm=3, method="wald"), "unknown effective doses")

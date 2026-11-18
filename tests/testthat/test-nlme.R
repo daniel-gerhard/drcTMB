@@ -79,8 +79,7 @@ test_that("independent random asymptotes agree with nlme", {
 })
 
 test_that("the variances start on the scale of the data (vinclozolin, response in thousands)", {
-  skip_if_not_installed("drcData")
-  data(vinclozolin, package="drcData")
+  data(vinclozolin, package="drcTMB")
   v <- vinclozolin
   v$dose <- pmax(v$conc, 1e-8)
   v$y <- v$effect
