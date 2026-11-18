@@ -26,7 +26,6 @@ Suggests:
     nlme,
     lme4,
     glmmTMB,
-    bmd,
     tmbstan,
     bridgesampling,
     sandwich

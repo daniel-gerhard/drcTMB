@@ -34,36 +34,28 @@ test_that("excess risk BMD equals the effective dose of a quantal curve to one",
 })
 
 test_that("BMDs and BMDLs agree with the bmd package", {
-  skip_if_not_installed("drc")
-  skip_if_not_installed("bmd")
-  # bmd recognises the drc model functions by their name, which must not carry the drc:: prefix
-  W1.4 <- drc::W1.4
-  LL.4 <- drc::LL.4
+  # reference values of bmd::bmd 2.7.6 (backgType="modelBased"; BMDL from interval="profile") for the
+  # drc fits drm(p ~ dose, weights=n, type="binomial", fct=W1.4(fixed=c(NA, NA, 1, NA))) of simquantal()
+  # and drm(rootl ~ conc, fct=LL.4()) of ryegrass; bmd is not on CRAN
   d <- simquantal()
-  d$p <- d$y/d$n
-  fd <- drc::drm(p ~ dose, weights=n, data=d, type="binomial", fct=W1.4(fixed=c(NA, NA, 1, NA)))
   ft <- drmTMB(cbind(y, n - y) ~ dose, data=d, family="binomial", model="weibull1", start=c(b2=1, b5=0), fix=c(b2=TRUE, b5=TRUE))
-  for (def in c("excess", "additional")){
-    rd <- bmd::bmd(fd, 0.1, def=def, backgType="modelBased", display=FALSE)
-    rp <- bmd::bmd(fd, 0.1, def=def, backgType="modelBased", display=FALSE, interval="profile", profileProgressInfo=FALSE)
+  ref <- list(excess=c(1.733962287, 0.4217673611, 0.9706140106), additional=c(1.829506423, 0.4458925556, 1.01230062))
+  for (def in names(ref)){
     b <- bmd(ft, 0.1, def=def)
-    expect_equal(unname(coef(b)), unname(rd$Results[1]), tolerance=1e-5)
-    expect_equal(sqrt(vcov(b)[1, 1]), unname(rd$SE[1]), tolerance=1e-4)
-    expect_equal(confint(b, level=0.9, progress=FALSE)[1, 1], unname(rp$Results[2]), tolerance=1e-4)
+    expect_equal(unname(coef(b)), ref[[def]][1], tolerance=1e-5)
+    expect_equal(sqrt(vcov(b)[1, 1]), ref[[def]][2], tolerance=1e-4)
+    expect_equal(confint(b, level=0.9, progress=FALSE)[1, 1], ref[[def]][3], tolerance=1e-4)
   }
-  # continuous relative deviation; bmd profiles with the chi-square cutoff, not the small-sample one
-  data(ryegrass, package="drcTMB", envir=environment())
-  fd <- drc::drm(rootl ~ conc, data=ryegrass, fct=LL.4())
+  # continuous relative deviation (BMD, SE, Wald BMDL, profile BMDL); bmd profiles with the chi-square
+  # cutoff, not the small-sample one
   ft <- drmTMB(rootl ~ conc, data=ryegrass, model="loglogistic", start=c(b5=0), fix=c(b5=TRUE))
-  rd <- bmd::bmd(fd, 0.1, def="relative", backgType="modelBased", display=FALSE)
-  rp <- bmd::bmd(fd, 0.1, def="relative", backgType="modelBased", display=FALSE, interval="profile",
-                 profileProgressInfo=FALSE, profileGridSize=200)
+  ref <- c(1.499025996, 0.190929137, 1.169727031, 1.218300589)
   b <- bmd(ft, 0.1, def="relative")
-  expect_equal(unname(coef(b)), unname(rd$Results[1]), tolerance=1e-5)
-  expect_equal(sqrt(vcov(b)[1, 1]), unname(rd$SE[1]), tolerance=1e-4)
-  expect_equal(suppressMessages(confint(b, level=0.9, method="wald"))[1, 1], unname(rd$Results[2]), tolerance=1e-5)
+  expect_equal(unname(coef(b)), ref[1], tolerance=1e-5)
+  expect_equal(sqrt(vcov(b)[1, 1]), ref[2], tolerance=1e-4)
+  expect_equal(suppressMessages(confint(b, level=0.9, method="wald"))[1, 1], ref[3], tolerance=1e-5)
   ft$rdf <- NULL
-  expect_equal(confint(bmd(ft, 0.1, def="relative"), level=0.9, progress=FALSE)[1, 1], unname(rp$Results[2]), tolerance=1e-4)
+  expect_equal(confint(bmd(ft, 0.1, def="relative"), level=0.9, progress=FALSE)[1, 1], ref[4], tolerance=1e-4)
 })
 
 test_that("BMD in standard deviations includes the uncertainty of sigma", {
