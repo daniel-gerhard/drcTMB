@@ -6,7 +6,7 @@ This is the first submission of drcTMB.
 
 * Local: Ubuntu 26.04.1 LTS, R 4.6.2
 * win-builder: Windows, R-devel (2026-11-17 r90926 ucrt)
-* R-hub (GitHub Actions): Windows, R-devel; macOS arm64, R-devel
+* R-hub (GitHub Actions): Windows, R-devel; macOS arm64, R-devel; macOS x86_64, R-devel
 
 ## R CMD check results
 
