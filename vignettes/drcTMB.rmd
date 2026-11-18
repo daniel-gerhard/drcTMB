@@ -1,10 +1,14 @@
 ---
-title: "drcTMB"
+title: "drcTMB: dose-response models with TMB"
 author: "Daniel Gerhard"
 date: "`r Sys.Date()`"
-output: rmarkdown::html_vignette
+output:
+  rmarkdown::html_vignette:
+    toc: true
+    toc_depth: 2
+    number_sections: true
 vignette: >
-  %\VignetteIndexEntry{drcTMB}
+  %\VignetteIndexEntry{drcTMB: dose-response models with TMB}
   %\VignetteEngine{knitr::rmarkdown}
   %\VignetteEncoding{UTF-8}
 ---
@@ -12,46 +16,94 @@ vignette: >
 ```{r setup, include = FALSE}
 knitr::opts_chunk$set(
   collapse = TRUE,
-  comment = "#>"
+  comment = "#>",
+  fig.width = 6,
+  fig.height = 4
 )
 ```
 
-The package drcTMB provides functions to fit dose-response curves using the Template Model Builder (TMB) framework.
+# Introduction
 
-## The drmTMB function
+drcTMB fits nonlinear dose-response models by maximum likelihood with the Template Model Builder (TMB). The interface resembles `drm()` of the drc package. TMB's automatic differentiation and Laplace approximation extend the models beyond nonlinear regression:
 
-The main function in the drcTMB package is `drmTMB()`. There is some similarity to the `drm()` function from the drc package, with a simplified input of response and dose variables through a formula interface, and specifying a nonlinear model through the `model` argument. A full list of available models and their corresponding functions can be found at the end of this vignette.
+- non-normal responses (binomial, counts, proportions, time-to-event data),
+- covariates and random effects on every parameter of the curve,
+- correlated residuals and variance functions,
+- priors, and Bayesian benchmark doses.
 
-Each of these models has the same parameter names, b1 for the lower and b2 for the upper asymptote, b3 for the steepness, b4 for the location of the inflection point on the dose scale, and b5 for an optional asymmetry parameter. The steepness b3 is positive for an increasing and negative for a decreasing curve. The asymmetry parameter b5 is estimated on a logarithmic scale. The models michaelismenten, asymptoticregression, and exponentialdecay have no steepness parameter; here b1 is the response at dose zero and b2 the asymptote at high doses. For the hormesis models braincousens and cedergreen, b5 is the size of the stimulation at low doses, see [Hormesis](#hormesis).
-The `start` argument provides starting values for the parameters. The `fix` argument (TRUE/FALSE) allows to fix parameters at these starting values. Parameters that a model does not use, such as b5 for the Weibull models, are fixed automatically.
+Effective doses and benchmark doses, with their standard errors and confidence intervals, are available for all of these models.
 
-```{r}
+The examples use data sets of the packages drcData and nlme, and the plots use ggplot2.
+
+```{r, message = FALSE}
 library(drcTMB)
 library(drcData)
-data(ryegrass)
-# Fitting a 3-parameter log-logistic model
-mod <- drmTMB(rootl ~ conc, data=ryegrass, model="loglogistic", 
-              start=c(0, 8, -1, 2, 0), fix=c(TRUE, FALSE, FALSE, FALSE, TRUE))
-print(mod)
-```
-
-The model is fitted by maximum likelihood. For gaussian (and lognormal) models without random effects, the inference follows `lm()`, `nls()` and drc by default: the residual standard deviation is the square root of the unbiased residual variance with n - p residual degrees of freedom (`df.residual(mod)`), the standard errors are scaled accordingly, and confidence and prediction intervals use t quantiles. With `control = list(smallsample = FALSE)`, they use the maximum likelihood estimate and normal quantiles instead. The other families and models with random effects always use maximum likelihood and normal quantiles.
-
-With the `predict()` method, we can visualize the fitted curve.
-```{r}
-newdata <- data.frame(conc = exp(seq(-0.5, log(30), length.out = 100)))
-newdata$pred <- predict(mod, newdata = newdata)
 library(ggplot2)
-ggplot(ryegrass, aes(x = log(conc), y = rootl)) +
-  geom_point() +
-  geom_line(data = newdata, aes(x = log(conc), y = pred), color = "blue") +
-  labs(x = "Log Concentration", y = "Root Length") +
-  theme_bw()
 ```
 
-### Confidence and prediction intervals
 
-With `interval = "confidence"`, `predict()` adds standard errors and confidence intervals for the mean response, computed by the delta method. With `interval = "prediction"`, the intervals are for a new observation, adding the residual variation. The result is a data frame with the columns `fit`, `se.fit`, `lwr` and `upr`.
+# Fitting a dose-response model
+
+## Models and parameters
+
+`drmTMB()` takes a formula `response ~ dose`, the data, and the name of a model function in the argument `model`. All models share the parameter names b1 to b5:
+
+| Parameter | Meaning |
+|:--|:--|
+| b1 | lower asymptote |
+| b2 | upper asymptote |
+| b3 | steepness; positive for an increasing, negative for a decreasing curve |
+| b4 | location of the inflection point on the dose scale (e.g. the ED50) |
+| b5 | asymmetry, on the log scale (b5 = 0 is a symmetric curve) |
+
+Some models use the parameters differently:
+
+- **michaelismenten, asymptoticregression, exponentialdecay, gamma**: b1 is the response at dose zero and b2 the asymptote at high doses.
+- **braincousens, cedergreen** (hormesis): b5 is the size of the stimulation at low doses, see [Hormesis](#hormesis).
+- **exponential, power**: no upper asymptote, see [Benchmark doses](#benchmark-doses).
+
+The available models are:
+
+| `model` | Curve | Similar in drc |
+|:--|:--|:--|
+| `"loglogistic"`, `"logistic"` | sigmoid in log(dose) or dose | `LL.5()`, `L.5()` |
+| `"weibull1"`, `"weibull2"` | asymmetric sigmoid | `W1.4()`, `W2.4()` |
+| `"lognormal"`, `"gompertz"` | sigmoid | `LN.4()`, `G.4()` |
+| `"braincousens"`, `"cedergreen"` | hormesis | `BC.5()`, `CRS.4a()` |
+| `"nec"` | threshold (no-effect concentration) | `NEC.4()` |
+| `"michaelismenten"`, `"haldane"` | saturation, substrate inhibition | `MM.3()` |
+| `"asymptoticregression"`, `"exponentialdecay"` | exponential approach | `AR.3()`, `EXD.3()` |
+| `"gamma"`, `"multistage"` | quantal models of BMDS | |
+| `"exponential"`, `"power"` | continuous models of PROAST and BMDS | |
+| `"constant"` | no dose effect | |
+
+The formulas of all models are given in the [Appendix](#appendix-model-functions).
+
+The argument `start` gives starting values, by name, and `fix` (TRUE/FALSE) fixes parameters at their starting values. Parameters that a model does not use, such as b5 of the Weibull models, are fixed automatically.
+
+## A first model
+
+The root length of ryegrass decreases with the concentration of ferulic acid. A log-logistic model with the lower asymptote b1 fixed at 0 and without asymmetry (b5 = 0) is the three-parameter model `LL.3()` of drc.
+
+```{r}
+data(ryegrass)
+mod <- drmTMB(rootl ~ conc, data = ryegrass, model = "loglogistic",
+              start = c(b1 = 0, b5 = 0), fix = c(b1 = TRUE, b5 = TRUE))
+mod
+```
+
+The model is fitted by maximum likelihood. For gaussian and lognormal models without random effects, the inference follows `lm()`, `nls()` and drc by default:
+
+- the residual standard deviation uses the unbiased residual variance with n - p residual degrees of freedom (`df.residual(mod)`),
+- the standard errors are scaled accordingly,
+- confidence and prediction intervals use t quantiles.
+
+With `control = drmTMBcontrol(smallsample = FALSE)`, they use the maximum likelihood estimate and normal quantiles instead. The other families and all models with random effects use maximum likelihood and normal quantiles.
+
+## Confidence and prediction intervals
+
+`predict()` gives the fitted curve. With `interval = "confidence"`, it adds standard errors and confidence intervals for the mean response (delta method). With `interval = "prediction"`, the intervals are for a new observation and include the residual variation. The result is a data frame with the columns `fit`, `se.fit`, `lwr` and `upr`.
+
 ```{r}
 # the controls (conc = 0) are drawn at a small concentration on the log axis
 ryegrass$cplot <- ifelse(ryegrass$conc == 0, 0.25, ryegrass$conc)
@@ -69,76 +121,100 @@ ggplot(bands, aes(x = conc)) +
   geom_point(data = ryegrass, aes(x = cplot, y = rootl)) +
   scale_x_log10(breaks = c(0.25, 1, 3, 10, 30), labels = c("0", "1", "3", "10", "30")) +
   scale_fill_manual(values = c("steelblue", "grey60")) +
-  labs(x = "Concentration (log scale)", y = "Root length", fill = NULL) +
+  labs(x = "Concentration (log scale)", y = "Root length (cm)", fill = NULL) +
   theme_bw() +
   theme(legend.position = "bottom")
 ```
 
-Alternatively, the intervals can be based on a parametric bootstrap of the model: `bootstrap()` simulates new responses from the fitted model and fits the model again to each of them. The bootstrap sample can be reused for the intervals of `predict()` and `confint()`.
+Alternatively, the intervals can come from a parametric bootstrap: `bootstrap()` simulates new responses from the fitted model and fits the model again to each of them. The same bootstrap sample can be reused for `predict()` and `confint()`.
+
 ```{r}
 bs <- bootstrap(mod, nsim = 200, seed = 1)
 head(predict(mod, newdata = ndata, interval = "confidence", boot = bs), 3)
 ```
 
-### Model comparison
+## Model comparison
 
-Nested models fitted to the same data can be compared by likelihood ratio tests with `anova()`, here the model with the lower asymptote fixed at 0 against a model with an estimated lower asymptote.
+`anova()` compares nested models fitted to the same data by likelihood ratio tests, here the model with the lower asymptote fixed at 0 against a model with an estimated lower asymptote:
+
 ```{r}
-mod4 <- update(mod, start = c(NA, NA, NA, NA, 0), fix = c(FALSE, FALSE, FALSE, FALSE, TRUE))
+mod4 <- update(mod, start = c(b5 = 0), fix = c(b5 = TRUE))
 anova(mod, mod4)
 ```
 
-For gaussian and lognormal models without random effects, F-tests account for the estimation of the residual variance with n - p residual degrees of freedom, as in drc, and are usually preferable for small experiments.
+For gaussian and lognormal models without random effects, F-tests account for the estimation of the residual variance, as in drc. They are usually preferable for small experiments.
+
 ```{r}
 anova(mod, mod4, test = "F")
 ```
 
-A model without a dose effect, `model = "constant"` with the same mean b1 at all doses, tests whether the response changes with the dose at all, as `noEffect()` in drc.
+The model `"constant"`, with the same mean b1 at all doses, tests whether the response changes with the dose at all, as `noEffect()` in drc:
+
 ```{r}
 mod0 <- update(mod, model = "constant", start = NULL, fix = NULL)
 anova(mod0, mod)
 ```
 
-The chi-square distribution of the likelihood ratio statistic is only an approximation here, as the steepness and location of the curve are not identified under the constant model, and similarly for small experiments or for testing a standard deviation of random effects against zero. A parametric bootstrap test, `test = "boot"`, simulates responses from the smaller model and fits both models to each of them; with 200 simulations, the smallest possible p-value is 1/201.
+The chi-square distribution of the likelihood ratio statistic is only an approximation here: the steepness and location of the curve are not identified under the constant model. The same applies to small experiments and to tests of a standard deviation of random effects against zero. A parametric bootstrap test, `test = "boot"`, simulates responses from the smaller model and fits both models to each of them. With 200 simulations, the smallest possible p-value is 1/201.
+
 ```{r}
 anova(mod0, mod, test = "boot", nsim = 200, seed = 1)
 ```
 
-### Model diagnostics
+## Model diagnostics
 
-The `plot()` method draws residuals against the fitted values and against the dose, and a normal QQ plot of the residuals. The default randomised quantile residuals are standard normal under the model for all families. A trend of the residuals against the dose points to a model function that does not fit the data, and `which = 4` adds QQ plots of the predicted random effects for models with random effects. The graphs are ggplot2 objects, returned invisibly, so a single one can be changed and drawn again.
+`plot()` draws the residuals against the fitted values and against the dose, and a normal QQ plot.
+
+- The default randomised quantile residuals are standard normal under the model, for all families.
+- A trend of the residuals against the dose points to a model function that does not fit the data.
+- `which = 4` adds QQ plots of the predicted random effects for models with random effects.
+
+The graphs are ggplot2 objects, returned invisibly, so a single one can be changed and drawn again.
+
 ```{r, fig.width = 7, fig.height = 6}
 plot(mod)
 ```
 
-## Effective dose estimation
 
-The `ed()` function can be used to estimate effective doses (e.g., ED50, ED90) from the fitted model, given a specified response level (`respLev`). The effective dose ED p is the dose at which the response has changed by p% of the difference between the asymptote at low doses (the control) and the asymptote at high doses.
+# Effective doses
+
+`ed()` estimates effective doses for the response levels `respLev`. The effective dose ED p is the dose at which the response has changed by p% of the difference between the asymptote at low doses (the control) and the asymptote at high doses. Confidence intervals from `confint()` are profile likelihood intervals by default.
+
 ```{r}
 (effdose <- ed(mod, respLev = c(25, 50, 75)))
+confint(effdose)
 ```
 
-Simultaneous confidence intervals can be constructed through the package multcomp. For gaussian models without random effects, the residual degrees of freedom of the model give multivariate t quantiles (`df.residual()` is `NULL` otherwise, and multcomp then uses the normal distribution).
-```{r, message=FALSE, warning=FALSE}
+Simultaneous confidence intervals follow from the package multcomp. For gaussian models without random effects, the residual degrees of freedom give multivariate t quantiles (`df.residual()` is `NULL` otherwise, and multcomp then uses the normal distribution).
+
+```{r, message = FALSE, warning = FALSE}
 library(multcomp)
 linfct <- diag(3)
 rownames(linfct) <- c("ED25", "ED50", "ED75")
-effdose_glht <- glht(effdose, linfct = linfct, df = df.residual(mod))
-confint(effdose_glht)
+confint(glht(effdose, linfct = linfct, df = df.residual(mod)))
 ```
 
-With `type = "absolute"`, `respLev` gives values of the response instead, and `ed()` estimates the doses at which the curve reaches them, here a root length of 2, 4 and 6 cm. These depend on the asymptotes as well, which is included in the standard errors.
+With `type = "absolute"`, `respLev` gives values of the response instead, and `ed()` estimates the doses at which the curve reaches them, here a root length of 2, 4 and 6 cm. These doses depend on the asymptotes as well, which is included in the standard errors.
+
 ```{r}
 ed(mod, respLev = c(2, 4, 6), type = "absolute")
 ```
 
-## Hormesis
 
-Some toxic substances stimulate growth at low doses before the response declines. The hormesis models of Brain and Cousens (`model = "braincousens"`) and of Cedergreen, Ritz and Streibig (`model = "cedergreen"`) add a term $b_5\,g(x)$ to the response at dose zero in a log-logistic curve, with $g(x) = x$ or $g(x) = \exp(-1/x^\alpha)$; b2 is the response of the control, b1 the lower asymptote, and b3 < 0 for the decreasing curve. The exponent alpha of the cedergreen model is set by the argument `alpha` (1, 0.5 and 0.25 for the models CRS.a, CRS.b and CRS.c of drc). The hormesis effect b5 is on the scale of the response, and b5 = 0 is the log-logistic model, so `anova()` tests for hormesis. In the lettuce data, the plant weight increases at low concentrations of isobutyl alcohol.
+# Hormesis
+
+Some toxic substances stimulate growth at low doses before the response declines. Two hormesis models add a term $b_5\,g(x)$ to a log-logistic curve:
+
+- Brain and Cousens, `model = "braincousens"`, with $g(x) = x$,
+- Cedergreen, Ritz and Streibig, `model = "cedergreen"`, with $g(x) = \exp(-1/x^\alpha)$. The argument `alpha` sets the exponent: 1, 0.5 and 0.25 give the models CRS.a, CRS.b and CRS.c of drc.
+
+Here b2 is the response of the control, b1 the lower asymptote, and b3 < 0 for the decreasing curve. The hormesis effect b5 is on the scale of the response, and b5 = 0 is the log-logistic model, so `anova()` tests for hormesis. In the lettuce data, the plant weight increases at low concentrations of isobutyl alcohol.
+
 ```{r}
 data(lettuce)
 hmod <- drmTMB(weight ~ conc, data = lettuce, model = "braincousens")
-hmod0 <- drmTMB(weight ~ conc, data = lettuce, model = "loglogistic", start = c(b5 = 0), fix = c(b5 = TRUE))
+hmod0 <- drmTMB(weight ~ conc, data = lettuce, model = "loglogistic",
+                start = c(b5 = 0), fix = c(b5 = TRUE))
 anova(hmod0, hmod, test = "F")
 ```
 
@@ -155,43 +231,55 @@ ggplot(hdata, aes(x = conc)) +
   theme_bw()
 ```
 
-The effective dose ED p of a hormesis model is the dose above the peak at which the response has decreased from the control by p% of the difference to the lower asymptote, as in drc. It has no closed form and is found numerically; its standard errors follow from the implicit function theorem, also with random effects, and profile and bootstrap intervals are available as for the other models.
+The effective dose ED p of a hormesis model is the dose above the peak at which the response has decreased from the control by p% of the difference to the lower asymptote, as in drc. It has no closed form and is found numerically. Its standard errors follow from the implicit function theorem, also with random effects, and profile and bootstrap intervals are available as for the other models.
+
 ```{r}
 ed(hmod, respLev = c(10, 50))
 ```
 
-`peak()` estimates the dose at the peak of the stimulation and the maximal response, as `MAX()` in drc, with their joint covariance matrix, and `respLev = 0` gives the dose at which the response returns to the level of the control, the limit of the stimulation. Both are found numerically, with standard errors from the implicit function theorem as for the effective doses. Profile intervals are not available for the maximal response, and Wald intervals are given for it.
+`peak()` estimates the dose at the peak of the stimulation and the maximal response, as `MAX()` in drc, with their joint covariance matrix. `respLev = 0` in `ed()` gives the dose at which the response returns to the level of the control, the limit of the stimulation. Profile intervals are not available for the maximal response; Wald intervals are given for it.
+
 ```{r}
 (hpeak <- peak(hmod))
 confint(hpeak)
 ed(hmod, respLev = 0)
 ```
 
-## Non-normal response distributions
 
-The `family` argument allows to specify the distribution of the response as "gaussian", "lognormal", "poisson", "binomial", "beta", or, for overdispersed counts, the negative binomial "nbinom2" (variance mu (1 + mu/theta)) or "nbinom1" (variance mu (1 + phi)), and, for overdispersed binomial counts, the beta-binomial "betabinomial" with precision phi, as in glmmTMB. For the "lognormal" family, log(y) is normal around the log of the curve, which is then the median (geometric mean) of a positive response with a constant coefficient of variation, as in PROAST and the BMDS of the US EPA; the residual standard deviation is that of log(y), and the log-likelihood is that of y, so that AIC compares gaussian and lognormal fits.
-To improve optimisation, the `parlink` argument allows us to estimate parameters on a transformed scale: a single link, e.g. `parlink="logit"`, applies to the asymptotes b1 and b2, and links named by parameter, e.g. `parlink=c(b1="logit", b4="log")`, to single parameters, with the defaults of the model for the others. The asymptotes have the identity (default), log or logit link. The log link for b4, `parlink=c(b4="log")`, is available for the models with a positive b4; random effects on b4 then vary the ED50 by a factor between groups, as in a logistic model of the log dose. The asymmetry b5 of the logistic and loglogistic models and the shape b5 of nec always have the log link. The parameters of the curves, e.g. b4 of each group or treatment, follow from `predict(fit, newdata, type="parameters")`, on their original scale or with `scale="link"` on the scale of the coefficients, with standard errors and confidence intervals. Furthermore, we can add constraints on the parameters through the `lower` and `upper` arguments with vectors for the lower and upper bounds of the parameters, respectively.
+# Response distributions
 
-While `parlink` transforms the parameters, `curvelink` is a link of the whole curve, as in a generalised linear model: the mean (the median for the lognormal family, the probability for binomial responses) is the inverse link of the curve, `exp(f(x))` for `curvelink="log"`, `pnorm(f(x))` for `"probit"` and `plogis(f(x))` for `"logit"`. The lognormal family with `curvelink="log"` puts the curve on the scale of log(y), as the lognormal models of EFSA (2022), and the power model with a probit or logit curve link gives their quantal probit and logistic models. Effective doses refer to the curve, while `predict()` and the benchmark doses of `bmd()` are on the scale of the response.
+## Families
 
-```{r}
-cmod <- drmTMB(rootl ~ conc, data = ryegrass, model = "weibull2", family = "lognormal",
-               curvelink = "log", start = c(b5 = 0), fix = c(b5 = TRUE))
-cmod
-bmd(cmod, bmr = 0.05, def = "relative")
-```
+The argument `family` sets the distribution of the response, with the same parameterisations as glmmTMB:
 
-For the proportion of immobile daphnids after 48 hours, we fit a 2-parameter log-logistic model, with the asymptotes fixed at 0 and 1 and without asymmetry (b5 = 0). With only eight doses, the asymmetry parameter b5 cannot be estimated reliably: in a model with b5, the parameters b3, b4 and b5 are almost perfectly correlated, with very large standard errors.
+| `family` | Response | Dispersion |
+|:--|:--|:--|
+| `"gaussian"` (default) | continuous | residual standard deviation |
+| `"lognormal"` | positive, constant coefficient of variation | standard deviation of log(y) |
+| `"binomial"` | `cbind(successes, failures)` | |
+| `"betabinomial"` | overdispersed binomial counts | precision phi |
+| `"poisson"` | counts | |
+| `"nbinom2"` | overdispersed counts | variance mu (1 + mu/theta) |
+| `"nbinom1"` | overdispersed counts | variance mu (1 + phi) |
+| `"beta"` | proportions in (0, 1) | precision phi |
+| `"event"` | counts of events in time intervals | see [Time-to-event data](#time-to-event-data) |
+
+For the lognormal family, log(y) is normal around the log of the curve. The curve is then the median (geometric mean) of the response, as in PROAST and the BMDS of the US EPA. The log-likelihood is that of y, so AIC compares gaussian and lognormal fits.
+
+## A binomial response
+
+For the proportion of immobile daphnids after 48 hours, we fit a two-parameter log-logistic model, with the asymptotes fixed at 0 and 1 and without asymmetry. With only eight doses, b5 cannot be estimated reliably: in a model with b5, the parameters b3, b4 and b5 are almost perfectly correlated, with very large standard errors.
+
 ```{r}
 data(daphnids)
 d48 <- subset(daphnids, time == "48h")
-
-dmod <- drmTMB(cbind(no, total-no) ~ dose, data=d48, model="loglogistic", family="binomial", 
-               start=c(0, 1, 1, 1000, 0), fix=c(TRUE, TRUE, FALSE, FALSE, TRUE))
+dmod <- drmTMB(cbind(no, total - no) ~ dose, data = d48, model = "loglogistic", family = "binomial",
+               start = c(b1 = 0, b2 = 1, b4 = 1000, b5 = 0), fix = c(b1 = TRUE, b2 = TRUE, b5 = TRUE))
 dmod
 ```
 
-The confidence intervals for the mean proportion are computed on the logit scale, so that they stay between 0 and 1. For the binomial, poisson and beta families, prediction intervals are quantiles of new observations, simulated at draws from the approximate normal distribution of the estimates (`nsim` draws). The number of trials of the new observations is taken from the response variables in `newdata`, here a new beaker with 20 daphnids at each dose; the value of `no` is not used.
+The confidence intervals for the mean proportion are computed on the logit scale, so that they stay between 0 and 1. For the binomial, poisson and beta families, prediction intervals are quantiles of new observations, simulated at `nsim` draws from the approximate normal distribution of the estimates. The number of trials of the new observations comes from the response variables in `newdata`, here a new beaker with 20 daphnids at each dose (the value of `no` is not used).
+
 ```{r}
 ndata <- data.frame(dose = exp(seq(3, log(22000), length.out = 100)), no = 0, total = 20)
 cib <- predict(dmod, newdata = ndata, interval = "confidence")
@@ -208,51 +296,80 @@ ggplot(cbind(ndata, pib), aes(x = dose)) +
   theme_bw()
 ```
 
-The simulated prediction intervals rely on the normal approximation of the estimates; for models with poorly identified parameters, a bootstrap sample (`boot = bootstrap(dmod)`) is the safer choice.
+The simulated prediction intervals rely on the normal approximation of the estimates. For models with poorly identified parameters, a bootstrap sample (`boot = bootstrap(dmod)`) is the safer choice.
 
+## Parameter links and bounds
 
-## Additional parameters
+The argument `parlink` estimates parameters on a transformed scale, which can improve the optimisation:
 
-We can add covariates on the parameter level through the argument `fform`, with the parameters on the left-hand side of a formula, e.g. `b3 + b4 ~ 0 + time`, or a list of such formulas. Parameters that are not listed have a single intercept.
+- a single link, e.g. `parlink = "logit"`, applies to the asymptotes b1 and b2;
+- links named by parameter, e.g. `parlink = c(b1 = "logit", b4 = "log")`, apply to single parameters, with the defaults of the model for the others.
+
+The asymptotes have the identity (default), log or logit link. The log link of b4 is available for the models with a positive b4; random effects on b4 then change the ED50 by a factor between groups, as in a logistic model of the log dose. The asymmetry b5 of the logistic and loglogistic models and the shape b5 of nec always have the log link.
+
+`predict(fit, newdata, type = "parameters")` gives the parameters of the curves, e.g. b4 of each group or treatment, on their original scale or, with `scale = "link"`, on the scale of the coefficients, with standard errors and confidence intervals.
+
+The arguments `lower` and `upper` set bounds for the parameters.
+
+## Curve links
+
+While `parlink` transforms single parameters, `curvelink` is a link of the whole curve, as in a generalised linear model. The mean (the median for the lognormal family, the probability for binomial responses) is the inverse link of the curve:
+
+- `curvelink = "log"`: `exp(f(x))`,
+- `curvelink = "probit"`: `pnorm(f(x))`,
+- `curvelink = "logit"`: `plogis(f(x))`.
+
+The lognormal family with `curvelink = "log"` puts the curve on the scale of log(y), as in the lognormal models of EFSA (2022). The power model with a probit or logit curve link gives their quantal probit and logistic models. Effective doses refer to the curve, while `predict()` and the benchmark doses of `bmd()` are on the scale of the response.
 
 ```{r}
-# using the full daphnids dataset with groups 24h and 48h
-dmodg <- drmTMB(cbind(no, total-no) ~ dose, data=daphnids, 
-                model="loglogistic", family="binomial",
-                fform=b3 + b4 ~ 0 + time,
-                start=c(0, 1, 1, 1, 1000, 1000, 0), 
-                fix=c(TRUE, TRUE, FALSE, FALSE, FALSE, FALSE, TRUE))
+clmod <- drmTMB(rootl ~ conc, data = ryegrass, model = "weibull2", family = "lognormal",
+                curvelink = "log", start = c(b5 = 0), fix = c(b5 = TRUE))
+clmod
+bmd(clmod, bmr = 0.05, def = "relative")
+```
+
+
+# Covariates on the parameters
+
+The argument `fform` adds covariates to the parameters, with the parameters on the left-hand side of a formula, e.g. `b3 + b4 ~ 0 + time`, or a list of such formulas. Parameters that are not listed have a single intercept. For the daphnids after 24 and 48 hours, each time gets its own steepness and ED50:
+
+```{r}
+dmodg <- drmTMB(cbind(no, total - no) ~ dose, data = daphnids,
+                model = "loglogistic", family = "binomial",
+                fform = b3 + b4 ~ 0 + time,
+                start = c(b1 = 0, b2 = 1, b4 = 1000, b5 = 0), fix = c(b1 = TRUE, b2 = TRUE, b5 = TRUE))
 dmodg
 ```
 
 ```{r}
-ndatag <- expand.grid(dose = exp(seq(3, log(22000), length.out = 100)), 
+ndatag <- expand.grid(dose = exp(seq(3, log(22000), length.out = 100)),
                       time = c("24h", "48h"))
 ndatag$pred <- predict(dmodg, newdata = ndatag)
 
-ggplot(daphnids, aes(x = dose, y = no/total, colour=time)) +
+ggplot(daphnids, aes(x = dose, y = no/total, colour = time)) +
   geom_point() +
-  geom_line(data = ndatag, aes(x = dose, y = pred, colour=time)) +
-  labs(x = "Dose", y = "Proportion of Immobile Daphnids") +
-  theme_bw() +
-  scale_x_continuous(breaks = c(100, 500, 2500, 10000), trans="log")
+  geom_line(data = ndatag, aes(y = pred)) +
+  scale_x_log10(breaks = c(100, 500, 2500, 10000)) +
+  labs(x = "Dose (log scale)", y = "Proportion of immobile daphnids", colour = "Time") +
+  theme_bw()
 ```
 
+## Effective doses for covariate values
 
-### Estimating effective doses for covariate values
-The `newdata` argument of `ed()` specifies the dose-response curves by the values of the covariates in `fform`, one curve for each row; the effective doses are computed for each level of `respLev` and each curve.
-```{r, message=FALSE, warning=FALSE}
+The argument `newdata` of `ed()` specifies the curves by the values of the covariates in `fform`, one curve for each row. The effective doses are computed for each level of `respLev` and each curve, with their joint covariance matrix, so that multcomp gives simultaneous intervals for differences:
+
+```{r, message = FALSE, warning = FALSE}
 (ed75 <- ed(dmodg, respLev = 75, newdata = data.frame(time = c("24h", "48h"))))
 
-lfdiff <- rbind("24h"=c(1, 0),
-                "48h"=c(0, 1),
-                "48h-24h"=c(-1, 1))
-edose_glht <- glht(ed75, linfct = lfdiff)
-confint(edose_glht)
+lfdiff <- rbind("24h" = c(1, 0),
+                "48h" = c(0, 1),
+                "48h-24h" = c(-1, 1))
+confint(glht(ed75, linfct = lfdiff))
 ```
 
-Ratios of effective doses, e.g. the relative potency of two curves, are often more natural than differences. As `ed()` returns the estimates and their variance-covariance matrix, simultaneous confidence intervals for ratios can be constructed with the function `gsci.ratio()` of the package mratios, here for the ED50 and ED75 after 24 hours relative to 48 hours.
-```{r, eval=requireNamespace("mratios", quietly=TRUE)}
+Ratios of effective doses, e.g. the relative potency of two curves, are often more natural than differences. `gsci.ratio()` of the package mratios gives simultaneous confidence intervals for ratios, here for the ED50 and ED75 after 24 hours relative to 48 hours:
+
+```{r, eval = requireNamespace("mratios", quietly = TRUE)}
 library(mratios)
 ed5075 <- ed(dmodg, respLev = c(50, 75), newdata = data.frame(time = c("24h", "48h")))
 num <- rbind("ED50 24h/48h" = c(1, 0, 0, 0),
@@ -262,85 +379,102 @@ den <- rbind(c(0, 1, 0, 0),
 gsci.ratio(coef(ed5075), vcov(ed5075), num, den)
 ```
 
-More generally, the `linfct` argument identifies the parameters b1 to b5 of each curve by linear functions of the model coefficients, with one matrix for each curve. The matrices for the two curves above are
-```{r, message=FALSE, warning=FALSE}
-linfct <- list("24h"=rbind(c(1, 0, 0, 0, 0, 0, 0),
-                           c(0, 1, 0, 0, 0, 0, 0),
-                           c(0, 0, 1, 0, 0, 0, 0),
-                           c(0, 0, 0, 0, 1, 0, 0),
-                           c(0, 0, 0, 0, 0, 0, 1)),
-               "48h"=rbind(c(1, 0, 0, 0, 0, 0, 0),
-                           c(0, 1, 0, 0, 0, 0, 0),
-                           c(0, 0, 0, 1, 0, 0, 0),
-                           c(0, 0, 0, 0, 0, 1, 0),
-                           c(0, 0, 0, 0, 0, 0, 1)))
+More generally, the argument `linfct` defines the parameters b1 to b5 of each curve as linear functions of the model coefficients, with one matrix for each curve. For the two curves above, with the coefficients b1, b2, b3:time24h, b3:time48h, b4:time24h, b4:time48h and b5:
+
+```{r, message = FALSE, warning = FALSE}
+linfct <- list("24h" = rbind(c(1, 0, 0, 0, 0, 0, 0),
+                             c(0, 1, 0, 0, 0, 0, 0),
+                             c(0, 0, 1, 0, 0, 0, 0),
+                             c(0, 0, 0, 0, 1, 0, 0),
+                             c(0, 0, 0, 0, 0, 0, 1)),
+               "48h" = rbind(c(1, 0, 0, 0, 0, 0, 0),
+                             c(0, 1, 0, 0, 0, 0, 0),
+                             c(0, 0, 0, 1, 0, 0, 0),
+                             c(0, 0, 0, 0, 0, 1, 0),
+                             c(0, 0, 0, 0, 0, 0, 1)))
 ed(dmodg, respLev = 75, linfct = linfct)
 ```
 
-## Time-to-event data
 
-Germination and other time-to-event experiments record the number of events in each time interval, as `type = "event"` in drc. With `family = "event"` and the formula `count ~ start + end`, each row is an interval [start, end) with its number of events, and a row with `end = Inf` holds the units without an event by the end of the experiment. The curve is the cumulative proportion of events, b2 F(t), with b1 fixed at 0 and the proportion b2 of units with an event on the logit scale. For the germination of chickweed seeds, 20% of the seeds germinate, half of them by 196 hours:
+# Time-to-event data
+
+Germination and other time-to-event experiments record the number of events in each time interval, as `type = "event"` in drc. With `family = "event"` and the formula `count ~ start + end`:
+
+- each row is an interval [start, end) with its number of events,
+- a row with `end = Inf` holds the units without an event by the end of the experiment,
+- the curve is the cumulative proportion of events, b2 F(t), with b1 fixed at 0 and the proportion b2 of units with an event on the logit scale.
+
+For the germination of chickweed seeds, 20% of the seeds germinate, half of them by 196 hours:
 
 ```{r}
 data(chickweed)
-cmod <- drmTMB(count ~ start + end, data = chickweed, model = "loglogistic", family = "event",
+gmod <- drmTMB(count ~ start + end, data = chickweed, model = "loglogistic", family = "event",
                start = c(b5 = 0), fix = c(b5 = TRUE))
-cmod
-plogis(coef(cmod)[1])
-ed(cmod, c(10, 50, 90))
+gmod
+plogis(coef(gmod)[1])
+ed(gmod, c(10, 50, 90))
 ```
 
-`ed()` gives the times at which a percentage of the germinating seeds has germinated, and with `type = "absolute"` the time at which a proportion of all seeds has germinated, here 10%:
+`ed()` gives the times at which a percentage of the germinating seeds has germinated. With `type = "absolute"`, it gives the time at which a proportion of all seeds has germinated, here 10%:
 
 ```{r}
-ed(cmod, 0.1, type = "absolute")
+ed(gmod, 0.1, type = "absolute")
 ```
 
-Covariates of the curve (`fform`) and random effects (`rform`), e.g. `rform = b4 ~ 1 | dish` for Petri dishes that germinate faster or slower, work as for the other families. The argument `series` identifies the intervals of one dish (by default the rows with the same covariates and levels of the random effects); `simulate()` and `bootstrap()` then draw multinomial counts with the total of each dish, and the residuals and the Pearson dispersion of `summary()` compare the counts with these totals.
+Covariates (`fform`) and random effects (`rform`) work as for the other families, e.g. `rform = b4 ~ 1 | dish` for Petri dishes that germinate faster or slower. The argument `series` identifies the intervals of one dish; by default, these are the rows with the same covariates and levels of the random effects. `simulate()` and `bootstrap()` then draw multinomial counts with the total of each dish, and the residuals and the Pearson dispersion of `summary()` compare the counts with these totals.
 
-## Random effects
 
-Fitting a 4-parameter log-logistic model to the vinclozolin dataset, which contains luminescence measurements of a dose-response experiment with 6 replications. The model includes correlated random effects for the lower and upper asymptote b1 and b2, with a random intercept for each replication. With only six replications, a model with an additional random effect for the location b4 cannot be estimated reliably. The `lower` argument is used to constrain the asymptotes and b4 to be positive, to improve optimisation. Random slopes are specified as in lme4, e.g. `rform = b4 ~ time | exper` for random intercepts and slopes of b4 in a covariate `time`; `ed()` then needs the value of the covariate in `newdata` to include the variation between replications in the standard errors.
+# Random effects
 
-```{r, message=FALSE, warning=FALSE}
+The argument `rform` adds random effects to the parameters, with the syntax of lme4: the parameters on the left-hand side, and random intercepts, slopes and grouping factors on the right-hand side, e.g.
+
+- `b2 ~ 1 | exper`: a random intercept of b2 for each experiment,
+- `b1 + b2 ~ 1 | exper`: correlated random intercepts of b1 and b2,
+- `b4 ~ time | exper`: random intercepts and slopes of b4 in a covariate `time`,
+- `b2 ~ 1 | lab/plate`: nested grouping factors,
+- a list of formulas for random effects with different grouping factors.
+
+The likelihood integrates over the random effects with the Laplace approximation.
+
+The vinclozolin data contain luminescence measurements of a dose-response experiment with six replications. A log-logistic model with correlated random effects of the replications on the asymptotes b1 and b2 describes the variation between them. With only six replications, an additional random effect on b4 cannot be estimated reliably. The argument `lower` keeps the asymptotes and b4 positive, to help the optimisation.
+
+```{r, message = FALSE, warning = FALSE}
 data(vinclozolin)
-vmod <- drmTMB(effect ~ conc, data=vinclozolin, 
-               model="loglogistic", 
-               rform=b1 + b2 ~ 1 | exper,
-               start = c(b5 = 0), fix = c(b5 = TRUE), 
+vmod <- drmTMB(effect ~ conc, data = vinclozolin, model = "loglogistic",
+               rform = b1 + b2 ~ 1 | exper,
+               start = c(b5 = 0), fix = c(b5 = TRUE),
                lower = c(0, 0, -Inf, 0, -Inf))
 summary(vmod)
 ```
 
-We can visualise the predictions conditional on the random effects.
+`predict()` gives the curves of the replications, conditional on their predicted random effects, and with `random = FALSE` the population curve, with the random effects at zero.
 
-```{r, message=FALSE, warning=FALSE}
-ndatav <- expand.grid(conc = exp(seq(-5, log(6), length.out = 500)), 
-                      exper = levels(vinclozolin$exper))
-
-# predict.drmTMB by default provides predictions conditional on the random effects
-ndatav$pred <- predict(vmod, newdata = ndatav)
-# prediction conditional on random effects = 0
-ndatav$predpop <- predict(vmod, newdata = ndatav, random=FALSE)
-
-ggplot(vinclozolin, aes(x = log(conc), y = effect, colour=exper)) +
-  geom_point() +
-  geom_line(data = ndatav, aes(x = log(conc), y = pred, colour=exper)) +
-  geom_line(data = ndatav, aes(x = log(conc), y = predpop), 
-            colour="black", linewidth=1.2) +
-  labs(x = "log Concentration", y = "Fluorescence") +
-  theme_bw() 
-
-```
-
-### Prediction intervals in a mixed-effect model
-
-With random effects, the argument `random` decides which new observation a prediction interval is for. With `random = TRUE`, it is a new observation in the replication of each row of `newdata`, using its predicted random effects; the standard errors include the uncertainty of the predicted random effects. With `random = FALSE`, it is a new observation in a new replication, and the variance of the random effects is added. Rows of `newdata` with a replication that is not in the data are treated as new replications.
-```{r, message=FALSE, warning=FALSE}
+```{r, message = FALSE, warning = FALSE}
 vinclozolin$cplot <- ifelse(vinclozolin$conc == 0, 0.01, vinclozolin$conc)
 ndatav <- expand.grid(conc = exp(seq(log(0.01), log(6), length.out = 200)),
                       exper = levels(vinclozolin$exper))
+ndatav$pred <- predict(vmod, newdata = ndatav)
+ndatav$predpop <- predict(vmod, newdata = ndatav, random = FALSE)
 
+ggplot(vinclozolin, aes(x = cplot, y = effect, colour = exper)) +
+  geom_point() +
+  geom_line(data = ndatav, aes(x = conc, y = pred)) +
+  geom_line(data = ndatav, aes(x = conc, y = predpop), colour = "black", linewidth = 1.2) +
+  scale_x_log10(breaks = c(0.01, 0.1, 1, 5), labels = c("0", "0.1", "1", "5")) +
+  labs(x = "Concentration (log scale)", y = "Luminescence", colour = "Replication") +
+  theme_bw()
+```
+
+## Prediction intervals
+
+With random effects, the argument `random` decides which new observation a prediction interval is for:
+
+- `random = TRUE` (default): a new observation in the replication of each row of `newdata`, using its predicted random effects; the standard errors include the uncertainty of the predicted random effects.
+- `random = FALSE`: a new observation in a new replication; the variance of the random effects is added.
+
+Rows of `newdata` with a replication that is not in the data are treated as new replications.
+
+```{r, message = FALSE, warning = FALSE, fig.width = 7, fig.height = 5}
 # a new observation in each of the six replications
 pic <- cbind(ndatav, predict(vmod, newdata = ndatav, interval = "prediction"))
 # a new observation in a new replication
@@ -355,38 +489,51 @@ ggplot(pic, aes(x = conc)) +
   geom_point(data = vinclozolin, aes(x = cplot, y = effect, colour = exper)) +
   facet_wrap(~ exper) +
   scale_x_log10(breaks = c(0.01, 0.1, 1, 5), labels = c("0", "0.1", "1", "5")) +
-  labs(x = "Concentration (log scale)", y = "Fluorescence",
+  labs(x = "Concentration (log scale)", y = "Luminescence",
        subtitle = "Coloured: prediction interval in the replication; grey: in a new replication") +
   theme_bw() +
   theme(legend.position = "none")
 ```
 
+## Effective doses
 
-### Estimating effective doses in a mixed-effect model
+`ed()` estimates effective doses and their standard errors by the delta method. By default, the standard errors include the variance components of the random effects. Here, the random effects are on the asymptotes only. As the effective doses are defined relative to the asymptotes, they do not depend on these random effects, and the standard error is the same as for the population curve.
 
-The `ed()` function is using the delta method to estimates effective doses and their corresponding standard errors. The standard error estimation includes by default the estimated variance components of the random effects. Here, the random effects are on the asymptotes only. The effective doses are defined relative to the asymptotes, so they do not depend on these random effects, and the standard error is the same as for the population curve. With a grouping variable in `newdata`, `ed()` computes the effective doses of the curves of fitted groups, conditional on their predicted random effects, e.g. `ed(vmod, newdata = data.frame(exper = "10509"))`.
-
-```{r, message=FALSE, warning=FALSE}
-(edv <- ed(vmod, respLev=50, random=TRUE))
+```{r, message = FALSE, warning = FALSE}
+ed(vmod, respLev = 50, random = TRUE)
 ```
 
-We can additionally include the residual variance in the standard error estimation.
-```{r, message=FALSE, warning=FALSE}
-(edvr <- ed(vmod, respLev=50, random=TRUE, residual=TRUE))
+With `residual = TRUE`, the standard error also includes the residual variance:
+
+```{r, message = FALSE, warning = FALSE}
+ed(vmod, respLev = 50, random = TRUE, residual = TRUE)
 ```
 
+With a grouping variable in `newdata`, `ed()` gives the effective doses of the curves of fitted groups, conditional on their predicted random effects, e.g. `ed(vmod, 50, newdata = data.frame(exper = "10509"))`. With random slopes, `newdata` needs the value of the covariate, so that the standard errors include the variation between replications at that value.
 
-## Correlated residuals and variance functions
 
-For the gaussian and lognormal families, the residuals can be correlated within series, e.g. repeated measurements of a subject over time or plots in a field, with the argument `correlation`, and their standard deviation can depend on a covariate or on the fitted mean, with the argument `variance`, as in `gnls()` and `nlme()` of nlme. The correlation structures are `cor_ar1()`, `cor_car1()` (continuous-time AR1), `cor_cs()` (compound symmetry), and the spatial `cor_exp()`, `cor_gaus()` and `cor_spher()` (optionally with a nugget), with a formula `~ position | series`; the variance functions are `var_power()` and `var_exp()` of the fitted mean (`~ fitted`, the default) or a covariate, and `var_ident(~ 1 | stratum)` for a separate standard deviation of each stratum. Both can be combined with random effects. The luminescence of the vinclozolin data varies more at high responses: a standard deviation proportional to a power of the fitted mean improves the fit considerably, with a power close to 1 (a constant coefficient of variation), while a correlation of the residuals of neighbouring concentrations within a replication is not needed.
+# Correlated residuals and variance functions
 
-```{r, message=FALSE, warning=FALSE}
-vmodp <- drmTMB(effect ~ conc, data=vinclozolin, model="loglogistic", rform=b1 + b2 ~ 1 | exper,
-                start = c(b5 = 0), fix = c(b5 = TRUE), lower = c(0, 0, -Inf, 0, -Inf),
-                variance = var_power())
-vmodpc <- drmTMB(effect ~ conc, data=vinclozolin, model="loglogistic", rform=b1 + b2 ~ 1 | exper,
-                 start = c(b5 = 0), fix = c(b5 = TRUE), lower = c(0, 0, -Inf, 0, -Inf),
-                 variance = var_power(), correlation = cor_ar1(~ 1 | exper))
+For the gaussian and lognormal families, the residuals can be correlated within series, and their standard deviation can depend on the fitted mean or on a covariate, as with `gnls()` and `nlme()` of nlme. Both can be combined with random effects.
+
+The argument `correlation` takes a correlation structure with a formula `~ position | series`:
+
+- `cor_ar1()`: autoregressive of order 1, for equally spaced positions,
+- `cor_car1()`: continuous-time AR(1),
+- `cor_cs()`: compound symmetry,
+- `cor_exp()`, `cor_gaus()`, `cor_spher()`: spatial structures, optionally with a nugget.
+
+The argument `variance` takes a variance function:
+
+- `var_power()`: standard deviation proportional to a power of the fitted mean (`~ fitted`, the default) or of a covariate,
+- `var_exp()`: standard deviation exponential in the fitted mean or a covariate,
+- `var_ident(~ 1 | stratum)`: a separate standard deviation for each stratum.
+
+The luminescence of the vinclozolin data varies more at high responses. A standard deviation proportional to a power of the fitted mean improves the fit considerably, with a power close to 1 (a constant coefficient of variation). A correlation of the residuals of neighbouring concentrations within a replication is not needed.
+
+```{r, message = FALSE, warning = FALSE}
+vmodp <- update(vmod, variance = var_power())
+vmodpc <- update(vmod, variance = var_power(), correlation = cor_ar1(~ 1 | exper))
 anova(vmod, vmodp, vmodpc)
 vmodp
 ed(vmodp, 50)
@@ -394,42 +541,41 @@ ed(vmodp, 50)
 
 The quantile residuals of `plot()` and `residuals(type = "quantile")` are divided by the standard deviation of the variance function and, with a correlation structure, decorrelated within series, so that they are independent standard normal under the model.
 
-### Growth curves: soybean plants
+## Growth curves: soybean plants
 
-The same models describe growth curves, with time in place of the dose. The Soybean data of nlme, a main example of Pinheiro and Bates (2000), contain the average leaf weight of six plants on 48 plots, measured repeatedly over a growing season, for two varieties (F, a commercial variety, and P, an experimental one) in three years. A logistic curve in time (`model = "logistic"`, without the logarithm of the dose) with the lower asymptote fixed at zero has the final weight b2, the growth rate b3 and the time b4 at which half of the final weight is reached. The final weight and b4 depend on the variety and the year, and a random effect of the plots on b2 accounts for the repeated measurements of a plot. The standard deviation of the weights increases strongly with their mean, which a power variance function captures, while an additional continuous-time AR(1) correlation of the measurements of a plot does not improve the fit.
+The same models describe growth curves, with time in place of the dose. The Soybean data of nlme, a main example of Pinheiro and Bates (2000), contain the average leaf weight of six plants on 48 plots, measured repeatedly over a growing season. There are two varieties (F, a commercial variety, and P, an experimental one), grown in three years.
 
-```{r, message=FALSE, warning=FALSE}
+A logistic curve in time (`model = "logistic"`, without the logarithm of the dose) with the lower asymptote fixed at zero has
+
+- the final weight b2,
+- the growth rate b3,
+- the time b4 at which half of the final weight is reached.
+
+The final weight and b4 depend on the variety and the year, and a random effect of the plots on b2 accounts for the repeated measurements of a plot. The standard deviation of the weights increases strongly with their mean, which a power variance function captures; an additional continuous-time AR(1) correlation of the measurements of a plot does not improve the fit.
+
+```{r, message = FALSE, warning = FALSE}
 data(Soybean, package = "nlme")
 soy <- as.data.frame(Soybean)
 soy$Plot <- factor(soy$Plot, ordered = FALSE)
 smod <- drmTMB(weight ~ Time, data = soy, model = "logistic",
                fform = b2 + b4 ~ Variety + Year, rform = b2 ~ 1 | Plot,
                start = c(b1 = 0, b5 = 0), fix = c(b1 = TRUE, b5 = TRUE))
-smodp <- drmTMB(weight ~ Time, data = soy, model = "logistic",
-                fform = b2 + b4 ~ Variety + Year, rform = b2 ~ 1 | Plot,
-                start = c(b1 = 0, b5 = 0), fix = c(b1 = TRUE, b5 = TRUE),
-                variance = var_power())
-smodpc <- drmTMB(weight ~ Time, data = soy, model = "logistic",
-                 fform = b2 + b4 ~ Variety + Year, rform = b2 ~ 1 | Plot,
-                 start = c(b1 = 0, b5 = 0), fix = c(b1 = TRUE, b5 = TRUE),
-                 variance = var_power(), correlation = cor_car1(~ Time | Plot))
+smodp <- update(smod, variance = var_power())
+smodpc <- update(smod, variance = var_power(), correlation = cor_car1(~ Time | Plot))
 anova(smod, smodp, smodpc)
 ```
 
 A separate growth rate in each year and an interaction of variety and year on the final weight improve the model further.
 
-```{r, message=FALSE, warning=FALSE}
-smod2 <- drmTMB(weight ~ Time, data = soy, model = "logistic",
-                fform = list(b2 ~ Variety * Year, b3 ~ Year, b4 ~ Variety + Year),
-                rform = b2 ~ 1 | Plot, start = c(b1 = 0, b5 = 0), fix = c(b1 = TRUE, b5 = TRUE),
-                variance = var_power())
+```{r, message = FALSE, warning = FALSE}
+smod2 <- update(smodp, fform = list(b2 ~ Variety * Year, b3 ~ Year, b4 ~ Variety + Year))
 anova(smodp, smod2)
 summary(smod2)
 ```
 
 The population curves of the varieties in each year, with the random effects at zero, and the observed weights:
 
-```{r, message=FALSE, warning=FALSE, fig.width=7, fig.height=3.5}
+```{r, message = FALSE, warning = FALSE, fig.width = 7, fig.height = 3.5}
 ndsoy <- expand.grid(Time = seq(10, 85, length.out = 100), Variety = levels(soy$Variety),
                      Year = levels(soy$Year))
 ndsoy$fit <- predict(smod2, newdata = ndsoy, random = FALSE)
@@ -441,65 +587,179 @@ ggplot(soy, aes(x = Time, y = weight, colour = Variety)) +
   theme_bw()
 ```
 
-`ed()` gives the times at which a percentage of the final weight is reached, here 50% and 90%, for each variety and year.
+`ed()` gives the times at which 50% and 90% of the final weight are reached, for each variety and year:
 
-```{r, message=FALSE, warning=FALSE}
+```{r, message = FALSE, warning = FALSE}
 ed(smod2, respLev = c(50, 90), newdata = expand.grid(Variety = levels(soy$Variety),
                                                      Year = levels(soy$Year)))
 ```
 
 
-## Priors
+# Robust standard errors
 
-The argument `prior` adds prior distributions, so that the estimates are posterior modes. Priors are given by parameter (b1-b5, with a single coefficient, on the scale of the parameter after the link), by coefficient name (on the scale of the link), for the standard deviations of the random effects (`sd`, or e.g. `"sd:b2|exper"`), and for the residual standard deviation (`sigma`). Available distributions are `normal()`, `student_t()`, `lognormal()`, `pert()` (as used by EFSA for benchmark dose modelling), `half_normal()` and `half_student_t()`; see `?priors`. Weakly informative priors on standard deviations keep them away from zero in experiments with few groups. Without `prior`, the fit is by maximum likelihood.
+If the variance function is misspecified, or the observations are correlated within clusters, `vcovrobust()` gives the sandwich (robust) covariance matrix of the estimates. It is passed through the argument `vcov.` of `summary()`, `confint()` (Wald intervals), `predict()`, `ed()`, `peak()` and `bmd()`, either as the matrix or as a function of the fit.
 
 ```{r}
-pmod <- drmTMB(rootl ~ conc, data = ryegrass, model = "loglogistic",
-               start = c(b1 = 0, b5 = 0), fix = c(b1 = TRUE, b5 = TRUE),
-               prior = list(b2 = normal(8, 1), b4 = pert(0.5, 3, 10), sigma = half_normal(1)))
+summary(mod, vcov. = vcovrobust)$coefficients
+ed(mod, respLev = 50, vcov. = vcovrobust)
+```
+
+The argument `cluster` of `vcovrobust()` gives clusters of correlated observations, e.g. `vcov. = function(f) vcovrobust(f, cluster = ~ plate)`, and `type = "HC1"` a small-sample adjustment. With random effects, the clusters are the groups of the random effects, and with a correlation structure or time-to-event data, the series. `sandwich::estfun()` and `sandwich::bread()` are available for the package sandwich.
+
+
+# Benchmark doses
+
+The benchmark dose (BMD) is the dose at which the response has changed from the response at dose zero by the benchmark response (BMR). Unlike an effective dose, it does not refer to the asymptote at high doses. `bmd()` offers the definitions (argument `def`):
+
+| `def` | Definition | Use |
+|:--|:--|:--|
+| `"excess"` | (p(BMD) - p0)/(1 - p0) = BMR | extra risk, proportions |
+| `"additional"` | p(BMD) - p0 = BMR | added risk, proportions |
+| `"relative"` | change by BMR × response at dose zero | default of EFSA for continuous responses |
+| `"sd"` | change by BMR residual standard deviations | US EPA, gaussian and lognormal without random effects |
+
+For `"sd"` with the lognormal family, the standard deviation is that of log(y), as in BMDS. The standard errors include the uncertainty of the estimated response at dose zero and of the residual standard deviation. The BMDL, the lower limit of a two-sided 90% interval, is the reference point of a risk assessment.
+
+```{r, message = FALSE}
+# 10% extra risk of immobility of daphnids
+(bd <- bmd(dmod, bmr = 0.1, def = "excess"))
+confint(bd, level = 0.9)
+
+# ryegrass: a decrease of the root length by 5%, and by one standard deviation
+bmd(mod, bmr = 0.05, def = "relative")
+(bsd <- bmd(mod, bmr = 1, def = "sd"))
+confint(bsd, level = 0.9)
+```
+
+## Normal and lognormal responses
+
+EFSA recommends fitting both normal and lognormal responses. For the lognormal family, the curve is the median, and the relative BMD is that of the mean as well.
+
+```{r, message = FALSE}
+lmod <- update(mod, family = "lognormal")
+AIC(mod, lmod)
+confint(bmd(lmod, bmr = 0.05, def = "relative"), level = 0.9)
+```
+
+For the ryegrass data, the AIC clearly favours the normal distribution: the root lengths close to zero at high concentrations vary much more on the log scale. The BMDs of the two fits differ considerably, which shows how much the BMD can depend on the assumed distribution.
+
+## Random effects
+
+With random effects, the BMD can refer to two different curves:
+
+- `scale = "conditional"`: the typical curve, with the random effects at zero;
+- `scale = "marginal"` (default): the marginal mean curve, the mean response of the population of groups, found by integrating the curves over the distribution of the random effects.
+
+Both are the same if the random effects enter the mean linearly, as random effects on the asymptotes with the identity link in the vinclozolin model. Random effects on b3 or b4, or on asymptotes with a log or logit link, make them differ. The standard errors of marginal BMDs include the uncertainty of the variances of the random effects. Profile intervals are not available for marginal BMDs that need the integration; `confint()` then returns Wald intervals, and `method = "boot"` bootstrap intervals.
+
+```{r, message = FALSE}
+bmd(vmod, bmr = 0.1, def = "relative")
+```
+
+## Exponential and power models
+
+The continuous models of PROAST and BMDS include the exponential and power models, which have no upper asymptote:
+
+- `model = "exponential"`: $b_1 \exp(b_4 x^{b_3})$,
+- `model = "power"`: $b_1 + b_4 x^{b_3}$,
+
+with the response $b_1$ at dose zero, the power $b_3 > 0$, and the coefficient $b_4$, negative for a decreasing curve. Fixing the power at 1 gives the exponential model 2 (exp2), and estimating it exp3. For the ryegrass data, the power is needed, but the log-logistic model fits better.
+
+```{r, message = FALSE}
+emod2 <- drmTMB(rootl ~ conc, data = ryegrass, model = "exponential",
+                start = c(b3 = 1), fix = c(b3 = TRUE))
+emod3 <- drmTMB(rootl ~ conc, data = ryegrass, model = "exponential")
+anova(emod2, emod3)
+AIC(mod, emod3)
+confint(bmd(emod3, bmr = 0.05, def = "relative"), level = 0.9)
+```
+
+## Model averaging
+
+The BMD can depend considerably on the model and the distribution, as for the normal and lognormal fits above. Instead of selecting one model, `bmdma()` averages over several models fitted to the same data, with AIC weights, as recommended by EFSA (2017), or BIC weights (`weights = "BIC"`), which favour simpler models.
+
+- `average = "curve"` (default): the BMD of the averaged curve, the weighted mean of the fitted curves;
+- `average = "bmd"`: the weighted mean of the BMDs of the models.
+
+The BMDL is the lower limit of a bootstrap percentile interval: each bootstrap sample is simulated from a model drawn with its weight, all models are fitted to it, and the weights and the averaged BMD are computed again. Lognormal models get the weight zero in samples with non-positive responses.
+
+```{r, message = FALSE}
+wmod <- update(mod, model = "weibull1")
+w2mod <- update(mod, model = "weibull2")
+(ma <- bmdma(LL = mod, W1 = wmod, W2 = w2mod, LLlognormal = lmod, bmr = 0.05,
+             def = "relative", nsim = 200, seed = 1, progress = FALSE))
+```
+
+For `average = "bmd"`, `confint(ma, method = "buckland")` gives Wald intervals with the standard error of Buckland et al. (1997), which combines the standard errors of the models with the spread of their BMDs, without a bootstrap.
+
+
+# Priors and Bayesian benchmark doses
+
+## Priors
+
+The argument `prior` adds prior distributions, so that the estimates are posterior modes. Without `prior`, the fit is by maximum likelihood. Priors can be given
+
+- by parameter (b1 to b5, for parameters with a single coefficient), on the scale of the parameter after the link,
+- by coefficient name, on the scale of the link,
+- for the standard deviations of the random effects (`sd`, or e.g. `"sd:b2|exper"`),
+- for the residual standard deviation (`sigma`).
+
+The distributions are `normal()`, `student_t()`, `lognormal()`, `pert()` (as used by EFSA for benchmark dose modelling), `half_normal()` and `half_student_t()`; see `?priors`. Weakly informative priors on standard deviations keep them away from zero in experiments with few groups.
+
+```{r}
+pmod <- update(mod, prior = list(b2 = normal(8, 1), b4 = pert(0.5, 3, 10), sigma = half_normal(1)))
 summary(pmod)
 ```
 
 `logLik()` gives the log-likelihood at the posterior mode, without the priors; standard errors and intervals are from the log posterior.
 
-For priors on the benchmark dose itself, as in the Bayesian BMD modelling of EFSA (2022), the argument `bmdpar` fits the model in the BMD parameterisation: b4 is replaced by the log BMD of the curve, `log_bmd`, and computed from it. Without priors, the fit is the same as the standard one, and `exp(log_bmd)` is the BMD of `bmd()`.
+## Priors on the benchmark dose
+
+For priors on the BMD itself, as in the Bayesian BMD modelling of EFSA (2022), the argument `bmdpar` fits the model in the BMD parameterisation: b4 is replaced by the log BMD of the curve, `log_bmd`, and computed from it. Without priors, the fit is the same as the standard one, and `exp(log_bmd)` is the BMD of `bmd()`.
 
 ```{r}
-bmod <- drmTMB(rootl ~ conc, data = ryegrass, model = "loglogistic",
-               start = c(b1 = 0, b5 = 0), fix = c(b1 = TRUE, b5 = TRUE),
-               bmdpar = list(bmr = 0.05, def = "relative"),
+bmod <- update(mod, bmdpar = list(bmr = 0.05, def = "relative"),
                prior = list(bmd = pert(0.1, 1, 5), b2 = normal(8, 1)))
 bmod
 exp(confint(bmod)["log_bmd", ])
 ```
 
-`marglik()` computes the log marginal likelihood log p(y) of a fit with proper priors for all estimated parameters: the likelihood integrated over the priors, with the random effects integrated out by the Laplace approximation of the fit. Posterior model probabilities are proportional to the prior model probabilities times the marginal likelihoods; with equal prior probabilities, for three models with the same priors:
+## Marginal likelihoods
+
+`marglik()` computes the log marginal likelihood log p(y) of a fit with proper priors for all estimated parameters: the likelihood integrated over the priors, with the random effects integrated out by the Laplace approximation of the fit. Posterior model probabilities are proportional to the prior model probabilities times the marginal likelihoods. With equal prior probabilities, for three models with the same priors:
 
 ```{r}
 pr <- list(bmd = pert(0.1, 1, 5), b2 = normal(8, 1), b3 = normal(-2, 2), sigma = half_normal(1))
-mfits <- lapply(c("loglogistic", "weibull1", "weibull2"), function(m)
-  drmTMB(rootl ~ conc, data = ryegrass, model = m,
-         start = c(b1 = 0, b5 = 0), fix = c(b1 = TRUE, b5 = TRUE),
-         bmdpar = list(bmr = 0.05, def = "relative"), prior = pr))
+mfits <- lapply(c(LL = "loglogistic", W1 = "weibull1", W2 = "weibull2"), function(m)
+  update(mod, model = m, bmdpar = list(bmr = 0.05, def = "relative"), prior = pr))
 ml <- sapply(mfits, marglik)
 round(exp(ml - max(ml)) / sum(exp(ml - max(ml))), 3)
 ```
 
-The default is the Laplace approximation at the posterior mode, as in EFSA (2022); `method = "is"` estimates the marginal likelihood by importance sampling, a check of the Laplace approximation, e.g. for small data sets or posterior modes close to a bound.
+The default is the Laplace approximation at the posterior mode, as in EFSA (2022). `method = "is"` estimates the marginal likelihood by importance sampling, a check of the Laplace approximation, e.g. for small data sets or posterior modes close to a bound.
 
 ```{r}
 set.seed(1)
-marglik(mfits[[1]], method = "is")
+marglik(mfits$LL, method = "is")
 ```
 
-`bmdbayes()` averages the posterior distributions of the BMD over the models, as in the Bayesian model averaging of EFSA (2022): the models need the same `bmdpar`, the same prior for the BMD and priors for all parameters. The posterior distribution of the log BMD of each model is normal by the Laplace approximation, and the BMD and its 90% credible interval (BMDL, BMDU) are the median and the 5% and 95% quantiles of the mixture weighted by the posterior model probabilities. With `method = "is"`, the importance sampling draws give the posterior distributions without the normal approximation, e.g. for skewed posteriors.
+## Bayesian model averaging
+
+`bmdbayes()` averages the posterior distributions of the BMD over the models, as in the Bayesian model averaging of EFSA (2022). The models need the same `bmdpar`, the same prior for the BMD and priors for all parameters. The posterior distribution of the log BMD of each model is normal by the Laplace approximation, and the BMD and its 90% credible interval (BMDL, BMDU) are the median and the 5% and 95% quantiles of the mixture weighted by the posterior model probabilities. With `method = "is"`, importance sampling gives the posterior distributions without the normal approximation, e.g. for skewed posteriors.
 
 ```{r}
-names(mfits) <- c("LL", "W1", "W2")
 bmdbayes(LL = mfits$LL, W1 = mfits$W1, W2 = mfits$W2)
 ```
 
-`bmdefsa()` does all of this with the default priors of EFSA (2022), as in its R package BMABMDR: it fits the models weibull2, weibull1, loglogistic, lognormal, gamma and multistage (the quadratic exponential model) in the BMD parameterisation, for continuous responses with the normal and the lognormal distribution (`family = "lognormal"` with the curve on the log scale), for quantal responses also the probit and logit models (the power model with a probit or logit curve link), with the priors of `efsapriors()`, and averages them by importance sampling. For the liver tumours after exposure to TCDD in a historical study (`TCDD`, Kociba et al. 1978) and a current one (`liver.tumor`, NTP 2006), the example of the EFSA report EN-9902 on informative priors:
+## The EFSA approach
+
+`bmdefsa()` does all of this with the default priors of EFSA (2022), as in its R package BMABMDR. It fits, in the BMD parameterisation and with the priors of `efsapriors()`,
+
+- the models weibull2, weibull1, loglogistic, lognormal, gamma and multistage (the quadratic exponential model),
+- for continuous responses with the normal and the lognormal distribution (`family = "lognormal"` with the curve on the log scale),
+- for quantal responses also the probit and logit models (the power model with a probit or logit curve link),
+
+and averages them by importance sampling. The example of the EFSA report EN-9902 on informative priors uses the liver tumours after exposure to TCDD in a historical study (`TCDD`, Kociba et al. 1978) and a current one (`liver.tumor`, NTP 2006):
 
 ```{r}
 data(TCDD); data(liver.tumor)
@@ -517,150 +777,116 @@ set.seed(1)
 bmdefsa(cbind(incidence, total - incidence) ~ conc, data = liver.tumor, family = "binomial", bmd = pbmd)
 ```
 
-## Benchmark doses
 
-The benchmark dose (BMD) is the dose at which the response has changed from the response at dose zero by the benchmark response (BMR). Unlike an effective dose, it does not refer to the asymptote at high doses. The function `bmd()` offers the definitions `"excess"` (extra) risk, (p(BMD) - p0)/(1 - p0) = BMR, and `"additional"` (added) risk, p(BMD) - p0 = BMR, for proportions; the `"relative"` deviation from the response at dose zero, the default of EFSA for continuous responses; and, for gaussian and lognormal models without random effects, `"sd"`, a change by BMR residual standard deviations (of log(y) for lognormal, as in BMDS), the default of the US EPA for continuous responses without a biologically motivated BMR. The uncertainty of the estimated response at dose zero, and of the residual standard deviation, is included. The BMDL, the lower limit of a two-sided 90% interval, is the reference point of a risk assessment.
+# Optimiser settings
 
-```{r, message=FALSE}
-# 10% extra risk of immobility of daphnids
-(bd <- bmd(dmod, bmr = 0.1, def = "excess"))
-confint(bd, level = 0.9)
+The argument `control` takes the settings of `drmTMBcontrol()`:
 
-# ryegrass: a decrease of the root length by 5%, and by one standard deviation
-bmd(mod, bmr = 0.05, def = "relative")
-(bsd <- bmd(mod, bmr = 1, def = "sd"))
-confint(bsd, level = 0.9)
+- `optimiser`: `"nlminb"` (default) or `"optim"`, with `method` `"L-BFGS-B"` (default, needed with bounds), `"BFGS"`, `"CG"` or `"Nelder-Mead"`;
+- `iter.max`, `eval.max` and `optcontrol`: iteration limits and further control parameters of the optimiser, e.g. `optcontrol = list(rel.tol = 1e-12)`;
+- `inner`: control parameters of the inner optimisation of the random effects, e.g. `inner = list(maxit = 2000)`;
+- `restart = TRUE`: the fit is restarted at the estimates, and the better fit is kept, e.g. after a false convergence;
+- `smallsample`: see [A first model](#a-first-model).
+
+The same settings are used for the bootstrap fits of `bootstrap()`, `anova()` and `bmdma()`.
+
+```{r}
+mod_optim <- update(mod, control = drmTMBcontrol(optimiser = "optim", restart = TRUE))
+c(nlminb = logLik(mod), optim = logLik(mod_optim))
 ```
 
-EFSA recommends fitting both normal and lognormal responses. For the lognormal family, the curve is the median, and the relative BMD is that of the mean as well.
 
-```{r, message=FALSE}
-lmod <- drmTMB(rootl ~ conc, data = ryegrass, family = "lognormal", model = "loglogistic",
-               start = c(b1 = 0, b5 = 0), fix = c(b1 = TRUE, b5 = TRUE))
-AIC(mod, lmod)
-confint(bmd(lmod, bmr = 0.05, def = "relative"), level = 0.9)
-```
-
-For the ryegrass data, the AIC clearly favours the normal distribution: the root lengths close to zero at high concentrations vary much more on the log scale. The BMDs of the two fits differ considerably, which shows how much the BMD can depend on the assumed distribution.
-
-With random effects, the BMD can refer to two different curves: the typical curve, with the random effects at zero (`scale = "conditional"`), or the marginal mean curve, the mean response of the population of groups (`scale = "marginal"`, the default), found by integrating the curves over the distribution of the random effects. Both are the same if the random effects enter the mean linearly, as random effects on the asymptotes with the identity link in the vinclozolin model; random effects on b4 or b3, or on asymptotes with a log or logit link, make them differ. The standard errors of marginal BMDs include the uncertainty of the variances of the random effects. Profile intervals are not available for marginal BMDs that need the integration; `confint()` then returns Wald intervals, and `method = "boot"` bootstrap intervals.
-
-```{r, message=FALSE}
-bmd(vmod, bmr = 0.1, def = "relative")
-```
-
-The continuous models of PROAST and BMDS include the exponential and power models, which have no upper asymptote: `model = "exponential"`, $b_1 \exp(b_4 x^{b_3})$, and `model = "power"`, $b_1 + b_4 x^{b_3}$, with the response $b_1$ at dose zero, the power $b_3 > 0$, and the coefficient $b_4$, negative for a decreasing curve. Fixing the power at 1 gives the exponential model 2 (exp2), and estimating it exp3. For the ryegrass data, the power is needed, but the log-logistic model fits better.
-
-```{r, message=FALSE}
-emod2 <- drmTMB(rootl ~ conc, data = ryegrass, model = "exponential",
-                start = c(b3 = 1), fix = c(b3 = TRUE))
-emod3 <- drmTMB(rootl ~ conc, data = ryegrass, model = "exponential")
-anova(emod2, emod3)
-AIC(mod, emod3)
-confint(bmd(emod3, bmr = 0.05, def = "relative"), level = 0.9)
-```
-
-### Model averaging
-
-The BMD can depend considerably on the dose-response model and the distribution, as for the normal and lognormal fits of the ryegrass data above. Instead of selecting one model, `bmdma()` averages over several models fitted to the same data, with AIC weights, as recommended by EFSA (2017), or BIC weights (`weights = "BIC"`), which favour simpler models. With `average = "curve"` (the default), the BMD is that of the averaged curve, the AIC-weighted mean of the fitted curves; with `average = "bmd"`, the AIC-weighted mean of the BMDs of the models. The BMDL is the lower limit of a bootstrap percentile interval: each bootstrap sample is simulated from a model drawn with its weight, all models are fitted to it, and the weights and the averaged BMD are computed again. Lognormal models get the weight zero in samples with non-positive responses.
-
-```{r, message=FALSE}
-wmod <- drmTMB(rootl ~ conc, data = ryegrass, model = "weibull1",
-               start = c(b1 = 0, b5 = 0), fix = c(b1 = TRUE, b5 = TRUE))
-w2mod <- drmTMB(rootl ~ conc, data = ryegrass, model = "weibull2",
-                start = c(b1 = 0, b5 = 0), fix = c(b1 = TRUE, b5 = TRUE))
-(ma <- bmdma(LL = mod, W1 = wmod, W2 = w2mod, LLlognormal = lmod, bmr = 0.05,
-             def = "relative", nsim = 200, seed = 1, progress = FALSE))
-```
-
-For `average = "bmd"`, `confint(ma, method = "buckland")` gives Wald intervals with the standard error of Buckland et al. (1997), which combines the standard errors of the models with the spread of their BMDs, without a bootstrap.
-
-
-### Model functions
+# Appendix: model functions
 
 All models except exponential and power are of the form $f(x) = b_1 + (b_2 - b_1) F(x)$, with a function $F$ increasing from 0 to 1. For the models with steepness parameter $b_3$, $b_1$ is the lower and $b_2$ the upper asymptote, and the curve is increasing for $b_3 > 0$ and decreasing for $b_3 < 0$.
 
-#### logistic
+### logistic {-}
 
 $$ f(x) = b_1 + \frac{b_2 - b_1}{\left( 1 + \exp \left( -b_3 \left( x - b_4 \right) \right) \right)^{\exp(b_5)}} $$
 
-#### loglogistic
+### loglogistic {-}
 
 $$ f(x) = b_1 + \frac{b_2 - b_1}{\left( 1 + \exp \left( -b_3 \left( \log(x) - \log(b_4) \right) \right) \right)^{\exp(b_5)}} $$
 
-#### weibull1
+### weibull1 {-}
 
 $$ f(x) = b_1 + \left( b_2 - b_1 \right) \exp \left( -\exp \left( -b_3 \left( \log(x) - \log(b_4) \right) \right) \right) $$
 
-#### weibull2
+### weibull2 {-}
 
 $$ f(x) = b_1 + \left( b_2 - b_1 \right) \left( 1 - \exp \left( -\exp \left( b_3 \left( \log(x) - \log(b_4) \right) \right) \right) \right) $$
 
-#### lognormal
+### lognormal {-}
 
 $$ f(x) = b_1 + \left( b_2 - b_1 \right) \Phi \left( b_3 \left( \log(x) - \log(b_4) \right) \right) $$
 
 where $\Phi (\cdot)$ is the cumulative distribution function of the standard normal distribution.
 
-#### gompertz
+### gompertz {-}
 
 $$ f(x) = b_1 + \left( b_2 - b_1 \right) \exp \left( -\exp \left( -b_3 \left( x - b_4 \right) \right) \right) $$
 
-#### braincousens
+### braincousens {-}
 
 A hormesis model; b2 is the response at dose zero, b1 the lower asymptote at high doses, and b5 the size of the stimulation at low doses. The curve returns to b1 at high doses for $b_3 < -1$.
 
 $$ f(x) = b_1 + \frac{b_2 - b_1 + b_5 x}{1 + \exp \left( -b_3 \left( \log(x) - \log(b_4) \right) \right)} $$
 
-#### cedergreen
+### cedergreen {-}
 
 A hormesis model as braincousens, with a fixed exponent $\alpha$ (argument `alpha`).
 
 $$ f(x) = b_1 + \frac{b_2 - b_1 + b_5 \exp \left( -1/x^{\alpha} \right)}{1 + \exp \left( -b_3 \left( \log(x) - \log(b_4) \right) \right)} $$
 
-#### michaelismenten
+### michaelismenten {-}
 
-For the following models without steepness parameter, $b_1$ is the response at dose zero and $b_2$ the asymptote at high doses.
+For this and the following models without steepness parameter, $b_1$ is the response at dose zero and $b_2$ the asymptote at high doses.
 
 $$ f(x) = b_1 + \frac{b_2 - b_1}{1 + \frac{b_4}{x}} $$
 
-#### gamma
+### gamma {-}
 
 As michaelismenten, with the distribution function of the gamma distribution with shape $b_3 > 0$, $P(\cdot, b_3)$; the gamma model of BMDS for quantal responses, with $b_1$ the background risk and $b_2$ fixed at 1. With $b_3 = 1$, it is the asymptoticregression model.
 
 $$ f(x) = b_1 + \left( b_2 - b_1 \right) P \left( \frac{x}{b_4}, b_3 \right) $$
 
-#### multistage
+### multistage {-}
 
-The multistage model of BMDS, with the coefficients $\beta_1$ to $\beta_3$ of its polynomial in $b_3$ to $b_5$, bounded below by 0 by default; for quantal responses, $b_1$ is the background risk and $b_2$ is fixed at 1. Fixing $b_5$ at 0 gives the model of degree 2, and fixing $b_4$ and $b_5$ at 0 the model of degree 1, which is the asymptoticregression model with $b_4 = 1/\beta_1$. The model of degree 2 with $b_1 = 1$ and $b_2 = 0$ is the linear-quadratic model of radiobiology, $S = \exp(-\alpha x - \beta x^2)$, with $\alpha = b_3$ and $\beta = b_4$.
+The multistage model of BMDS, with the coefficients $\beta_1$ to $\beta_3$ of its polynomial in $b_3$ to $b_5$, bounded below by 0 by default; for quantal responses, $b_1$ is the background risk and $b_2$ is fixed at 1.
+
+- Fixing $b_5$ at 0 gives the model of degree 2, and fixing $b_4$ and $b_5$ at 0 the model of degree 1, which is the asymptoticregression model with $b_4 = 1/\beta_1$.
+- The model of degree 2 with $b_1 = 1$ and $b_2 = 0$ is the linear-quadratic model of radiobiology, $S = \exp(-\alpha x - \beta x^2)$, with $\alpha = b_3$ and $\beta = b_4$.
 
 $$ f(x) = b_1 + \left( b_2 - b_1 \right) \left( 1 - \exp \left( -b_3 x - b_4 x^2 - b_5 x^3 \right) \right) $$
 
-#### nec
+### nec {-}
 
-The threshold model, with no effect up to the no-effect concentration $b_4$: $b_1$ is the response up to the threshold, $b_2$ the asymptote at high doses, $b_3 > 0$ the rate and $b_5$ the shape on the log scale, with $(x - b_4)_+ = \max(x - b_4, 0)$. With $b_5 = 0$, it is the NEC model of drc; with $b_5 > 0$, the curve is sigmoidal above the threshold. With random effects on $b_4$, the threshold is smoothed by default, replacing $(x - b_4)_+$ by $s \log(1 + \exp((x - b_4)/s))$ with a width $s$ of 0.1 times the smallest interval between the doses (argument `smooth`).
+The threshold model, with no effect up to the no-effect concentration $b_4$: $b_1$ is the response up to the threshold, $b_2$ the asymptote at high doses, $b_3 > 0$ the rate and $b_5$ the shape on the log scale, with $(x - b_4)_+ = \max(x - b_4, 0)$.
+
+- With $b_5 = 0$, it is the NEC model of drc; with $b_5 > 0$, the curve is sigmoidal above the threshold.
+- With random effects on $b_4$, the threshold is smoothed by default, replacing $(x - b_4)_+$ by $s \log(1 + \exp((x - b_4)/s))$ with a width $s$ of 0.1 times the smallest interval between the doses (argument `smooth`).
 
 $$ f(x) = b_1 + \left( b_2 - b_1 \right) \left( 1 - \exp \left( -\left( b_3 (x - b_4)_+ \right)^{\exp(b_5)} \right) \right) $$
 
-#### haldane
+### haldane {-}
 
 The substrate inhibition model of Haldane, as michaelismenten with the inhibition $b_5 = 1/K_i \geq 0$ (bounded below by 0 by default): $b_2$ is the maximal response without inhibition ($V_{max}$) and $b_4$ the half-saturation constant ($K_m$). With $b_5 = 0$, it is the michaelismenten model, so that `anova()` tests for inhibition. The curve has its peak at $x = \sqrt{b_4/b_5} = \sqrt{K_m K_i}$, given with its standard error by `peak()`; effective doses are not defined.
 
 $$ f(x) = b_1 + \frac{(b_2 - b_1) x}{b_4 + x + b_5 x^2} $$
 
-#### asymptoticregression and exponentialdecay
+### asymptoticregression and exponentialdecay {-}
 
 Both names refer to the same model; an increasing curve is an asymptotic regression and a decreasing curve an exponential decay.
 
 $$ f(x) = b_1 + \left( b_2 - b_1 \right) \left( 1 - \exp \left( \frac{-x}{b_4} \right) \right) $$
 
-#### exponential and power
+### exponential and power {-}
 
 The exponential and power models of PROAST and BMDS have no upper asymptote: $b_1$ is the response at dose zero, $b_3 > 0$ the power (bounded below by 0 by default) and $b_4$ the coefficient, whose sign gives the direction of the curve; $b_2$ and $b_5$ are not used. Fixing $b_3$ at 1 gives the exponential model 2 (exp2) of PROAST and BMDS, and the exponential model with $b_3$ estimated is exp3. Relative effective doses are not defined; `ed(type = "absolute")` and `bmd()` give absolute effective doses and benchmark doses.
 
 $$ f(x) = b_1 \exp \left( b_4 x^{b_3} \right) \qquad f(x) = b_1 + b_4 x^{b_3} $$
 
-#### constant
+### constant {-}
 
 A model without a dose effect, for testing a dose-response model against a flat curve with `anova()`; b2 to b5 are not used.
 
