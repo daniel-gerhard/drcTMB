@@ -55,7 +55,7 @@ pak::pak("daniel-gerhard/drcTMB")
 ```
 
 The examples below use data sets of the package
-[drcData](https://github.com/DoseResponse/drcData).
+[drcData](https://github.com/DoseResponse/drcData) and of nlme.
 
 ## A first model
 
@@ -172,77 +172,89 @@ mratios::gsci.ratio(coef(ed50), vcov(ed50), rbind("24h/48h" = c(1, 0)), rbind(c(
 
 ## Random effects
 
-In the vinclozolin experiment, the luminescence was measured in six
-replications. Correlated random effects of the replications on both
-asymptotes capture the variation between them, and a standard deviation
-proportional to a power of the mean the larger variation at high
-responses.
+In the PBG experiment of the nlme package, five rabbits received
+increasing doses of phenylbiguanide, once after an antagonist (MDL
+72222) and once after a placebo, and the change of the blood pressure
+was recorded. Random effects of the rabbits on the upper asymptote b2
+and on the ED50 b4 account for the repeated measurements of the same
+rabbits; with a log link of b4, the treatment acts multiplicatively on
+the ED50.
 
 ``` r
-data(vinclozolin)
-vmod <- drmTMB(effect ~ conc, data = vinclozolin, model = "loglogistic",
-               rform = b1 + b2 ~ 1 | exper, variance = var_power(),
-               start = c(b5 = 0), fix = c(b5 = TRUE), lower = c(0, 0, -Inf, 0, -Inf))
-summary(vmod)
+data(PBG, package = "nlme")
+pbg <- as.data.frame(PBG)
+pbg$Rabbit <- factor(pbg$Rabbit, ordered = FALSE)
+pmod <- drmTMB(deltaBP ~ dose, data = pbg, model = "loglogistic",
+               fform = b4 ~ Treatment, rform = b2 + b4 ~ 1 | Rabbit, parlink = c(b4 = "log"),
+               start = c(b5 = 0), fix = c(b5 = TRUE))
+summary(pmod)
 #> Call:
-#> drmTMB(form = effect ~ conc, rform = b1 + b2 ~ 1 | exper, data = vinclozolin, 
-#>     start = c(b5 = 0), fix = c(b5 = TRUE), lower = c(0, 0, -Inf, 
-#>         0, -Inf), model = "loglogistic", variance = var_power())
+#> drmTMB(form = deltaBP ~ dose, fform = b4 ~ Treatment, rform = b2 + 
+#>     b4 ~ 1 | Rabbit, data = pbg, start = c(b5 = 0), fix = c(b5 = TRUE), 
+#>     model = "loglogistic", parlink = c(b4 = "log"))
 #> 
-#> Model:  loglogistic, decreasing curve
-#> Family: gaussian, identity link for the asymptotes
+#> Model:  loglogistic, increasing curve
+#> Family: gaussian, identity link for the asymptotes, log link for b4
 #> 
-#> Number of observations: 53, groups: exper 6
-#> Log-likelihood: -335.9 (df = 9), AIC: 689.9, BIC: 707.6
+#> Number of observations: 60, groups: Rabbit 5
+#> Log-likelihood: -147.8 (df = 9), AIC: 313.6, BIC: 332.5
 #> 
 #> Coefficients:
-#>                  Estimate Std. Error
-#> b1:(Intercept)  252.72312     78.637
-#> b2:(Intercept) 1924.39964    258.759
-#> b3:(Intercept)   -0.72717      0.103
-#> b4:(Intercept)    0.05837      0.013
+#>                     Estimate Std. Error
+#> b1:(Intercept)        1.5870      0.501
+#> b2:(Intercept)       28.2991      2.551
+#> b3:(Intercept)        3.4393      0.438
+#> b4:(Intercept)        4.5262      0.088
+#> b4:TreatmentPlacebo  -0.7542      0.062
+#> The coefficients of b4 are on the log scale.
 #> Fixed: b5:(Intercept) = 0
 #> 
 #> Random effects:
-#>  Groups Name Std.Dev. Corr
-#>  exper  b1   156.8        
-#>         b2   566.6    0.96
+#>  Groups Name Std.Dev. Corr  
+#>  Rabbit b2   5.3640         
+#>         b4   0.1576   -0.018
 #> 
-#> Residual standard deviation: 0.2197
+#> Residual standard deviation: 2.359
 #> 
-#> Variance function: power, ~fitted: delta = 0.9453
-#> 
-#> Optimiser: nlminb: relative convergence (4), maximum absolute gradient 0.00017
+#> Optimiser: nlminb: relative convergence (4), maximum absolute gradient 0.00018
 ```
 
-`predict()` gives the curves of the replications and, with
-`random = FALSE`, the population curve.
+`predict()` gives the curves of the rabbits and, with `random = FALSE`,
+the population curves.
 
 ``` r
-nd <- expand.grid(conc = exp(seq(log(0.01), log(6), length.out = 100)),
-                  exper = levels(vinclozolin$exper))
-nd$fit <- predict(vmod, newdata = nd)
-nd$pop <- predict(vmod, newdata = nd, random = FALSE)
-ggplot(subset(vinclozolin, conc > 0), aes(x = conc, y = effect, colour = exper)) +
+nd <- expand.grid(dose = exp(seq(log(6.25), log(200), length.out = 100)),
+                  Treatment = levels(pbg$Treatment), Rabbit = levels(pbg$Rabbit))
+nd$fit <- predict(pmod, newdata = nd)
+nd$pop <- predict(pmod, newdata = nd, random = FALSE)
+ggplot(pbg, aes(x = dose, y = deltaBP, colour = Rabbit)) +
   geom_point() +
   geom_line(data = nd, aes(y = fit)) +
-  geom_line(data = nd, aes(y = pop), colour = "black", linewidth = 1) +
+  geom_line(data = subset(nd, Rabbit == "1"), aes(y = pop), colour = "black", linewidth = 1) +
+  facet_wrap(~ Treatment) +
   scale_x_log10() +
-  labs(x = "Concentration (log scale)", y = "Luminescence", colour = "Replication") +
+  labs(x = "Dose of phenylbiguanide (log scale)", y = "Change in blood pressure (mm Hg)") +
   theme_bw()
 ```
 
-![](man/figures/README-vinclozolin-plot-1.png)<!-- -->
+![](man/figures/README-pbg-plot-1.png)<!-- -->
 
 The standard errors of effective doses and benchmark doses include the
-variation between the replications.
+variation between the rabbits. The antagonist shifts the ED50 by a
+factor of about two:
 
 ``` r
-ed(vmod, respLev = 50)
+(ed50p <- ed(pmod, respLev = 50, newdata = data.frame(Treatment = levels(pbg$Treatment))))
 #> Effective dose estimates:
 #> 
-#>        Estimate Std.Error
-#> 50:lf1   0.0584    0.0131
+#>                        Estimate Std.Error
+#> 50:Treatment=MDL 72222     92.4     16.68
+#> 50:Treatment=Placebo       43.5      7.86
+mratios::gsci.ratio(coef(ed50p), vcov(ed50p), rbind("MDL/Placebo" = c(1, 0)), rbind(c(0, 1)))
+#> Unadjusted 95% confidence intervals 
+#> Normal approximation, quantile:1.96
+#>             estimate lower upper
+#> MDL/Placebo    2.126 1.868 2.421
 ```
 
 ## Benchmark doses
