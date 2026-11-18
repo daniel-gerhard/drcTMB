@@ -7,7 +7,8 @@
 \format{
 A data frame with 6 rows and 3 variables:
 \describe{
-\item{conc}{concentration of TCDD (ng/kg)}
+\item{conc}{dose metric of TCDD as used in the EFSA example (EN-9902), not the administered dose; the
+doses of the study were 0, 3, 10, 22, 46 and 100 ng/kg body weight per day, by gavage}
 \item{total}{number of rats}
 \item{incidence}{number of rats with liver tumours}
 }
