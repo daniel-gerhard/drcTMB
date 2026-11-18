@@ -1,8 +1,8 @@
 Package: drcTMB
 Title: Fitting Dose-Response Curves Using the Template Model Builder
-Version: 0.0.0.9940
+Version: 0.1.0
 Authors@R: 
-    person("Daniel", "Gerhard", , "00gerhard@gmail.com", role = c("aut", "cre"),
+    person("Daniel", "Gerhard", , "daniel.gerhard@canterbury.ac.nz", role = c("aut", "cre"),
            comment = c(ORCID = "0000-0002-9336-3454"))
 Description: Fits non-linear dose-response models (log-logistic, Weibull,
     log-normal, Gompertz, hormesis, threshold, Michaelis-Menten, and the

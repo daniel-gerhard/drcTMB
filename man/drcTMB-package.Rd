@@ -23,11 +23,11 @@ diagnostics with \code{\link{plot.drmTMB}};
 \code{vignette("drcTMB", package = "drcTMB")} introduces the package with examples.
 }
 \author{
-\strong{Maintainer}: Daniel Gerhard \email{00gerhard@gmail.com} (\href{https://orcid.org/0000-0002-9336-3454}{ORCID})
+\strong{Maintainer}: Daniel Gerhard \email{daniel.gerhard@canterbury.ac.nz} (\href{https://orcid.org/0000-0002-9336-3454}{ORCID})
 
 Authors:
 \itemize{
-  \item Daniel Gerhard \email{00gerhard@gmail.com} (\href{https://orcid.org/0000-0002-9336-3454}{ORCID})
+  \item Daniel Gerhard \email{daniel.gerhard@canterbury.ac.nz} (\href{https://orcid.org/0000-0002-9336-3454}{ORCID})
 }
 
 }
