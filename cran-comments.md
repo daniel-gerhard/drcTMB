@@ -1,6 +1,9 @@
-## Submission
+## Resubmission
 
-This is the first submission of drcTMB.
+This is a resubmission. In this version I have:
+
+* Shortened and simplified the Description field in DESCRIPTION, removing the words flagged as
+  possibly misspelled (names of models, authors and organisations).
 
 ## Test environments
 
@@ -13,9 +16,6 @@ This is the first submission of drcTMB.
 0 errors | 0 warnings | 1 note
 
 * This is a new submission.
-
-  The possibly misspelled words in DESCRIPTION are names and terms spelled correctly: EFSA
-  (European Food Safety Authority), Gompertz, Michaelis-Menten, Kristensen et al., hormesis.
 
 The installed size of the package is large (about 75 MB on Linux), almost all of it in libs: the
 compiled TMB template, as for other packages that use TMB (e.g. glmmTMB). Depending on the
