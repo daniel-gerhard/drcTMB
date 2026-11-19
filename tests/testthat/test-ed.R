@@ -96,6 +96,7 @@ test_that("ed with fitted groups in newdata gives the effective doses of the gro
 })
 
 test_that("intervals of effective doses of fitted groups", {
+  skip_on_cran()
   d <- simre()
   f <- fit4(y ~ dose, rform=b1 + b4 ~ 1 | grp, data=d, model="loglogistic", parlink=c(b4="log"))
   e <- ed(f, newdata=data.frame(grp=c("2", "7")))

@@ -128,6 +128,7 @@ test_that("residuals, the likelihood in R, simulation and prediction intervals",
 })
 
 test_that("printing, intervals on the natural scale, model comparison", {
+  skip_on_cran()
   f <- fitc(cor_car1(~ time | subject), var_ident(~ 1 | strat))
   expect_equal(names(coef(f))[6:7], c("cor_par:phi", "var_par:high"))
   expect_output(print(f), "Residual correlation: CAR1, ~time \\| subject: phi = ")
@@ -164,6 +165,7 @@ test_that("printing, intervals on the natural scale, model comparison", {
 })
 
 test_that("priors of the correlation and variance parameters, and the marginal likelihood", {
+  skip_on_cran()
   pr <- list(b1=normal(1, 2), b2=normal(8, 2), b3=normal(-1.5, 1), b4=lognormal(log(4), 1), sigma=half_normal(2))
   fitp <- function(cs, vf, p) fitc(cs, vf, prior=c(pr, p))
   # the log posterior: the priors on the natural scale with the log Jacobian of the transformation

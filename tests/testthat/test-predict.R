@@ -115,6 +115,7 @@ test_that("confidence intervals stay in the range of the mean", {
 })
 
 test_that("bootstrap intervals agree with the delta method and the analytic prediction intervals", {
+  skip_on_cran()
   f <- fit4(y ~ dose, data=simgauss("loglogistic", nrep=10), model="loglogistic")
   bs <- bootstrap(f, nsim=300, seed=1, progress=FALSE)
   nd <- data.frame(dose=c(0, 1, 3, 10))
@@ -146,6 +147,7 @@ test_that("bootstrap intervals agree with the delta method and the analytic pred
 })
 
 test_that("bootstrap intervals with the random effects of the fitted groups", {
+  skip_on_cran()
   d <- simgroups(ng=20, seed=8)
   d$y <- drcmean("loglogistic", d$dose, c(1, 8, -1.5, 3, 0)) + rnorm(20, 0, 0.8)[d$grp] + rnorm(nrow(d), 0, 0.3)
   g <- fit4(y ~ dose, rform=b2 ~ 1 | grp, data=d, model="loglogistic")

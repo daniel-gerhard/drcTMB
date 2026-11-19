@@ -58,6 +58,7 @@ test_that("predict with random slopes", {
 })
 
 test_that("effective doses with random slopes of log b4", {
+  skip_on_cran()
   d <- simslopes("b4", ng=12, nrep=2, seed=12)
   f <- fit4(y ~ dose, fform=b4 ~ temp, rform=b4 ~ temp | grp, data=d, model="loglogistic", parlink=c(b4="log"))
   nd <- data.frame(temp=c(1, 1, -1), grp=c("4", "new", "new"))
@@ -77,6 +78,7 @@ test_that("effective doses with random slopes of log b4", {
 })
 
 test_that("random slopes need their covariates", {
+  skip_on_cran()
   d <- simslopes("b4", ng=12, nrep=2, seed=12)
   # temp only in the random effects
   f <- fit4(y ~ dose, rform=b4 ~ temp | grp, data=d, model="loglogistic", parlink=c(b4="log"))
@@ -91,6 +93,7 @@ test_that("random slopes need their covariates", {
 })
 
 test_that("uncorrelated random intercepts and slopes with ||", {
+  skip_on_cran()
   d <- simslopes("b4", ng=12, nrep=2, seed=12)
   f <- fit4(y ~ dose, fform=b4 ~ temp, rform=b4 ~ temp || grp, data=d, model="loglogistic", parlink=c(b4="log"))
   expect_length(f$reterms, 2)
@@ -99,6 +102,7 @@ test_that("uncorrelated random intercepts and slopes with ||", {
 })
 
 test_that("random slopes of a factor use the levels and contrasts of the fit for any newdata", {
+  skip_on_cran()
   set.seed(5)
   ng <- 10
   d <- expand.grid(rep=1:2, dose=c(0, 0.5, 1, 2, 4, 8, 16, 32), time=factor(c("24h", "48h", "72h")), grp=factor(seq_len(ng)))

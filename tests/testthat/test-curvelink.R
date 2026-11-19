@@ -105,6 +105,7 @@ test_that("simulation on the scale of the response; checks of the curve link", {
 })
 
 test_that("peak with a curve link: the peak of the curve, the response on the scale of the response", {
+  skip_on_cran()
   data(lettuce)
   fh <- drmTMB(weight ~ conc, data=lettuce, model="braincousens", curvelink="log")
   pk <- peak(fh)

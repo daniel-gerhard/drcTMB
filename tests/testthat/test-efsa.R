@@ -133,6 +133,7 @@ test_that("default priors of efsapriors", {
 })
 
 test_that("bmdefsa reproduces the TCDD example of EFSA EN-9902 (Table 5.1)", {
+  skip_on_cran()
   # EFSA: 8 models (with probit and logistic), bridge sampling: historical (Kociba) BMD 10.63 (4.52,
   # 22.67), current (NTP) 24.67 (20.45, 28.33), with the informative MLE PERT prior 23.87 (19.75, 27.83)
   set.seed(1)

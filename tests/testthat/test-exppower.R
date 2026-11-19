@@ -54,6 +54,7 @@ test_that("exponential with b3 = 1 (exp2) is a log-linear model, and anova tests
 })
 
 test_that("absolute effective doses and BMDs of exponential and power in closed form", {
+  skip_on_cran()
   d <- simexppower()
   fe <- drmTMB(ye ~ dose, data=d, model="exponential")
   b <- unname(coef(fe)[1:3])

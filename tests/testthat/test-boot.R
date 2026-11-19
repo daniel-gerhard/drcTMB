@@ -20,6 +20,7 @@ test_that("bootstrap refits equal drmTMB fits to the simulated responses", {
 })
 
 test_that("bootstrap intervals are reproducible and close to Wald intervals for large samples", {
+  skip_on_cran()
   f <- fit4(y ~ dose, data=simgauss("loglogistic", nrep=20), model="loglogistic")
   expect_message(cb <- confint(f, method="boot", nsim=200, seed=1), "bootstrap")
   expect_identical(cb, suppressMessages(confint(f, method="boot", nsim=200, seed=1)))

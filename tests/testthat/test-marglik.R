@@ -80,6 +80,7 @@ test_that("nonlinear model: importance sampling matches adaptive quadrature", {
 })
 
 test_that("random effects are integrated out by the nested Laplace approximation", {
+  skip_on_cran()
   set.seed(6)
   d <- expand.grid(dose=c(0, 0.5, 1, 2, 4, 8, 16), grp=factor(1:6))
   u <- rnorm(6, 0, 0.8)

@@ -39,6 +39,7 @@ test_that("profile intervals of a gaussian model are likelihood ratio intervals"
 })
 
 test_that("profile intervals with random effects agree with lme4", {
+  skip_on_cran()
   skip_if_not_installed("lme4")
   d <- simgroups(dose=c(0, 1, 2, 4, 6, 8, 10), ng=12, nrep=1, seed=2)
   u <- rnorm(12, 0, 0.5)
@@ -151,6 +152,7 @@ test_that("the ED50 profile of the four-parameter loglogistic model is the profi
 })
 
 test_that("effective doses of groups are profiled with random effects", {
+  skip_on_cran()
   d <- simgroups(ng=10, seed=20)
   d$trt <- factor(rep(c("A", "B"), length.out=nrow(d)))
   u <- rnorm(10, 0, 0.3)
@@ -169,6 +171,7 @@ test_that("effective doses of groups are profiled with random effects", {
 })
 
 test_that("profiles of effective doses agree with glmer at fixed effective doses", {
+  skip_on_cran()
   skip_if_not_installed("lme4")
   d <- simgroups(dose=c(0, 1, 2, 4, 6, 8, 10), ng=12, nrep=1, seed=2)
   u <- rnorm(12, 0, 0.8)
@@ -198,6 +201,7 @@ test_that("profiles of effective doses can be plotted", {
 ## confint methods ------------------------------------------------------------------
 
 test_that("confint of drmTMB gives profile intervals by default and Wald intervals on request", {
+  skip_on_cran()
   d <- simgroups(ng=8, seed=7)
   u <- rnorm(8, 0, 0.5)
   d$y <- drcmean("loglogistic", d$dose, c(1, 8, -1.5, 3, 0)) + u[d$grp] + rnorm(nrow(d), 0, 0.3)
@@ -232,6 +236,7 @@ test_that("confint of correlated random effects reports the correlation", {
 })
 
 test_that("confint of effective doses uses profiles for population effective doses", {
+  skip_on_cran()
   d <- simgroups(ng=8, seed=7)
   u <- rnorm(8, 0, 0.5)
   d$y <- drcmean("loglogistic", d$dose, c(1, 8, -1.5, 3, 0)) + u[d$grp] + rnorm(nrow(d), 0, 0.3)

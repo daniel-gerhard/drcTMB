@@ -2,6 +2,13 @@
 
 This is a resubmission. In this version I have:
 
+* Reduced the check time (NOTE on r-devel-windows-x86_64: overall checktime 12 min): the slow
+  tests (bootstrap, profile likelihood and Monte Carlo integration with random effects) are now
+  skipped on CRAN with testthat::skip_on_cran(), which reduces the time of the tests by about 70%,
+  and the parametric bootstrap test in the vignette uses fewer simulations.
+
+In the previous resubmission I had:
+
 * Shortened and simplified the Description field in DESCRIPTION, removing the words flagged as
   possibly misspelled (names of models, authors and organisations).
 

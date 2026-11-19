@@ -83,6 +83,7 @@ test_that("sigmoidal nec model maximises the likelihood and anova tests the shap
 })
 
 test_that("effective doses of the nec model have the delta method standard errors", {
+  skip_on_cran()
   skip_if_not_installed("numDeriv")
   f <- drmTMB(y ~ dose, data=simnec(b5=0.7), model="nec")
   b <- bfull(f)

@@ -164,6 +164,7 @@ test_that("quantile residuals are standard normal under the model", {
 })
 
 test_that("coef names the variance parameters", {
+  skip_on_cran()
   d <- simgroups(ng=30, seed=18)
   u <- matrix(rnorm(120, 0, 0.4), 30)
   d$y <- 1 + u[d$grp, 1] + (7 + u[d$grp, 2] - u[d$grp, 1]) /
