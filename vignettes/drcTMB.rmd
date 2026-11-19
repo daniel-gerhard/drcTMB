@@ -154,10 +154,10 @@ mod0 <- update(mod, model = "constant", start = NULL, fix = NULL)
 anova(mod0, mod)
 ```
 
-The chi-square distribution of the likelihood ratio statistic is only an approximation here: the steepness and location of the curve are not identified under the constant model. The same applies to small experiments and to tests of a standard deviation of random effects against zero. A parametric bootstrap test, `test = "boot"`, simulates responses from the smaller model and fits both models to each of them. With 200 simulations, the smallest possible p-value is 1/201.
+The chi-square distribution of the likelihood ratio statistic is only an approximation here: the steepness and location of the curve are not identified under the constant model. The same applies to small experiments and to tests of a standard deviation of random effects against zero. A parametric bootstrap test, `test = "boot"`, simulates responses from the smaller model and fits both models to each of them. With 100 simulations, the smallest possible p-value is 1/101.
 
 ```{r}
-anova(mod0, mod, test = "boot", nsim = 200, seed = 1)
+anova(mod0, mod, test = "boot", nsim = 100, seed = 1)
 ```
 
 ## Model diagnostics

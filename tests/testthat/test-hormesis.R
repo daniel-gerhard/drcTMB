@@ -93,6 +93,7 @@ test_that("effective doses of the hormesis models have the delta method standard
 })
 
 test_that("profile and bootstrap intervals of hormesis effective doses contain the estimates", {
+  skip_on_cran()
   f <- drmTMB(weight ~ conc, data=lettuce, model="braincousens")
   e <- ed(f, 10)
   ci <- suppressMessages(confint(e, progress=FALSE))
@@ -181,6 +182,7 @@ test_that("the peak and the return to control have the delta method standard err
 })
 
 test_that("intervals of the peak", {
+  skip_on_cran()
   f <- drmTMB(weight ~ conc, data=lettuce, model="braincousens")
   pk <- peak(f)
   expect_message(ci <- confint(pk, progress=FALSE), "Wald intervals for the response")

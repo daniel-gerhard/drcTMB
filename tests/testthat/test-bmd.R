@@ -86,6 +86,7 @@ test_that("BMD in standard deviations includes the uncertainty of sigma", {
 })
 
 test_that("marginal BMDs average the mean curve over the random effects", {
+  skip_on_cran()
   d <- simbmdgroups()
   # random effects on the asymptote enter linearly: marginal and conditional BMDs are the same
   f2 <- fit4(y ~ dose, rform=b2 ~ 1 | grp, data=d, model="loglogistic")
