@@ -13,6 +13,8 @@ Description: Fits non-linear dose-response models, optionally with
     and confidence intervals, and benchmark doses can be averaged over
     several models.
 License: GPL (>=2)
+URL: https://github.com/daniel-gerhard/drcTMB, https://daniel-gerhard.github.io/drcTMB/
+BugReports: https://github.com/daniel-gerhard/drcTMB/issues
 Depends: R (>= 3.5.0)
 VignetteBuilder: knitr
 Suggests: 

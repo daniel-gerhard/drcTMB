@@ -16,6 +16,11 @@ knitr::opts_chunk$set(
 )
 ```
 
+<!-- badges: start -->
+[![R-CMD-check](https://github.com/daniel-gerhard/drcTMB/actions/workflows/R-CMD-check.yaml/badge.svg)](https://github.com/daniel-gerhard/drcTMB/actions/workflows/R-CMD-check.yaml)
+[![pkgdown](https://github.com/daniel-gerhard/drcTMB/actions/workflows/pkgdown.yaml/badge.svg)](https://daniel-gerhard.github.io/drcTMB/)
+<!-- badges: end -->
+
 drcTMB fits nonlinear dose-response models by maximum likelihood with the
 [Template Model Builder (TMB)](https://github.com/kaskr/adcomp). The interface
 resembles `drm()` of the drc package, but TMB's automatic differentiation and
