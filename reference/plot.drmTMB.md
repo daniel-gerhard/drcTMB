@@ -1,0 +1,111 @@
+# Diagnostic plots for drmTMB models
+
+Residuals against the fitted values, residuals against the dose, a
+normal QQ plot of the residuals, and normal QQ plots of the predicted
+random effects, drawn as ggplot2 graphs on one page. Unlike plot.drc of
+drc, it draws residual diagnostics, not the fitted dose-response curve;
+for the curve, use
+[`predict.drmTMB`](https://daniel-gerhard.github.io/drcTMB/reference/drmTMB-methods.md)
+on a grid of doses (see the vignette).
+
+## Usage
+
+``` r
+# S3 method for class 'drmTMB'
+plot(
+  x,
+  which = 1:3,
+  type = c("quantile", "pearson", "response"),
+  random = TRUE,
+  logdose = NULL,
+  ncol = NULL,
+  seed = NULL,
+  draw = TRUE,
+  ...
+)
+```
+
+## Arguments
+
+- x:
+
+  a drmTMB object
+
+- which:
+
+  the plots to draw: 1 residuals against fitted values, 2 residuals
+  against dose, 3 normal QQ plot of the residuals, 4 normal QQ plots of
+  the predicted random effects (models with random effects only)
+
+- type:
+
+  residual type, see
+  [`residuals.drmTMB`](https://daniel-gerhard.github.io/drcTMB/reference/drmTMB-methods.md):
+  "quantile" (default), "pearson" or "response"
+
+- random:
+
+  if TRUE, residuals and fitted values include the predicted random
+  effects
+
+- logdose:
+
+  logarithmic dose axis; by default for the models on the log-dose scale
+  (loglogistic, weibull1, weibull2, lognormal, braincousens, cedergreen)
+
+- ncol:
+
+  number of columns of the page
+
+- seed:
+
+  seed for the randomised quantile residuals
+
+- draw:
+
+  if FALSE, the graphs are returned without drawing them
+
+- ...:
+
+  not used
+
+## Value
+
+a list of ggplot objects, invisibly, named fitted, dose, qq and ranef,
+for changing or drawing single graphs
+
+## Details
+
+The default randomised quantile residuals are standard normal under the
+model for all families, so the QQ plot is compared with the identity
+line; for the discrete families they are drawn uniformly within the jump
+of the distribution function at each observation, and `seed` makes the
+plots reproducible. For `type="response"`, the QQ plot line goes through
+the quartiles. A lowess smoother (red) shows trends of the residuals
+against the fitted values and the dose.
+
+For the models on the log-dose scale, the dose axis is logarithmic;
+observations at dose zero are drawn left of the smallest positive dose,
+separated by a dashed line.
+
+The QQ plots of the random effects (`which=4`) show the predicted random
+effects of each parameter and grouping factor. They are shrunk towards
+zero, so their spread is smaller than the estimated standard deviation,
+and with few groups they say little about the normality of the random
+effects.
+
+## See also
+
+[`residuals.drmTMB`](https://daniel-gerhard.github.io/drcTMB/reference/drmTMB-methods.md),
+[`predict.drmTMB`](https://daniel-gerhard.github.io/drcTMB/reference/drmTMB-methods.md)
+
+## Examples
+
+``` r
+mod <- drmTMB(rootl ~ conc, data = ryegrass, model = "loglogistic",
+              start = c(b1 = 0, b5 = 0), fix = c(b1 = TRUE, b5 = TRUE))
+plot(mod)
+
+# residuals against the dose only, on the log scale
+plot(mod, which = 2, logdose = TRUE)
+```

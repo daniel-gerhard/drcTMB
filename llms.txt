@@ -1,0 +1,536 @@
+# drcTMB
+
+drcTMB fits nonlinear dose-response models by maximum likelihood with
+the [Template Model Builder (TMB)](https://github.com/kaskr/adcomp). The
+interface resembles `drm()` of the drc package, but TMB’s automatic
+differentiation and Laplace approximation extend the models well beyond
+nonlinear regression: random effects, non-normal responses, covariates
+on every parameter, correlated residuals and priors, together with
+effective doses and benchmark doses for all of them.
+
+## Main features
+
+- **Dose-response models**: log-logistic, logistic, Weibull (two types),
+  log-normal, Gompertz, gamma, multistage, Michaelis-Menten, asymptotic
+  regression, the hormesis models of Brain-Cousens and Cedergreen, the
+  threshold model NEC, the substrate inhibition model of Haldane, and
+  the exponential and power models of PROAST and BMDS. All share the
+  parameter names b1 to b5 (lower and upper asymptote, steepness,
+  location, asymmetry or shape).
+- **Response distributions** (`family`): gaussian, lognormal, binomial,
+  beta-binomial, poisson, negative binomial, beta, and time-to-event
+  data (germination counts in time intervals).
+- **Covariates** on any of the parameters (`fform`), e.g. one ED50 for
+  each treatment, and links of single parameters (`parlink`) or of the
+  whole curve (`curvelink`).
+- **Random effects** on any of the parameters (`rform`), with correlated
+  random intercepts and slopes and nested grouping factors, as in lme4.
+- **Correlated residuals and variance functions** (`correlation`,
+  `variance`): AR(1), continuous-time AR(1), compound symmetry and
+  spatial structures; power, exponential and stratified variances, as in
+  nlme.
+- **Inference**: Wald, profile likelihood and parametric bootstrap
+  intervals; likelihood ratio, F and bootstrap tests with
+  [`anova()`](https://rdrr.io/r/stats/anova.html); robust (sandwich)
+  standard errors, also for clustered data; confidence and prediction
+  intervals with [`predict()`](https://rdrr.io/r/stats/predict.html);
+  residual diagnostics with
+  [`plot()`](https://rdrr.io/r/graphics/plot.default.html).
+- **Effective doses**
+  ([`ed()`](https://daniel-gerhard.github.io/drcTMB/reference/ed.md))
+  and the **peak** of hormesis curves
+  ([`peak()`](https://daniel-gerhard.github.io/drcTMB/reference/peak.md)),
+  for every curve of a model, with simultaneous intervals and ratios of
+  effective doses through multcomp and mratios.
+- **Benchmark doses**
+  ([`bmd()`](https://daniel-gerhard.github.io/drcTMB/reference/bmd.md)):
+  excess and additional risk, relative deviation and standard deviation
+  definitions, also with random effects; model averaging with AIC or BIC
+  weights and bootstrap BMDLs
+  ([`bmdma()`](https://daniel-gerhard.github.io/drcTMB/reference/bmdma.md)).
+- **Bayesian benchmark doses**: priors on all parameters and on the BMD
+  itself, marginal likelihoods and Bayesian model averaging
+  ([`bmdbayes()`](https://daniel-gerhard.github.io/drcTMB/reference/bmdbayes.md)),
+  and the default approach of EFSA (2022) in a single call
+  ([`bmdefsa()`](https://daniel-gerhard.github.io/drcTMB/reference/bmdefsa.md)).
+
+## Installation
+
+``` r
+
+# install.packages("pak")
+pak::pak("daniel-gerhard/drcTMB")
+```
+
+The examples below use data sets of drcTMB, most of them from the
+package [drcData](https://github.com/DoseResponse/drcData), and of nlme.
+
+## A first model
+
+The root length of ryegrass decreases with the concentration of ferulic
+acid. A log-logistic model with the lower asymptote b1 fixed at 0 and
+without the asymmetry parameter b5 is the three-parameter model `LL.3()`
+of drc.
+
+``` r
+
+library(drcTMB)
+library(ggplot2)
+data(ryegrass)
+
+mod <- drmTMB(rootl ~ conc, data = ryegrass, model = "loglogistic",
+              start = c(b1 = 0, b5 = 0), fix = c(b1 = TRUE, b5 = TRUE))
+mod
+#> Call:
+#> drmTMB(form = rootl ~ conc, data = ryegrass, start = c(b1 = 0, 
+#>     b5 = 0), fix = c(b1 = TRUE, b5 = TRUE), model = "loglogistic")
+#> 
+#> Model:  loglogistic
+#> Family: gaussian, identity link for the asymptotes
+#> 
+#> Coefficients:
+#> b2:(Intercept)  b3:(Intercept)  b4:(Intercept)  
+#>          7.855          -2.470           3.263  
+#> Fixed: b1:(Intercept) = 0, b5:(Intercept) = 0
+#> 
+#> Residual standard deviation: 0.5616
+```
+
+[`predict()`](https://rdrr.io/r/stats/predict.html) gives confidence
+intervals for the mean response, and with `interval = "prediction"`
+prediction intervals for new observations.
+
+``` r
+
+nd <- data.frame(conc = exp(seq(log(0.5), log(30), length.out = 100)))
+nd <- cbind(nd, predict(mod, newdata = nd, interval = "confidence"))
+ggplot(nd, aes(x = conc)) +
+  geom_ribbon(aes(ymin = lwr, ymax = upr), fill = "steelblue", alpha = 0.3) +
+  geom_line(aes(y = fit), colour = "blue") +
+  geom_point(data = subset(ryegrass, conc > 0), aes(y = rootl)) +
+  scale_x_log10() +
+  labs(x = "Concentration of ferulic acid (log scale)", y = "Root length (cm)") +
+  theme_bw()
+```
+
+![](reference/figures/README-ryegrass-plot-1.png)
+
+Effective doses, here the concentrations that reduce the root length by
+10%, 50% and 90% of the range of the curve, come with profile likelihood
+intervals by default.
+
+``` r
+
+(eds <- ed(mod, respLev = c(10, 50, 90)))
+#> Effective dose estimates:
+#> 
+#>        Estimate Std.Error
+#> 10:lf1     1.34     0.189
+#> 50:lf2     3.26     0.196
+#> 90:lf3     7.94     1.055
+confint(eds)
+#>            2.5 %    97.5 %
+#> 10:lf1 0.9813186  1.774243
+#> 50:lf2 2.8791625  3.703885
+#> 90:lf3 6.1400175 10.652850
+```
+
+## Several curves and a binomial response
+
+The immobility of daphnids was recorded after 24 and 48 hours. A
+binomial model with a separate steepness b3 and location b4 for each
+time compares the two curves; the asymptotes are fixed at 0 and 1, and
+the ED50s start at a dose of 1000.
+
+``` r
+
+data(daphnids)
+dmod <- drmTMB(cbind(no, total - no) ~ dose, data = daphnids,
+               model = "loglogistic", family = "binomial",
+               fform = b3 + b4 ~ 0 + time,
+               start = c(b1 = 0, b2 = 1, b4 = 1000, b5 = 0), fix = c(b1 = TRUE, b2 = TRUE, b5 = TRUE))
+
+nd <- expand.grid(dose = exp(seq(log(50), log(22000), length.out = 100)), time = c("24h", "48h"))
+nd$fit <- predict(dmod, newdata = nd)
+ggplot(daphnids, aes(x = dose, y = no/total, colour = time)) +
+  geom_point() +
+  geom_line(data = nd, aes(y = fit)) +
+  scale_x_log10() +
+  labs(x = "Dose (log scale)", y = "Proportion of immobile daphnids", colour = "Time") +
+  theme_bw()
+```
+
+![](reference/figures/README-daphnids-1.png)
+
+[`ed()`](https://daniel-gerhard.github.io/drcTMB/reference/ed.md)
+estimates the effective doses of each curve given in `newdata`, with
+their covariance matrix, so that simultaneous intervals for differences
+([`multcomp::glht()`](https://rdrr.io/pkg/multcomp/man/glht.html)) or
+ratios
+([`mratios::gsci.ratio()`](https://rdrr.io/pkg/mratios/man/gsci.ratio.html))
+follow, here the relative potency of the ED50 after 24 hours to the one
+after 48 hours.
+
+``` r
+
+(ed50 <- ed(dmod, respLev = 50, newdata = data.frame(time = c("24h", "48h"))))
+#> Effective dose estimates:
+#> 
+#>             Estimate Std.Error
+#> 50:time=24h     5134      1057
+#> 50:time=48h     1509       188
+mratios::gsci.ratio(coef(ed50), vcov(ed50), rbind("24h/48h" = c(1, 0)), rbind(c(0, 1)))
+#> Unadjusted 95% confidence intervals 
+#> Normal approximation, quantile:1.96
+#>         estimate lower upper
+#> 24h/48h    3.402  1.95 5.285
+```
+
+## Random effects
+
+In the PBG experiment of the nlme package, five rabbits received
+increasing doses of phenylbiguanide, once after an antagonist (MDL
+72222) and once after a placebo, and the change of the blood pressure
+was recorded. Random effects of the rabbits on the upper asymptote b2
+and on the ED50 b4 account for the repeated measurements of the same
+rabbits; with a log link of b4, the treatment acts multiplicatively on
+the ED50.
+
+``` r
+
+data(PBG, package = "nlme")
+pbg <- as.data.frame(PBG)
+pbg$Rabbit <- factor(pbg$Rabbit, ordered = FALSE)
+pmod <- drmTMB(deltaBP ~ dose, data = pbg, model = "loglogistic",
+               fform = b4 ~ Treatment, rform = b2 + b4 ~ 1 | Rabbit, parlink = c(b4 = "log"),
+               start = c(b5 = 0), fix = c(b5 = TRUE))
+summary(pmod)
+#> Call:
+#> drmTMB(form = deltaBP ~ dose, fform = b4 ~ Treatment, rform = b2 + 
+#>     b4 ~ 1 | Rabbit, data = pbg, start = c(b5 = 0), fix = c(b5 = TRUE), 
+#>     model = "loglogistic", parlink = c(b4 = "log"))
+#> 
+#> Model:  loglogistic, increasing curve
+#> Family: gaussian, identity link for the asymptotes, log link for b4
+#> 
+#> Number of observations: 60, groups: Rabbit 5
+#> Log-likelihood: -147.8 (df = 9), AIC: 313.6, BIC: 332.5
+#> 
+#> Coefficients:
+#>                     Estimate Std. Error
+#> b1:(Intercept)        1.5870      0.501
+#> b2:(Intercept)       28.2991      2.551
+#> b3:(Intercept)        3.4393      0.438
+#> b4:(Intercept)        4.5262      0.088
+#> b4:TreatmentPlacebo  -0.7542      0.062
+#> The coefficients of b4 are on the log scale.
+#> Fixed: b5:(Intercept) = 0
+#> 
+#> Random effects:
+#>  Groups Name Std.Dev. Corr  
+#>  Rabbit b2   5.3640         
+#>         b4   0.1576   -0.018
+#> 
+#> Residual standard deviation: 2.359
+#> 
+#> Optimiser: nlminb: relative convergence (4), maximum absolute gradient 0.00018
+```
+
+[`predict()`](https://rdrr.io/r/stats/predict.html) gives the curves of
+the rabbits and, with `random = FALSE`, the population curves.
+
+``` r
+
+nd <- expand.grid(dose = exp(seq(log(6.25), log(200), length.out = 100)),
+                  Treatment = levels(pbg$Treatment), Rabbit = levels(pbg$Rabbit))
+nd$fit <- predict(pmod, newdata = nd)
+nd$pop <- predict(pmod, newdata = nd, random = FALSE)
+ggplot(pbg, aes(x = dose, y = deltaBP, colour = Rabbit)) +
+  geom_point() +
+  geom_line(data = nd, aes(y = fit)) +
+  geom_line(data = subset(nd, Rabbit == "1"), aes(y = pop), colour = "black", linewidth = 1) +
+  facet_wrap(~ Treatment) +
+  scale_x_log10() +
+  labs(x = "Dose of phenylbiguanide (log scale)", y = "Change in blood pressure (mm Hg)") +
+  theme_bw()
+```
+
+![](reference/figures/README-pbg-plot-1.png)
+
+The standard errors of effective doses and benchmark doses include the
+variation between the rabbits. The antagonist shifts the ED50 by a
+factor of about two:
+
+``` r
+
+(ed50p <- ed(pmod, respLev = 50, newdata = data.frame(Treatment = levels(pbg$Treatment))))
+#> Effective dose estimates:
+#> 
+#>                        Estimate Std.Error
+#> 50:Treatment=MDL 72222     92.4     16.68
+#> 50:Treatment=Placebo       43.5      7.86
+mratios::gsci.ratio(coef(ed50p), vcov(ed50p), rbind("MDL/Placebo" = c(1, 0)), rbind(c(0, 1)))
+#> Unadjusted 95% confidence intervals 
+#> Normal approximation, quantile:1.96
+#>             estimate lower upper
+#> MDL/Placebo    2.126 1.868 2.421
+```
+
+## Benchmark doses
+
+The benchmark dose (BMD) is the dose at which the response has changed
+from the response at dose zero by the benchmark response; the BMDL, the
+lower limit of a 90% interval, is the reference point of a risk
+assessment. For a 5% decrease of the root length of ryegrass:
+
+``` r
+
+confint(bmd(mod, bmr = 0.05, def = "relative"), level = 0.9)
+#>                5 %     95 %
+#> 0.05:lf1 0.7153985 1.333767
+```
+
+As the BMD depends on the model,
+[`bmdma()`](https://daniel-gerhard.github.io/drcTMB/reference/bmdma.md)
+averages it over several models, here log-logistic and Weibull models
+with a normal or lognormal response, with a bootstrap BMDL.
+
+``` r
+
+fitm <- function(model, family = "gaussian")
+  drmTMB(rootl ~ conc, data = ryegrass, model = model, family = family,
+         start = c(b1 = 0, b5 = 0), fix = c(b1 = TRUE, b5 = TRUE))
+bmdma(LL = mod, W1 = fitm("weibull1"), W2 = fitm("weibull2"),
+      LLlognormal = fitm("loglogistic", "lognormal"),
+      bmr = 0.05, def = "relative", nsim = 200, seed = 1, progress = FALSE)
+#> Model-averaged benchmark doses, relative deviation, averaged curves:
+#> 
+#>                   model    family logLik df   AIC   weight    BMD
+#> LL          loglogistic  gaussian -18.60  4 45.21 0.138088 0.9909
+#> W1             weibull1  gaussian -22.22  4 52.44 0.003712 0.7538
+#> W2             weibull2  gaussian -16.78  4 41.56 0.856966 1.3520
+#> LLlognormal loglogistic lognormal -23.32  4 54.64 0.001235 0.2744
+#> 
+#>            BMD   BMDL BMDU
+#> 0.05:lf1 1.308 0.8068 1.49
+#> 
+#> Bootstrap percentile intervals (200 samples), level 90%
+```
+
+[`bmdefsa()`](https://daniel-gerhard.github.io/drcTMB/reference/bmdefsa.md)
+follows the Bayesian model averaging of EFSA (2022), with its default
+priors, and
+[`bmdbayes()`](https://daniel-gerhard.github.io/drcTMB/reference/bmdbayes.md)
+averages models with priors of your own.
+
+## Hormesis
+
+Low concentrations of isobutyl alcohol stimulate the growth of lettuce.
+The Brain-Cousens model adds a hormesis effect b5 to the log-logistic
+curve, and
+[`peak()`](https://daniel-gerhard.github.io/drcTMB/reference/peak.md)
+estimates the dose and the response at the maximum.
+
+``` r
+
+data(lettuce)
+hmod <- drmTMB(weight ~ conc, data = lettuce, model = "braincousens")
+peak(hmod)
+#> Peak of the hormesis curves, dose and response:
+#> 
+#>              Estimate Std.Error
+#> dose:lf1         0.72    0.2670
+#> response:lf1     1.20    0.0694
+```
+
+## Time-to-event data
+
+Germination experiments count the seeds that germinate in each time
+interval. With `family = "event"`, each row is an interval from `start`
+to `end`, and the curve is the cumulative proportion of germinated
+seeds. [`ed()`](https://daniel-gerhard.github.io/drcTMB/reference/ed.md)
+then gives the times by which a percentage of the germinating seeds has
+germinated.
+
+``` r
+
+data(chickweed)
+gmod <- drmTMB(count ~ start + end, data = chickweed, model = "loglogistic", family = "event",
+               start = c(b5 = 0), fix = c(b5 = TRUE))
+ed(gmod, respLev = c(10, 50, 90))
+#> Effective dose estimates:
+#> 
+#>        Estimate Std.Error
+#> 10:lf1      176      3.49
+#> 50:lf2      196      2.51
+#> 90:lf3      218      4.27
+```
+
+## Robust standard errors
+
+If the variance is misspecified, or the observations are correlated
+within clusters, sandwich standard errors are available through the
+argument `vcov.` of [`summary()`](https://rdrr.io/r/base/summary.html),
+[`confint()`](https://rdrr.io/r/stats/confint.html),
+[`predict()`](https://rdrr.io/r/stats/predict.html),
+[`ed()`](https://daniel-gerhard.github.io/drcTMB/reference/ed.md) and
+[`bmd()`](https://daniel-gerhard.github.io/drcTMB/reference/bmd.md),
+e.g. for clusters given by a variable `plate`:
+`ed(fit, 50, vcov. = function(f) vcovrobust(f, cluster = ~ plate))`.
+
+``` r
+
+ed(mod, respLev = 50, vcov. = vcovrobust)
+#> Effective dose estimates:
+#> 
+#>        Estimate Std.Error
+#> 50:lf1     3.26     0.266
+```
+
+## Learn more
+
+The vignette describes all features in detail, with the definitions of
+the models, the families and the benchmark doses:
+
+``` r
+
+vignette("drcTMB")
+```
+
+To install the package with the vignette, use
+`remotes::install_github("daniel-gerhard/drcTMB", build_vignettes = TRUE)`.
+
+# Package index
+
+## Model fitting
+
+- [`drmTMB()`](https://daniel-gerhard.github.io/drcTMB/reference/drmTMB.md)
+  : Fit dose-response models with TMB
+- [`drmTMBcontrol()`](https://daniel-gerhard.github.io/drcTMB/reference/drmTMBcontrol.md)
+  : Control parameters of drmTMB
+- [`drmTMBstart()`](https://daniel-gerhard.github.io/drcTMB/reference/drmTMBstart.md)
+  : Starting values for a drmTMB model
+- [`cor_ar1()`](https://daniel-gerhard.github.io/drcTMB/reference/correlation.md)
+  [`cor_car1()`](https://daniel-gerhard.github.io/drcTMB/reference/correlation.md)
+  [`cor_cs()`](https://daniel-gerhard.github.io/drcTMB/reference/correlation.md)
+  [`cor_exp()`](https://daniel-gerhard.github.io/drcTMB/reference/correlation.md)
+  [`cor_gaus()`](https://daniel-gerhard.github.io/drcTMB/reference/correlation.md)
+  [`cor_spher()`](https://daniel-gerhard.github.io/drcTMB/reference/correlation.md)
+  [`var_power()`](https://daniel-gerhard.github.io/drcTMB/reference/correlation.md)
+  [`var_exp()`](https://daniel-gerhard.github.io/drcTMB/reference/correlation.md)
+  [`var_ident()`](https://daniel-gerhard.github.io/drcTMB/reference/correlation.md)
+  : Residual correlation structures and variance functions
+- [`negate()`](https://daniel-gerhard.github.io/drcTMB/reference/priors.md)
+  [`normal()`](https://daniel-gerhard.github.io/drcTMB/reference/priors.md)
+  [`student_t()`](https://daniel-gerhard.github.io/drcTMB/reference/priors.md)
+  [`lognormal()`](https://daniel-gerhard.github.io/drcTMB/reference/priors.md)
+  [`pert()`](https://daniel-gerhard.github.io/drcTMB/reference/priors.md)
+  [`half_normal()`](https://daniel-gerhard.github.io/drcTMB/reference/priors.md)
+  [`half_student_t()`](https://daniel-gerhard.github.io/drcTMB/reference/priors.md)
+  : Prior distributions for drmTMB models
+
+## Methods for fitted models
+
+- [`print(`*`<drmTMB>`*`)`](https://daniel-gerhard.github.io/drcTMB/reference/drmTMB-methods.md)
+  [`summary(`*`<drmTMB>`*`)`](https://daniel-gerhard.github.io/drcTMB/reference/drmTMB-methods.md)
+  [`print(`*`<summary.drmTMB>`*`)`](https://daniel-gerhard.github.io/drcTMB/reference/drmTMB-methods.md)
+  [`logLik(`*`<drmTMB>`*`)`](https://daniel-gerhard.github.io/drcTMB/reference/drmTMB-methods.md)
+  [`nobs(`*`<drmTMB>`*`)`](https://daniel-gerhard.github.io/drcTMB/reference/drmTMB-methods.md)
+  [`df.residual(`*`<drmTMB>`*`)`](https://daniel-gerhard.github.io/drcTMB/reference/drmTMB-methods.md)
+  [`fitted(`*`<drmTMB>`*`)`](https://daniel-gerhard.github.io/drcTMB/reference/drmTMB-methods.md)
+  [`residuals(`*`<drmTMB>`*`)`](https://daniel-gerhard.github.io/drcTMB/reference/drmTMB-methods.md)
+  [`predict(`*`<drmTMB>`*`)`](https://daniel-gerhard.github.io/drcTMB/reference/drmTMB-methods.md)
+  [`coef(`*`<drmTMB>`*`)`](https://daniel-gerhard.github.io/drcTMB/reference/drmTMB-methods.md)
+  [`vcov(`*`<drmTMB>`*`)`](https://daniel-gerhard.github.io/drcTMB/reference/drmTMB-methods.md)
+  [`simulate(`*`<drmTMB>`*`)`](https://daniel-gerhard.github.io/drcTMB/reference/drmTMB-methods.md)
+  : Methods for fitted drmTMB models
+- [`anova(`*`<drmTMB>`*`)`](https://daniel-gerhard.github.io/drcTMB/reference/anova.drmTMB.md)
+  : Likelihood ratio tests for drmTMB models
+- [`confint(`*`<drmTMB>`*`)`](https://daniel-gerhard.github.io/drcTMB/reference/confint.drmTMB.md)
+  [`confint(`*`<edTMB>`*`)`](https://daniel-gerhard.github.io/drcTMB/reference/confint.drmTMB.md)
+  : Confidence intervals for drmTMB models and effective doses
+- [`plot(`*`<drmTMB>`*`)`](https://daniel-gerhard.github.io/drcTMB/reference/plot.drmTMB.md)
+  : Diagnostic plots for drmTMB models
+- [`profile(`*`<drmTMB>`*`)`](https://daniel-gerhard.github.io/drcTMB/reference/profile.drmTMB.md)
+  [`confint(`*`<profile.drmTMB>`*`)`](https://daniel-gerhard.github.io/drcTMB/reference/profile.drmTMB.md)
+  [`plot(`*`<profile.drmTMB>`*`)`](https://daniel-gerhard.github.io/drcTMB/reference/profile.drmTMB.md)
+  : Likelihood profiles of a drmTMB model
+- [`vcovrobust()`](https://daniel-gerhard.github.io/drcTMB/reference/vcovrobust.md)
+  [`estfun(`*`<drmTMB>`*`)`](https://daniel-gerhard.github.io/drcTMB/reference/vcovrobust.md)
+  [`bread(`*`<drmTMB>`*`)`](https://daniel-gerhard.github.io/drcTMB/reference/vcovrobust.md)
+  : Robust (sandwich) covariance of a drmTMB fit
+- [`bootstrap()`](https://daniel-gerhard.github.io/drcTMB/reference/bootstrap.md)
+  [`print(`*`<bootstrap.drmTMB>`*`)`](https://daniel-gerhard.github.io/drcTMB/reference/bootstrap.md)
+  [`confint(`*`<bootstrap.drmTMB>`*`)`](https://daniel-gerhard.github.io/drcTMB/reference/bootstrap.md)
+  : Parametric bootstrap of a drmTMB model
+- [`marglik()`](https://daniel-gerhard.github.io/drcTMB/reference/marglik.md)
+  : Marginal likelihood of a drmTMB model with priors
+
+## Effective doses and peaks
+
+- [`ed()`](https://daniel-gerhard.github.io/drcTMB/reference/ed.md) :
+  Effective dose estimation
+- [`peak()`](https://daniel-gerhard.github.io/drcTMB/reference/peak.md)
+  : Peak of hormesis and substrate inhibition curves
+- [`print(`*`<edTMB>`*`)`](https://daniel-gerhard.github.io/drcTMB/reference/edTMB-methods.md)
+  [`coef(`*`<edTMB>`*`)`](https://daniel-gerhard.github.io/drcTMB/reference/edTMB-methods.md)
+  [`vcov(`*`<edTMB>`*`)`](https://daniel-gerhard.github.io/drcTMB/reference/edTMB-methods.md)
+  : Methods for effective doses, peaks and benchmark doses
+- [`profile(`*`<edTMB>`*`)`](https://daniel-gerhard.github.io/drcTMB/reference/profile.edTMB.md)
+  : Likelihood profiles of effective doses, peak doses and benchmark
+  doses
+
+## Benchmark doses
+
+- [`bmd()`](https://daniel-gerhard.github.io/drcTMB/reference/bmd.md) :
+  Benchmark dose estimation
+- [`bmdma()`](https://daniel-gerhard.github.io/drcTMB/reference/bmdma.md)
+  [`print(`*`<bmdma>`*`)`](https://daniel-gerhard.github.io/drcTMB/reference/bmdma.md)
+  [`coef(`*`<bmdma>`*`)`](https://daniel-gerhard.github.io/drcTMB/reference/bmdma.md)
+  [`confint(`*`<bmdma>`*`)`](https://daniel-gerhard.github.io/drcTMB/reference/bmdma.md)
+  : Model-averaged benchmark dose
+- [`bmdbayes()`](https://daniel-gerhard.github.io/drcTMB/reference/bmdbayes.md)
+  [`coef(`*`<bmdbayes>`*`)`](https://daniel-gerhard.github.io/drcTMB/reference/bmdbayes.md)
+  [`confint(`*`<bmdbayes>`*`)`](https://daniel-gerhard.github.io/drcTMB/reference/bmdbayes.md)
+  [`bmdbayesmodels()`](https://daniel-gerhard.github.io/drcTMB/reference/bmdbayes.md)
+  [`print(`*`<bmdbayes>`*`)`](https://daniel-gerhard.github.io/drcTMB/reference/bmdbayes.md)
+  : Bayesian model-averaged benchmark dose
+- [`bmdefsa()`](https://daniel-gerhard.github.io/drcTMB/reference/bmdefsa.md)
+  : Bayesian model-averaged BMD with the EFSA defaults
+- [`efsapriors()`](https://daniel-gerhard.github.io/drcTMB/reference/efsapriors.md)
+  [`print(`*`<efsapriors>`*`)`](https://daniel-gerhard.github.io/drcTMB/reference/efsapriors.md)
+  : Default priors of the EFSA Bayesian benchmark dose modelling
+- [`fitpert()`](https://daniel-gerhard.github.io/drcTMB/reference/fitpert.md)
+  : A PERT prior from a posterior distribution
+
+## Data sets
+
+- [`chickweed`](https://daniel-gerhard.github.io/drcTMB/reference/chickweed.md)
+  : Germination of common chickweed
+- [`daphnids`](https://daniel-gerhard.github.io/drcTMB/reference/daphnids.md)
+  : Immobility of daphnids
+- [`earthworms`](https://daniel-gerhard.github.io/drcTMB/reference/earthworms.md)
+  : Earthworm toxicity test
+- [`germination`](https://daniel-gerhard.github.io/drcTMB/reference/germination.md)
+  : Germination of three crops
+- [`lettuce`](https://daniel-gerhard.github.io/drcTMB/reference/lettuce.md)
+  : Hormesis in lettuce plants
+- [`liver.tumor`](https://daniel-gerhard.github.io/drcTMB/reference/liver.tumor.md)
+  : Liver tumour incidence after exposure to TCDD (NTP 2006)
+- [`ryegrass`](https://daniel-gerhard.github.io/drcTMB/reference/ryegrass.md)
+  : Effect of ferulic acid on the root growth of ryegrass
+- [`S.alba`](https://daniel-gerhard.github.io/drcTMB/reference/S.alba.md)
+  : Potency of two herbicides in white mustard
+- [`selenium`](https://daniel-gerhard.github.io/drcTMB/reference/selenium.md)
+  : Toxicity of four types of selenium
+- [`TCDD`](https://daniel-gerhard.github.io/drcTMB/reference/TCDD.md) :
+  Liver tumour incidence after exposure to TCDD (Kociba et al. 1978)
+- [`vinclozolin`](https://daniel-gerhard.github.io/drcTMB/reference/vinclozolin.md)
+  : Vinclozolin in an androgen receptor reporter gene assay
+
+# Articles
+
+### All vignettes
+
+- [drcTMB: dose-response models with
+  TMB](https://daniel-gerhard.github.io/drcTMB/articles/drcTMB.md):
