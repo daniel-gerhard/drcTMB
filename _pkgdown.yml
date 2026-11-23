@@ -1,0 +1,57 @@
+url: https://daniel-gerhard.github.io/drcTMB/
+template:
+  bootstrap: 5
+
+navbar:
+  structure:
+    left: [intro, reference, news]
+    right: [search, github]
+
+reference:
+  - title: Model fitting
+    contents:
+      - drmTMB
+      - drmTMBcontrol
+      - drmTMBstart
+      - correlation
+      - priors
+  - title: Methods for fitted models
+    contents:
+      - drmTMB-methods
+      - anova.drmTMB
+      - confint.drmTMB
+      - plot.drmTMB
+      - profile.drmTMB
+      - vcovrobust
+      - bootstrap
+      - marglik
+  - title: Effective doses and peaks
+    contents:
+      - ed
+      - peak
+      - edTMB-methods
+      - profile.edTMB
+  - title: Benchmark doses
+    contents:
+      - bmd
+      - bmdma
+      - bmdbayes
+      - bmdefsa
+      - efsapriors
+      - fitpert
+  - title: Data sets
+    contents:
+      - chickweed
+      - daphnids
+      - earthworms
+      - germination
+      - lettuce
+      - liver.tumor
+      - ryegrass
+      - S.alba
+      - selenium
+      - TCDD
+      - vinclozolin
+  - title: internal
+    contents:
+      - drcTMB-package
